@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/lesson_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 import '../bloc/lesson_bloc.dart';
@@ -29,6 +30,20 @@ class _LessonScreenState extends State<LessonScreen> {
   late LessonBloc _lessonBloc;
   final ScrollController _scrollController = ScrollController();
 
+  bool get _isInstructor {
+    final authState = context.read<AuthBloc>().state;
+    return authState is AuthAuthenticated &&
+        authState.user.role == 'instructor';
+  }
+
+  String get _currentUserId {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      return authState.user.id;
+    }
+    return 'demo_user';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,7 +58,7 @@ class _LessonScreenState extends State<LessonScreen> {
       LoadLessonDetail(
         courseId: widget.courseId,
         lessonId: widget.lessonId,
-        userId: 'demo_user', // In production, get from auth
+        userId: _currentUserId,
       ),
     );
   }
@@ -384,6 +399,7 @@ class _LessonScreenState extends State<LessonScreen> {
   Widget _buildQuizLesson(LessonModel lesson) {
     final content = lesson.content ?? '';
     final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final isInstructor = _isInstructor;
 
     return Padding(
       padding: EdgeInsets.all(isMobile ? 16 : 24),
@@ -421,15 +437,34 @@ class _LessonScreenState extends State<LessonScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () {
-                      context.push(
-                        '/courses/${widget.courseId}/quizzes/${lesson.id}',
-                      );
-                    },
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Start Quiz'),
-                  ),
+                  if (!isInstructor)
+                    FilledButton.icon(
+                      onPressed: () {
+                        context.push(
+                          '/courses/${widget.courseId}/quizzes/${lesson.id}',
+                        );
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Start Quiz'),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.info.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Instructor preview mode',
+                        style: TextStyle(
+                          color: AppColors.info,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -462,7 +497,7 @@ class _LessonScreenState extends State<LessonScreen> {
               currentLessonId: state.lesson.id,
             )
           : null,
-      onMarkComplete: () => _markComplete(),
+      onMarkComplete: _isInstructor ? null : () => _markComplete(),
       isCompleted: isCompleted,
       isLoading: false,
     );
@@ -485,12 +520,16 @@ class _LessonScreenState extends State<LessonScreen> {
   }
 
   void _markComplete() {
+    if (_isInstructor) {
+      return;
+    }
+
     _lessonBloc.add(
       MarkLessonComplete(
         courseId: widget.courseId,
         lessonId: widget.lessonId,
         enrollmentId: 'demo_enrollment', // In production, get from enrollment
-        userId: 'demo_user', // In production, get from auth
+        userId: _currentUserId,
       ),
     );
   }

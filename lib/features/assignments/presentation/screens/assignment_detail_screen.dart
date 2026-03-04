@@ -34,6 +34,12 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
   late TabController _tabController;
   String _currentCode = '';
 
+  bool get _isInstructor {
+    final authState = context.read<AuthBloc>().state;
+    return authState is AuthAuthenticated &&
+        authState.user.role == 'instructor';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -138,7 +144,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
         ],
       ),
       actions: [
-        if (state is AssignmentDetailLoaded && state.hasChanges)
+        if (!_isInstructor &&
+            state is AssignmentDetailLoaded &&
+            state.hasChanges)
           TextButton.icon(
             onPressed: state.isSaving ? null : () => _saveDraft(state),
             icon: state.isSaving
@@ -392,13 +400,37 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
   Widget _buildCodeEditorTab(AssignmentDetailLoaded state) {
     final isSubmitted = state.submission?.isSubmitted == true;
+    final isInstructor = _isInstructor;
 
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isSubmitted)
+          if (isInstructor)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.info.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.visibility, color: AppColors.info, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Instructor preview mode (read-only)',
+                    style: TextStyle(fontSize: 13, color: AppColors.info),
+                  ),
+                ],
+              ),
+            )
+          else if (isSubmitted)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -425,7 +457,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
             child: CodeEditor(
               initialCode: state.currentCode,
               language: state.assignment.language,
-              readOnly: false,
+              readOnly: isInstructor,
               onChanged: (code) {
                 _currentCode = code;
                 _assignmentBloc.add(UpdateCode(code: code));
@@ -439,6 +471,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
   Widget? _buildBottomBar(AssignmentState state) {
     if (state is! AssignmentDetailLoaded) return null;
+    if (_isInstructor) return null;
 
     final isSubmitting = state.isSubmitting;
     final isSubmitted = state.submission?.isSubmitted == true;

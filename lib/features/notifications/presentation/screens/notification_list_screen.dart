@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../bloc/notification_bloc.dart';
@@ -14,19 +15,38 @@ import '../bloc/notification_state.dart';
 class NotificationListScreen extends StatelessWidget {
   const NotificationListScreen({super.key});
 
+  String _currentUserId(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      return authState.user.id;
+    }
+    return 'demo-user-1';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userId = _currentUserId(context);
+    final authState = context.read<AuthBloc>().state;
+    final isInstructor =
+        authState is AuthAuthenticated && authState.user.role == 'instructor';
     return BlocProvider(
       create: (context) => NotificationBloc(
         notificationRepository: context.read<NotificationRepository>(),
-      )..add(const LoadNotifications(userId: 'demo-user')),
-      child: const NotificationListView(),
+      )..add(LoadNotifications(userId: userId)),
+      child: NotificationListView(userId: userId, isInstructor: isInstructor),
     );
   }
 }
 
 class NotificationListView extends StatelessWidget {
-  const NotificationListView({super.key});
+  final String userId;
+  final bool isInstructor;
+
+  const NotificationListView({
+    super.key,
+    required this.userId,
+    required this.isInstructor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +66,7 @@ class NotificationListView extends StatelessWidget {
             onSelected: (value) {
               if (value == 'mark_all_read') {
                 context.read<NotificationBloc>().add(
-                  const MarkAllNotificationsRead(userId: 'demo-user'),
+                  MarkAllNotificationsRead(userId: userId),
                 );
               } else if (value == 'clear_all') {
                 _showClearConfirmation(context);
@@ -88,7 +108,7 @@ class NotificationListView extends StatelessWidget {
         listener: (context, state) {
           if (state is AllNotificationsMarkedRead) {
             context.read<NotificationBloc>().add(
-              const LoadNotifications(userId: 'demo-user'),
+              LoadNotifications(userId: userId),
             );
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -98,11 +118,11 @@ class NotificationListView extends StatelessWidget {
             );
           } else if (state is AllNotificationsCleared) {
             context.read<NotificationBloc>().add(
-              const LoadNotifications(userId: 'demo-user'),
+              LoadNotifications(userId: userId),
             );
           } else if (state is NotificationDeleted) {
             context.read<NotificationBloc>().add(
-              const LoadNotifications(userId: 'demo-user'),
+              LoadNotifications(userId: userId),
             );
           }
         },
@@ -131,7 +151,7 @@ class NotificationListView extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () {
                       context.read<NotificationBloc>().add(
-                        const LoadNotifications(userId: 'demo-user'),
+                        LoadNotifications(userId: userId),
                       );
                     },
                     child: const Text('Retry'),
@@ -143,13 +163,13 @@ class NotificationListView extends StatelessWidget {
 
           if (state is NotificationsLoaded) {
             if (state.notifications.isEmpty) {
-              return _buildEmptyState();
+              return _buildEmptyState(isInstructor);
             }
 
             return RefreshIndicator(
               onRefresh: () async {
                 context.read<NotificationBloc>().add(
-                  const RefreshNotifications(userId: 'demo-user'),
+                  RefreshNotifications(userId: userId),
                 );
               },
               color: AppColors.primary,
@@ -170,25 +190,27 @@ class NotificationListView extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState() {
-    return const Center(
+  Widget _buildEmptyState(bool isInstructor) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             Icons.notifications_none,
             color: AppColors.textSecondary,
             size: 64,
           ),
-          SizedBox(height: 16),
-          Text(
+          const SizedBox(height: 16),
+          const Text(
             'No notifications',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
-            'You\'re all caught up!',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+            isInstructor
+                ? 'No instructor notifications right now.'
+                : 'You\'re all caught up!',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
           ),
         ],
       ),
@@ -339,7 +361,7 @@ class NotificationListView extends StatelessWidget {
             onPressed: () {
               Navigator.of(dialogContext).pop();
               context.read<NotificationBloc>().add(
-                const ClearAllNotifications(userId: 'demo-user'),
+                ClearAllNotifications(userId: userId),
               );
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),

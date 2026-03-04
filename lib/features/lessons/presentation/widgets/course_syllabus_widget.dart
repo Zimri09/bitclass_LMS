@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/lesson_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 import '../bloc/lesson_bloc.dart';
@@ -109,6 +110,9 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
     final modules = state.modules;
     final lessonsByModule = state.lessonsByModule;
     final progressByLesson = state.progressByLesson;
+    final authState = context.read<AuthBloc>().state;
+    final isInstructor =
+        authState is AuthAuthenticated && authState.user.role == 'instructor';
 
     // Collect all lessons
     final allLessons = lessonsByModule.values.expand((l) => l).toList();
@@ -168,24 +172,25 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    '$completedLessons/$totalLessons lessons • $progressPercent%',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                if (!isInstructor)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      '$completedLessons/$totalLessons lessons • $progressPercent%',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

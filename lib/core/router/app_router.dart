@@ -152,6 +152,18 @@ class AppRouter {
             },
           ),
           GoRoute(
+            path: AppRoutes.createLesson,
+            name: 'create-lesson',
+            pageBuilder: (context, state) {
+              final courseId = state.pathParameters['courseId']!;
+              return AppTransitions.slideFromBottom(
+                context: context,
+                state: state,
+                child: LessonEditorScreen(courseId: courseId),
+              );
+            },
+          ),
+          GoRoute(
             path: AppRoutes.lesson,
             name: 'lesson',
             pageBuilder: (context, state) {
@@ -161,18 +173,6 @@ class AppRouter {
                 context: context,
                 state: state,
                 child: LessonScreen(courseId: courseId, lessonId: lessonId),
-              );
-            },
-          ),
-          GoRoute(
-            path: AppRoutes.createLesson,
-            name: 'create-lesson',
-            pageBuilder: (context, state) {
-              final courseId = state.pathParameters['courseId']!;
-              return AppTransitions.slideFromBottom(
-                context: context,
-                state: state,
-                child: LessonEditorScreen(courseId: courseId),
               );
             },
           ),
@@ -193,6 +193,18 @@ class AppRouter {
             },
           ),
           GoRoute(
+            path: AppRoutes.createQuiz,
+            name: 'create-quiz',
+            pageBuilder: (context, state) {
+              final courseId = state.pathParameters['courseId']!;
+              return AppTransitions.slideFromBottom(
+                context: context,
+                state: state,
+                child: QuizEditorScreen(courseId: courseId),
+              );
+            },
+          ),
+          GoRoute(
             path: AppRoutes.quiz,
             name: 'quiz',
             pageBuilder: (context, state) {
@@ -202,18 +214,6 @@ class AppRouter {
                 context: context,
                 state: state,
                 child: QuizScreen(courseId: courseId, quizId: quizId),
-              );
-            },
-          ),
-          GoRoute(
-            path: AppRoutes.createQuiz,
-            name: 'create-quiz',
-            pageBuilder: (context, state) {
-              final courseId = state.pathParameters['courseId']!;
-              return AppTransitions.slideFromBottom(
-                context: context,
-                state: state,
-                child: QuizEditorScreen(courseId: courseId),
               );
             },
           ),
@@ -460,6 +460,25 @@ class AppRouter {
     // If authenticated and on an auth route, redirect to dashboard
     if (authState is AuthAuthenticated && isAuthRoute) {
       return AppRoutes.dashboard;
+    }
+
+    // Instructor-only route guard: redirect non-instructors to dashboard
+    if (authState is AuthAuthenticated && authState.user.role != 'instructor') {
+      const instructorPrefixes = ['/courses/create', '/courses/'];
+      final loc = state.matchedLocation;
+      final isCreateEdit =
+          loc == '/courses/create' ||
+          (loc.contains('/lessons/create') ||
+              loc.contains('/lessons/') && loc.endsWith('/edit') ||
+              loc.contains('/quizzes/create') ||
+              loc.contains('/assignments/create') ||
+              loc.contains('/assignments/') && loc.endsWith('/edit') ||
+              loc.endsWith('/files/upload') ||
+              loc.endsWith('/edit') &&
+                  RegExp(r'/courses/[^/]+/edit$').hasMatch(loc));
+      if (isCreateEdit) {
+        return AppRoutes.dashboard;
+      }
     }
 
     return null;

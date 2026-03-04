@@ -2980,10 +2980,32 @@ class _UploadWidgetState extends State<UploadWidget> {
     String? content,
     String? videoUrl,
     required int durationMinutes,
+    bool isPublished = false,
   }) async {
     final now = DateTime.now();
 
     if (EnvironmentConfig.isDemoMode) {
+      // Auto-create a default module if the specified one doesn't exist
+      final moduleExists = _demoModules.any(
+        (m) => m.id == moduleId && m.courseId == courseId,
+      );
+      if (!moduleExists) {
+        final existingModules = _demoModules
+            .where((m) => m.courseId == courseId)
+            .toList();
+        if (existingModules.isEmpty) {
+          final defaultModule = ModuleModel(
+            id: moduleId,
+            courseId: courseId,
+            title: 'Course Content',
+            order: 0,
+            isPublished: true,
+            createdAt: now,
+          );
+          _demoModules.add(defaultModule);
+        }
+      }
+
       final lesson = LessonModel(
         id: 'lesson-${DateTime.now().millisecondsSinceEpoch}',
         courseId: courseId,
@@ -2995,7 +3017,7 @@ class _UploadWidgetState extends State<UploadWidget> {
         content: content,
         videoUrl: videoUrl,
         durationMinutes: durationMinutes,
-        isPublished: false,
+        isPublished: isPublished,
         createdAt: now,
       );
       _demoLessons.add(lesson);

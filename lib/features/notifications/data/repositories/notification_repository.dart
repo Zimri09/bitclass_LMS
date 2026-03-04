@@ -9,13 +9,17 @@ import '../models/models.dart';
 
 /// Repository for managing notifications
 class NotificationRepository {
+  static const String _demoStudentUserId = 'demo-user-1';
+  static const String _demoInstructorUserId = 'demo-instructor-1';
+  static const String _legacyDemoUserId = 'demo-user';
+
   // Firebase instances (null in demo mode)
   final FirebaseFirestore? _firestore;
   final fcm.FirebaseMessaging? _messaging;
 
   // Demo data storage
   final List<NotificationModel> _notifications = [];
-  NotificationSettings? _settings;
+  final Map<String, NotificationSettings> _settingsByUser = {};
   int _unreadCount = 0;
 
   // Stream controllers for real-time updates
@@ -47,7 +51,7 @@ class NotificationRepository {
     _notifications.addAll([
       NotificationModel(
         id: 'notif-1',
-        userId: 'demo-user',
+        userId: _demoStudentUserId,
         type: NotificationType.newLesson,
         title: 'New Lesson Available',
         body: 'Flutter State Management: Introduction to BLoC is now available',
@@ -57,7 +61,7 @@ class NotificationRepository {
       ),
       NotificationModel(
         id: 'notif-2',
-        userId: 'demo-user',
+        userId: _demoStudentUserId,
         type: NotificationType.assignmentDue,
         title: 'Assignment Due Soon',
         body: 'Flutter Counter App assignment is due in 2 days',
@@ -67,7 +71,7 @@ class NotificationRepository {
       ),
       NotificationModel(
         id: 'notif-3',
-        userId: 'demo-user',
+        userId: _demoStudentUserId,
         type: NotificationType.discussionReply,
         title: 'New Reply to Your Thread',
         body: 'Prof. Johnson replied to "Help with setState"',
@@ -78,7 +82,7 @@ class NotificationRepository {
       ),
       NotificationModel(
         id: 'notif-4',
-        userId: 'demo-user',
+        userId: _demoStudentUserId,
         type: NotificationType.quizGraded,
         title: 'Quiz Results Ready',
         body: 'Your Dart Fundamentals quiz has been graded: 85%',
@@ -89,7 +93,7 @@ class NotificationRepository {
       ),
       NotificationModel(
         id: 'notif-5',
-        userId: 'demo-user',
+        userId: _demoStudentUserId,
         type: NotificationType.announcement,
         title: 'Course Announcement',
         body: 'Office hours this Friday have been moved to 3 PM',
@@ -98,7 +102,7 @@ class NotificationRepository {
       ),
       NotificationModel(
         id: 'notif-6',
-        userId: 'demo-user',
+        userId: _demoStudentUserId,
         type: NotificationType.assignmentGraded,
         title: 'Assignment Graded',
         body: 'Python FizzBuzz Solution received 95/100',
@@ -109,7 +113,7 @@ class NotificationRepository {
       ),
       NotificationModel(
         id: 'notif-7',
-        userId: 'demo-user',
+        userId: _demoStudentUserId,
         type: NotificationType.enrollment,
         title: 'Welcome to the Course!',
         body: 'You have successfully enrolled in Flutter Development',
@@ -118,10 +122,69 @@ class NotificationRepository {
         courseId: 'course-1',
         actionUrl: '/courses/course-1',
       ),
+      NotificationModel(
+        id: 'notif-inst-1',
+        userId: _demoInstructorUserId,
+        type: NotificationType.enrollment,
+        title: 'New Student Enrollment',
+        body: 'A new student enrolled in Introduction to Flutter',
+        createdAt: now.subtract(const Duration(minutes: 20)),
+        courseId: 'course-1',
+        actionUrl: '/courses/course-1/students',
+      ),
+      NotificationModel(
+        id: 'notif-inst-2',
+        userId: _demoInstructorUserId,
+        type: NotificationType.discussionMention,
+        title: 'You were mentioned in a discussion',
+        body: 'A student tagged you in Q&A: Widget lifecycle question',
+        createdAt: now.subtract(const Duration(hours: 1)),
+        courseId: 'course-1',
+        actionUrl: '/courses/course-1/discussions',
+      ),
+      NotificationModel(
+        id: 'notif-inst-3',
+        userId: _demoInstructorUserId,
+        type: NotificationType.newAssignment,
+        title: 'Submission Waiting for Review',
+        body: 'You have new assignment submissions to grade',
+        isRead: true,
+        createdAt: now.subtract(const Duration(hours: 4)),
+        courseId: 'course-1',
+        actionUrl: '/my-courses',
+      ),
+      NotificationModel(
+        id: 'notif-inst-4',
+        userId: _demoInstructorUserId,
+        type: NotificationType.announcement,
+        title: 'Instructor Reminder',
+        body: 'Publish this week\'s lesson and quiz for Course 2',
+        isRead: true,
+        createdAt: now.subtract(const Duration(days: 1)),
+        courseId: 'course-2',
+      ),
     ]);
 
-    _settings = NotificationSettings.defaults('demo-user');
+    _settingsByUser[_demoStudentUserId] = NotificationSettings.defaults(
+      _demoStudentUserId,
+    );
+    _settingsByUser[_demoInstructorUserId] = NotificationSettings.defaults(
+      _demoInstructorUserId,
+    );
     _updateUnreadCount();
+  }
+
+  String _normalizeDemoUserId(String userId) {
+    if (userId == _legacyDemoUserId) {
+      return _demoStudentUserId;
+    }
+    return userId;
+  }
+
+  bool _isDemoUserMatch(String storedUserId, String requestedUserId) {
+    final normalizedStored = _normalizeDemoUserId(storedUserId);
+    final normalizedRequested = _normalizeDemoUserId(requestedUserId);
+    return normalizedStored == normalizedRequested;
   }
 
   void _updateUnreadCount() {
@@ -133,7 +196,9 @@ class NotificationRepository {
   Future<List<NotificationModel>> getNotifications(String userId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
-      return _notifications.where((n) => n.userId == userId).toList()
+      return _notifications
+          .where((n) => _isDemoUserMatch(n.userId, userId))
+          .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
 
@@ -152,7 +217,7 @@ class NotificationRepository {
   Future<int> getUnreadCount(String userId) async {
     if (EnvironmentConfig.isDemoMode) {
       return _notifications
-          .where((n) => n.userId == userId && !n.isRead)
+          .where((n) => _isDemoUserMatch(n.userId, userId) && !n.isRead)
           .length;
     }
 
@@ -202,7 +267,8 @@ class NotificationRepository {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 200));
       for (var i = 0; i < _notifications.length; i++) {
-        if (_notifications[i].userId == userId && !_notifications[i].isRead) {
+        if (_isDemoUserMatch(_notifications[i].userId, userId) &&
+            !_notifications[i].isRead) {
           _notifications[i] = _notifications[i].copyWith(isRead: true);
         }
       }
@@ -246,7 +312,7 @@ class NotificationRepository {
   Future<void> clearAllNotifications(String userId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 200));
-      _notifications.removeWhere((n) => n.userId == userId);
+      _notifications.removeWhere((n) => _isDemoUserMatch(n.userId, userId));
       _updateUnreadCount();
       _notificationsController.add(_notifications);
       return;
@@ -270,7 +336,9 @@ class NotificationRepository {
   Future<NotificationSettings> getSettings(String userId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 200));
-      return _settings ?? NotificationSettings.defaults(userId);
+      final normalizedUserId = _normalizeDemoUserId(userId);
+      return _settingsByUser[normalizedUserId] ??
+          NotificationSettings.defaults(normalizedUserId);
     }
 
     final doc = await _firestore!
@@ -301,9 +369,10 @@ class NotificationRepository {
   ) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 200));
-      _settings = settings.copyWith(updatedAt: DateTime.now());
-      _settingsController.add(_settings!);
-      return _settings!;
+      final updated = settings.copyWith(updatedAt: DateTime.now());
+      _settingsByUser[_normalizeDemoUserId(settings.userId)] = updated;
+      _settingsController.add(updated);
+      return updated;
     }
 
     final updatedSettings = settings.copyWith(updatedAt: DateTime.now());

@@ -238,6 +238,18 @@ class _InstructorCourseCard extends StatelessWidget {
                 case 'lessons':
                   context.push('/courses/${course.id}');
                   break;
+                case 'add_lesson':
+                  context.push('/courses/${course.id}/lessons/create');
+                  break;
+                case 'add_quiz':
+                  context.push('/courses/${course.id}/quizzes/create');
+                  break;
+                case 'add_assignment':
+                  context.push('/courses/${course.id}/assignments/create');
+                  break;
+                case 'upload_files':
+                  context.push(AppRoutes.uploadFilePath(course.id));
+                  break;
                 case 'publish':
                   _togglePublish(context);
                   break;
@@ -253,7 +265,7 @@ class _InstructorCourseCard extends StatelessWidget {
                   children: [
                     Icon(Icons.edit, size: 20),
                     SizedBox(width: 8),
-                    Text('Edit'),
+                    Text('Edit Course'),
                   ],
                 ),
               ),
@@ -263,10 +275,52 @@ class _InstructorCourseCard extends StatelessWidget {
                   children: [
                     Icon(Icons.menu_book, size: 20),
                     SizedBox(width: 8),
-                    Text('Manage Lessons'),
+                    Text('Manage Content'),
                   ],
                 ),
               ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'add_lesson',
+                child: Row(
+                  children: [
+                    Icon(Icons.video_library_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('Add Lesson'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'add_quiz',
+                child: Row(
+                  children: [
+                    Icon(Icons.quiz_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('Add Quiz'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'add_assignment',
+                child: Row(
+                  children: [
+                    Icon(Icons.assignment_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('Add Assignment'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'upload_files',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload_file_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('Upload Files'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               PopupMenuItem(
                 value: 'publish',
                 child: Row(

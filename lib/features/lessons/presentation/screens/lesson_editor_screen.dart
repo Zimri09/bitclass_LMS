@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../data/models/lesson_model.dart';
+import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 
 /// Screen for creating and editing lessons
@@ -32,18 +33,37 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   bool _isLoading = false;
   bool _isSaving = false;
   LessonModel? _lesson;
+  List<ModuleModel> _modules = [];
 
   // Lesson settings
   LessonType _lessonType = LessonType.text;
-  String _moduleId = 'module-1'; // Default module
+  String? _moduleId; // loaded dynamically
   bool _isPublished = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadModules();
     if (widget.lessonId != null) {
       _loadLesson();
+    }
+  }
+
+  Future<void> _loadModules() async {
+    try {
+      final repo = context.read<LessonRepository>();
+      final modules = await repo.getModules(widget.courseId);
+      if (mounted) {
+        setState(() {
+          _modules = modules;
+          if (_moduleId == null && modules.isNotEmpty) {
+            _moduleId = modules.first.id;
+          }
+        });
+      }
+    } catch (_) {
+      // ignore — module picker will be empty
     }
   }
 
@@ -94,7 +114,9 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
       if (widget.lessonId == null) {
         await repo.createLesson(
           courseId: widget.courseId,
-          moduleId: _moduleId,
+          moduleId:
+              _moduleId ??
+              (_modules.isNotEmpty ? _modules.first.id : 'default-module'),
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim().isEmpty
               ? null
@@ -108,6 +130,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               ? null
               : _videoUrlController.text.trim(),
           durationMinutes: int.tryParse(_durationController.text) ?? 10,
+          isPublished: _isPublished,
         );
       } else {
         await repo.updateLesson(widget.courseId, widget.lessonId!, {
@@ -283,6 +306,24 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               children: [
                 Text('Settings', style: AppTextStyles.h4),
                 const SizedBox(height: 16),
+
+                // Module picker
+                if (_modules.isNotEmpty) ...[
+                  DropdownButtonFormField<String>(
+                    value: _moduleId,
+                    decoration: const InputDecoration(labelText: 'Module'),
+                    items: _modules.map<DropdownMenuItem<String>>((m) {
+                      return DropdownMenuItem<String>(
+                        value: m.id,
+                        child: Text(m.title),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) setState(() => _moduleId = value);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // Duration
                 TextFormField(

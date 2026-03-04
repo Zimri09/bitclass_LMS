@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/quiz_repository.dart';
 import '../bloc/quiz_bloc.dart';
@@ -25,6 +26,20 @@ class _QuizScreenState extends State<QuizScreen> {
   final TextEditingController _codeController = TextEditingController();
   final Set<String> _selectedAnswers = {};
 
+  bool get _isInstructor {
+    final authState = context.read<AuthBloc>().state;
+    return authState is AuthAuthenticated &&
+        authState.user.role == 'instructor';
+  }
+
+  String get _currentUserId {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      return authState.user.id;
+    }
+    return 'demo_user';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -33,7 +48,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _loadQuiz() {
-    _quizBloc.add(LoadQuiz(quizId: widget.quizId, userId: 'demo_user'));
+    _quizBloc.add(LoadQuiz(quizId: widget.quizId, userId: _currentUserId));
   }
 
   @override
@@ -190,6 +205,7 @@ class _QuizScreenState extends State<QuizScreen> {
     final quiz = state.quiz;
     final isMobile = MediaQuery.sizeOf(context).width < 600;
     final padding = isMobile ? 16.0 : 24.0;
+    final isInstructor = _isInstructor;
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(padding),
@@ -282,7 +298,7 @@ class _QuizScreenState extends State<QuizScreen> {
           const SizedBox(height: 24),
 
           // Previous attempts
-          if (state.previousAttempts.isNotEmpty) ...[
+          if (!isInstructor && state.previousAttempts.isNotEmpty) ...[
             Text(
               'Previous Attempts',
               style: GoogleFonts.inter(
@@ -297,7 +313,7 @@ class _QuizScreenState extends State<QuizScreen> {
           ],
 
           // Attempts remaining
-          if (state.attemptsRemaining > 0) ...[
+          if (!isInstructor && state.attemptsRemaining > 0) ...[
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -320,27 +336,54 @@ class _QuizScreenState extends State<QuizScreen> {
             const SizedBox(height: 24),
           ],
 
-          // Start button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: state.canAttempt ? _startQuiz : null,
-              icon: const Icon(Icons.play_arrow),
-              label: Text(
-                state.previousAttempts.isEmpty ? 'Start Quiz' : 'Retake Quiz',
-              ),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+          if (!isInstructor) ...[
+            // Start button
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: state.canAttempt ? _startQuiz : null,
+                icon: const Icon(Icons.play_arrow),
+                label: Text(
+                  state.previousAttempts.isEmpty ? 'Start Quiz' : 'Retake Quiz',
+                ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
               ),
             ),
-          ),
 
-          if (!state.canAttempt) ...[
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                'No attempts remaining',
-                style: TextStyle(color: AppColors.error),
+            if (!state.canAttempt) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  'No attempts remaining',
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
+            ],
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.info.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.visibility, color: AppColors.info, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Instructor preview mode',
+                    style: TextStyle(
+                      color: AppColors.info,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -404,7 +447,13 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _startQuiz() {
-    _quizBloc.add(StartQuizAttempt(quizId: widget.quizId, userId: 'demo_user'));
+    if (_isInstructor) {
+      return;
+    }
+
+    _quizBloc.add(
+      StartQuizAttempt(quizId: widget.quizId, userId: _currentUserId),
+    );
   }
 
   Widget _buildQuizInProgress(BuildContext context, QuizInProgress state) {

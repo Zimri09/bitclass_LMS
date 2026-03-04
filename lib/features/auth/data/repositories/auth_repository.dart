@@ -11,6 +11,9 @@ class AuthRepository {
   final FirebaseAuth? _firebaseAuth;
   final FirebaseFirestore? _firestore;
 
+  static const String _demoStudentUserId = 'demo-user-1';
+  static const String _demoInstructorUserId = 'demo-instructor-1';
+
   // Demo mode state
   UserModel? _demoUser;
   final _demoAuthController = StreamController<User?>.broadcast();
@@ -60,11 +63,13 @@ class AuthRepository {
     // Demo mode: simulate login
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
+      final normalizedEmail = email.trim().toLowerCase();
+      final isInstructor = normalizedEmail.contains('instructor');
       _demoUser = UserModel(
-        id: 'demo-user-1',
-        email: email,
-        displayName: email.split('@').first,
-        role: email.contains('instructor') ? 'instructor' : 'student',
+        id: isInstructor ? _demoInstructorUserId : _demoStudentUserId,
+        email: normalizedEmail,
+        displayName: isInstructor ? 'Demo Instructor' : 'Demo Student',
+        role: isInstructor ? 'instructor' : 'student',
         createdAt: DateTime.now(),
       );
       _demoAuthController.add(null); // Trigger auth state change

@@ -6,6 +6,7 @@ import '../models/models.dart';
 class SettingsRepository {
   static const String _boxName = 'app_settings';
   static const String _settingsKey = 'settings';
+  static const String _themeDefaultAppliedKey = 'theme_default_applied_v1';
 
   Box? _box;
 
@@ -18,8 +19,20 @@ class SettingsRepository {
   Future<AppSettingsModel> getSettings() async {
     await _ensureBoxOpen();
     final data = _box!.get(_settingsKey);
-    if (data == null) return AppSettingsModel.defaults;
-    return AppSettingsModel.fromMap(Map<String, dynamic>.from(data as Map));
+    final currentSettings = data == null
+        ? AppSettingsModel.defaults
+        : AppSettingsModel.fromMap(Map<String, dynamic>.from(data as Map));
+
+    final themeDefaultApplied =
+        _box!.get(_themeDefaultAppliedKey) as bool? ?? false;
+    if (!themeDefaultApplied) {
+      final updatedSettings = currentSettings.copyWith(darkMode: true);
+      await _box!.put(_settingsKey, updatedSettings.toMap());
+      await _box!.put(_themeDefaultAppliedKey, true);
+      return updatedSettings;
+    }
+
+    return currentSettings;
   }
 
   /// Persist settings to local storage

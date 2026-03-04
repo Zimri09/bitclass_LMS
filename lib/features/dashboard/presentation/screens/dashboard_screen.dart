@@ -275,6 +275,14 @@ class _DashboardContent extends StatelessWidget {
               },
             ),
             _QuickAction(
+              icon: Icons.assignment_outlined,
+              label: 'Manage Assignments',
+              color: AppColors.info,
+              onTap: () {
+                context.push('/my-courses');
+              },
+            ),
+            _QuickAction(
               icon: Icons.campaign,
               label: 'Announcement',
               color: AppColors.secondary,

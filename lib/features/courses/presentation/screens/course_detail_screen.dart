@@ -90,13 +90,32 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   }
 }
 
-class _CourseDetailContent extends StatelessWidget {
+class _CourseDetailContent extends StatefulWidget {
   final CourseModel course;
   final EnrollmentModel? enrollment;
 
   const _CourseDetailContent({required this.course, this.enrollment});
 
+  @override
+  State<_CourseDetailContent> createState() => _CourseDetailContentState();
+}
+
+class _CourseDetailContentState extends State<_CourseDetailContent> {
+  int _syllabusRefreshKey = 0;
+  int _quizRefreshKey = 0;
+
+  CourseModel get course => widget.course;
+  EnrollmentModel? get enrollment => widget.enrollment;
   bool get isEnrolled => enrollment != null;
+
+  void _refreshContent() {
+    if (mounted) {
+      setState(() {
+        _syllabusRefreshKey++;
+        _quizRefreshKey++;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,9 +169,11 @@ class _CourseDetailContent extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Text(
                   course.category,
@@ -214,34 +235,29 @@ class _CourseDetailContent extends StatelessWidget {
               if (isOwnCourse) ...[
                 _buildEnrolledStudentsSection(context),
                 const SizedBox(height: 32),
+                _buildInstructorContentSection(context),
+                const SizedBox(height: 16),
+                _buildManageAssignmentsLink(context),
+                const SizedBox(height: 32),
               ],
 
               // Quizzes section (visible to enrolled students and course owner)
               if (isEnrolled || isOwnCourse) ...[
-                Text('Quizzes', style: AppTextStyles.h3),
+                Text(
+                  isOwnCourse ? 'Manage Quizzes' : 'Quizzes',
+                  style: AppTextStyles.h3,
+                ),
                 const SizedBox(height: 12),
-                _CourseQuizzesSection(courseId: course.id),
-                const SizedBox(height: 32),
-              ],
-
-              // Assignments section
-              if (isEnrolled || isOwnCourse) ...[
-                Text('Assignments', style: AppTextStyles.h3),
-                const SizedBox(height: 12),
-                _buildAssignmentsLink(context),
-                const SizedBox(height: 32),
-              ],
-
-              // Discussions section
-              if (isEnrolled || isOwnCourse) ...[
-                Text('Discussions', style: AppTextStyles.h3),
-                const SizedBox(height: 12),
+                _CourseQuizzesSection(
+                  key: ValueKey('quizzes-$_quizRefreshKey'),
+                  courseId: course.id,
+                ),
                 _buildDiscussionsLink(context),
                 const SizedBox(height: 32),
               ],
 
               // Progress (if enrolled)
-              if (isEnrolled) ...[
+              if (isEnrolled && !isInstructor) ...[
                 Text('Your Progress', style: AppTextStyles.h3),
                 const SizedBox(height: 12),
                 _buildProgressCard(),
@@ -415,7 +431,113 @@ class _CourseDetailContent extends StatelessWidget {
 
   Widget _buildCourseSyllabus() {
     // Use the real CourseSyllabusWidget to show modules and lessons
-    return CourseSyllabusWidget(courseId: course.id, showHeader: true);
+    return CourseSyllabusWidget(
+      key: ValueKey('syllabus-$_syllabusRefreshKey'),
+      courseId: course.id,
+      showHeader: true,
+    );
+  }
+
+  Widget _buildInstructorContentSection(BuildContext context) {
+    return GlowCard(
+      glowColor: AppColors.primary,
+      glowIntensity: 0.08,
+      isHoverable: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.build_circle_outlined,
+                color: AppColors.primary,
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Text('Manage Content', style: AppTextStyles.h3),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildInstructorAction(
+                context,
+                icon: Icons.video_library_outlined,
+                label: 'Add Lesson',
+                color: AppColors.primary,
+                onTap: () => context
+                    .push('/courses/${course.id}/lessons/create')
+                    .then((_) => _refreshContent()),
+              ),
+              _buildInstructorAction(
+                context,
+                icon: Icons.quiz_outlined,
+                label: 'Add Quiz',
+                color: AppColors.secondary,
+                onTap: () => context
+                    .push('/courses/${course.id}/quizzes/create')
+                    .then((_) => _refreshContent()),
+              ),
+              _buildInstructorAction(
+                context,
+                icon: Icons.assignment_outlined,
+                label: 'Add Assignment',
+                color: AppColors.warning,
+                onTap: () => context
+                    .push('/courses/${course.id}/assignments/create')
+                    .then((_) => _refreshContent()),
+              ),
+              _buildInstructorAction(
+                context,
+                icon: Icons.upload_file_outlined,
+                label: 'Upload Files',
+                color: AppColors.success,
+                onTap: () => context
+                    .push(AppRoutes.uploadFilePath(course.id))
+                    .then((_) => _refreshContent()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstructorAction(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildProgressCard() {
@@ -502,9 +624,9 @@ class _CourseDetailContent extends StatelessWidget {
     );
   }
 
-  Widget _buildAssignmentsLink(BuildContext context) {
+  Widget _buildManageAssignmentsLink(BuildContext context) {
     return GlowCard(
-      glowColor: AppColors.secondary,
+      glowColor: AppColors.warning,
       glowIntensity: 0.08,
       onTap: () => context.push('/courses/${course.id}/assignments'),
       child: Row(
@@ -512,20 +634,23 @@ class _CourseDetailContent extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.1),
+              color: AppColors.warning.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.assignment_outlined, color: AppColors.secondary),
+            child: const Icon(
+              Icons.assignment_outlined,
+              color: AppColors.warning,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Assignments', style: AppTextStyles.bodyLarge),
+                Text('Manage Assignments', style: AppTextStyles.bodyLarge),
                 const SizedBox(height: 4),
                 Text(
-                  'View and submit course assignments',
+                  'View assignments and manage submissions',
                   style: AppTextStyles.bodySmall.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -533,7 +658,7 @@ class _CourseDetailContent extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.chevron_right, color: AppColors.textMuted),
+          const Icon(Icons.chevron_right, color: AppColors.textMuted),
         ],
       ),
     );
@@ -544,7 +669,7 @@ class _CourseDetailContent extends StatelessWidget {
 class _CourseQuizzesSection extends StatelessWidget {
   final String courseId;
 
-  const _CourseQuizzesSection({required this.courseId});
+  const _CourseQuizzesSection({super.key, required this.courseId});
 
   @override
   Widget build(BuildContext context) {

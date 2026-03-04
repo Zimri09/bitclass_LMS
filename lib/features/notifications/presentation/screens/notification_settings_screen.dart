@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../bloc/notification_bloc.dart';
@@ -12,19 +13,41 @@ import '../bloc/notification_state.dart';
 class NotificationSettingsScreen extends StatelessWidget {
   const NotificationSettingsScreen({super.key});
 
+  String _currentUserId(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      return authState.user.id;
+    }
+    return 'demo-user-1';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userId = _currentUserId(context);
+    final authState = context.read<AuthBloc>().state;
+    final isInstructor =
+        authState is AuthAuthenticated && authState.user.role == 'instructor';
     return BlocProvider(
       create: (context) => NotificationBloc(
         notificationRepository: context.read<NotificationRepository>(),
-      )..add(const LoadNotificationSettings(userId: 'demo-user')),
-      child: const NotificationSettingsView(),
+      )..add(LoadNotificationSettings(userId: userId)),
+      child: NotificationSettingsView(
+        userId: userId,
+        isInstructor: isInstructor,
+      ),
     );
   }
 }
 
 class NotificationSettingsView extends StatelessWidget {
-  const NotificationSettingsView({super.key});
+  final String userId;
+  final bool isInstructor;
+
+  const NotificationSettingsView({
+    super.key,
+    required this.userId,
+    required this.isInstructor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +62,7 @@ class NotificationSettingsView extends StatelessWidget {
           if (state is NotificationSettingsUpdated) {
             // Reload settings to refresh UI
             context.read<NotificationBloc>().add(
-              const LoadNotificationSettings(userId: 'demo-user'),
+              LoadNotificationSettings(userId: userId),
             );
           }
         },
@@ -102,7 +125,7 @@ class NotificationSettingsView extends StatelessWidget {
               activeThumbColor: AppColors.primary,
               onChanged: (value) {
                 context.read<NotificationBloc>().add(
-                  TogglePushNotifications(userId: 'demo-user', enabled: value),
+                  TogglePushNotifications(userId: userId, enabled: value),
                 );
               },
             ),
@@ -124,8 +147,10 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.newLesson,
                   Icons.book,
-                  'New Lessons',
-                  'When new content is added to your courses',
+                  isInstructor ? 'Lesson Updates' : 'New Lessons',
+                  isInstructor
+                      ? 'When lesson/content changes happen in your courses'
+                      : 'When new content is added to your courses',
                 ),
                 _buildDivider(),
                 _buildTypeToggle(
@@ -133,8 +158,10 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.newAssignment,
                   Icons.assignment,
-                  'Assignments',
-                  'New assignments and due date reminders',
+                  isInstructor ? 'Submissions' : 'Assignments',
+                  isInstructor
+                      ? 'New assignment submissions that need review'
+                      : 'New assignments and due date reminders',
                 ),
                 _buildDivider(),
                 _buildTypeToggle(
@@ -142,8 +169,10 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.assignmentGraded,
                   Icons.grade,
-                  'Grades',
-                  'When your work is graded',
+                  isInstructor ? 'Submission Reviews' : 'Grades',
+                  isInstructor
+                      ? 'Status updates while grading student work'
+                      : 'When your work is graded',
                 ),
                 _buildDivider(),
                 _buildTypeToggle(
@@ -151,8 +180,10 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.quizAvailable,
                   Icons.quiz,
-                  'Quizzes',
-                  'Quiz availability and results',
+                  isInstructor ? 'Quiz Activity' : 'Quizzes',
+                  isInstructor
+                      ? 'Quiz publishing and learner activity updates'
+                      : 'Quiz availability and results',
                 ),
                 _buildDivider(),
                 _buildTypeToggle(
@@ -161,7 +192,9 @@ class NotificationSettingsView extends StatelessWidget {
                   NotificationType.discussionReply,
                   Icons.chat_bubble,
                   'Discussions',
-                  'Replies to your posts and mentions',
+                  isInstructor
+                      ? 'Replies, mentions, and student questions'
+                      : 'Replies to your posts and mentions',
                 ),
                 _buildDivider(),
                 _buildTypeToggle(
@@ -307,7 +340,7 @@ class NotificationSettingsView extends StatelessWidget {
             ? (value) {
                 context.read<NotificationBloc>().add(
                   ToggleNotificationType(
-                    userId: 'demo-user',
+                    userId: userId,
                     type: type,
                     enabled: value,
                   ),
