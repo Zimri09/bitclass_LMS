@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "157798445220",
+    "project_id": "bitclass-lms",
+    "storage_bucket": "bitclass-lms.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:157798445220:android:9ecbbace73b12627da7631",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "157798445220-en661a8fgr5vbbdq8bg3er2sd4pd0an6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVwK9rK948v-hRoG7VW8zKRHaS_hxicXw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "157798445220-en661a8fgr5vbbdq8bg3er2sd4pd0an6.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "157798445220-f9sjsv2lgo3jv011i1e3kphcpul2bbh8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterApplication1"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
