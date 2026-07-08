@@ -53,15 +53,14 @@ class NotificationListView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
-        backgroundColor: AppColors.background,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: Icon(Icons.settings_outlined),
             onPressed: () => context.push('/notifications/settings'),
             tooltip: 'Notification Settings',
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
+            icon: Icon(Icons.more_vert),
             color: AppColors.surface,
             onSelected: (value) {
               if (value == 'mark_all_read') {
@@ -73,7 +72,7 @@ class NotificationListView extends StatelessWidget {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'mark_all_read',
                 child: Row(
                   children: [
@@ -86,7 +85,7 @@ class NotificationListView extends StatelessWidget {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'clear_all',
                 child: Row(
                   children: [
@@ -103,7 +102,6 @@ class NotificationListView extends StatelessWidget {
           ),
         ],
       ),
-      backgroundColor: AppColors.background,
       body: BlocConsumer<NotificationBloc, NotificationState>(
         listener: (context, state) {
           if (state is AllNotificationsMarkedRead) {
@@ -111,7 +109,7 @@ class NotificationListView extends StatelessWidget {
               LoadNotifications(userId: userId),
             );
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('All notifications marked as read'),
                 backgroundColor: AppColors.success,
               ),
@@ -136,7 +134,7 @@ class NotificationListView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.error_outline,
                     color: AppColors.error,
                     size: 48,
@@ -144,7 +142,7 @@ class NotificationListView extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     state.message,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -195,13 +193,13 @@ class NotificationListView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.notifications_none,
             color: AppColors.textSecondary,
             size: 64,
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No notifications',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
           ),
@@ -210,7 +208,7 @@ class NotificationListView extends StatelessWidget {
             isInstructor
                 ? 'No instructor notifications right now.'
                 : 'You\'re all caught up!',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
           ),
         ],
       ),
@@ -228,7 +226,7 @@ class NotificationListView extends StatelessWidget {
         color: AppColors.error,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (_) {
         context.read<NotificationBloc>().add(
@@ -287,7 +285,7 @@ class NotificationListView extends StatelessWidget {
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: AppColors.primary,
                               shape: BoxShape.circle,
                             ),
@@ -297,7 +295,7 @@ class NotificationListView extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       notification.body,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
                       ),
@@ -307,7 +305,7 @@ class NotificationListView extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       _formatTime(notification.createdAt),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 12,
                       ),
@@ -343,12 +341,11 @@ class NotificationListView extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
+        title: Text(
           'Clear All Notifications?',
           style: TextStyle(color: AppColors.textPrimary),
         ),
-        content: const Text(
+        content: Text(
           'This will permanently delete all your notifications. This action cannot be undone.',
           style: TextStyle(color: AppColors.textSecondary),
         ),

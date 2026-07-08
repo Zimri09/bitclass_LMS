@@ -251,7 +251,7 @@ class _CodeEditorState extends State<CodeEditor> {
   Widget _buildToolbar(Color accentColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
         border: Border(bottom: BorderSide(color: AppColors.border)),
@@ -349,7 +349,7 @@ class _CodeEditorState extends State<CodeEditor> {
     return Container(
       width: 50,
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(right: BorderSide(color: AppColors.border)),
       ),
       child: Column(

@@ -1,15 +1,15 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../models/user_model.dart';
 
 /// Repository handling authentication and user profile operations
 class AuthRepository {
-  final FirebaseAuth? _firebaseAuth;
-  final FirebaseFirestore? _firestore;
+  static const String _profilesTable = 'profiles';
+
+  final SupabaseClient? _supabase;
 
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoInstructorUserId = 'demo-instructor-1';
@@ -18,22 +18,19 @@ class AuthRepository {
   UserModel? _demoUser;
   final _demoAuthController = StreamController<User?>.broadcast();
 
-  AuthRepository({FirebaseAuth? firebaseAuth, FirebaseFirestore? firestore})
-    : _firebaseAuth = EnvironmentConfig.isDemoMode
+  AuthRepository({SupabaseClient? supabase})
+    : _supabase = EnvironmentConfig.isDemoMode
           ? null
-          : (firebaseAuth ?? FirebaseAuth.instance),
-      _firestore = EnvironmentConfig.isDemoMode
-          ? null
-          : (firestore ?? FirebaseFirestore.instance);
+          : (supabase ?? Supabase.instance.client);
 
   /// Stream of authentication state changes
   Stream<User?> get authStateChanges => EnvironmentConfig.isDemoMode
       ? _demoAuthController.stream
-      : _firebaseAuth!.authStateChanges();
+      : _supabase!.auth.onAuthStateChange.map((event) => event.session?.user);
 
-  /// Get current Firebase user
+  /// Get current authenticated user
   User? get currentUser =>
-      EnvironmentConfig.isDemoMode ? null : _firebaseAuth!.currentUser;
+      EnvironmentConfig.isDemoMode ? null : _supabase!.auth.currentUser;
 
   /// Get demo user (for demo mode)
   UserModel? get demoUser => _demoUser;
@@ -45,14 +42,15 @@ class AuthRepository {
     final user = currentUser;
     if (user == null) return null;
 
-    final doc = await _firestore!
-        .collection(FirestorePaths.users)
-        .doc(user.uid)
-        .get();
+    final row = await _supabase!
+        .from(_profilesTable)
+        .select()
+        .eq('id', user.id)
+        .maybeSingle();
 
-    if (!doc.exists) return null;
+    if (row == null) return null;
 
-    return UserModel.fromMap(doc.data()!, doc.id);
+    return UserModel.fromMap(_rowToUserMap(row), user.id);
   }
 
   /// Sign in with email and password
@@ -77,37 +75,26 @@ class AuthRepository {
     }
 
     try {
-      final credential = await _firebaseAuth!.signInWithEmailAndPassword(
+      final response = await _supabase!.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
-      final user = credential.user;
+      final user = response.user;
       if (user == null) {
         throw Exception('Sign in failed: No user returned');
       }
 
-      // Fetch user profile from Firestore
       var profile = await getCurrentUserProfile();
-
-      // If profile doesn't exist, create it (user was created via Firebase Console)
-      if (profile == null) {
-        profile = UserModel.create(
-          id: user.uid,
-          email: user.email ?? email,
-          role: 'student', // Default role for users created outside the app
-          displayName: user.displayName,
-        );
-
-        await _firestore!
-            .collection(FirestorePaths.users)
-            .doc(user.uid)
-            .set(profile.toMap());
-      }
+      profile ??= await _createOrSyncProfileFromAuth(
+        user,
+        defaultRole: 'student',
+        displayName: user.userMetadata?['display_name'] as String?,
+      );
 
       return profile;
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+    } on AuthException catch (e) {
+      throw _handleAuthException(e.message);
     }
   }
 
@@ -133,33 +120,29 @@ class AuthRepository {
     }
 
     try {
-      // Create Firebase Auth user
-      final credential = await _firebaseAuth!.createUserWithEmailAndPassword(
+      final response = await _supabase!.auth.signUp(
         email: email,
         password: password,
+        data: <String, dynamic>{
+          'role': role,
+          'display_name': displayName ?? email.split('@').first,
+        },
       );
 
-      final user = credential.user;
+      final user = response.user;
       if (user == null) {
         throw Exception('Registration failed: No user returned');
       }
 
-      // Create user profile in Firestore
-      final userModel = UserModel.create(
-        id: user.uid,
-        email: email,
-        role: role,
+      final profile = await _createOrSyncProfileFromAuth(
+        user,
+        defaultRole: role,
         displayName: displayName,
       );
 
-      await _firestore!
-          .collection(FirestorePaths.users)
-          .doc(user.uid)
-          .set(userModel.toMap());
-
-      return userModel;
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      return profile;
+    } on AuthException catch (e) {
+      throw _handleAuthException(e.message);
     }
   }
 
@@ -170,7 +153,7 @@ class AuthRepository {
       _demoAuthController.add(null);
       return;
     }
-    await _firebaseAuth!.signOut();
+    await _supabase!.auth.signOut();
   }
 
   /// Send password reset email
@@ -180,9 +163,9 @@ class AuthRepository {
       return; // Simulate success
     }
     try {
-      await _firebaseAuth!.sendPasswordResetEmail(email: email);
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      await _supabase!.auth.resetPasswordForEmail(email);
+    } on AuthException catch (e) {
+      throw _handleAuthException(e.message);
     }
   }
 
@@ -212,17 +195,14 @@ class AuthRepository {
     }
 
     final updates = <String, dynamic>{
-      'updatedAt': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
 
-    if (displayName != null) updates['displayName'] = displayName;
+    if (displayName != null) updates['display_name'] = displayName;
     if (bio != null) updates['bio'] = bio;
-    if (avatarUrl != null) updates['avatarUrl'] = avatarUrl;
+    if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
 
-    await _firestore!
-        .collection(FirestorePaths.users)
-        .doc(user.uid)
-        .update(updates);
+    await _supabase!.from(_profilesTable).update(updates).eq('id', user.id);
 
     final profile = await getCurrentUserProfile();
     if (profile == null) {
@@ -245,32 +225,77 @@ class AuthRepository {
       throw Exception('No authenticated user');
     }
 
-    // Delete user document from Firestore
-    await _firestore!.collection(FirestorePaths.users).doc(user.uid).delete();
-
-    // Delete Firebase Auth user
-    await user.delete();
+    try {
+      await _supabase!.rpc('delete_current_user_account');
+    } catch (_) {
+      await _supabase!.from(_profilesTable).delete().eq('id', user.id);
+      await _supabase!.auth.signOut();
+    }
   }
 
-  /// Handle Firebase Auth exceptions
-  Exception _handleAuthException(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        return Exception('No account found with this email');
-      case 'wrong-password':
-        return Exception('Invalid password');
-      case 'email-already-in-use':
-        return Exception('An account already exists with this email');
-      case 'weak-password':
-        return Exception('Password is too weak');
-      case 'invalid-email':
-        return Exception('Invalid email address');
-      case 'user-disabled':
-        return Exception('This account has been disabled');
-      case 'too-many-requests':
-        return Exception('Too many attempts. Please try again later');
-      default:
-        return Exception(e.message ?? 'Authentication failed');
+  Future<UserModel> _createOrSyncProfileFromAuth(
+    User user, {
+    required String defaultRole,
+    String? displayName,
+  }) async {
+    final profile = UserModel(
+      id: user.id,
+      email: user.email ?? '',
+      displayName:
+          displayName ??
+          (user.userMetadata?['display_name'] as String?) ??
+          user.email?.split('@').first,
+      avatarUrl: user.userMetadata?['avatar_url'] as String?,
+      bio: null,
+      role: (user.userMetadata?['role'] as String?) ?? defaultRole,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _supabase!.from(_profilesTable).upsert({
+      'id': profile.id,
+      'email': profile.email,
+      'display_name': profile.displayName,
+      'avatar_url': profile.avatarUrl,
+      'bio': profile.bio,
+      'role': profile.role,
+      'updated_at': profile.updatedAt?.toIso8601String(),
+    }, onConflict: 'id');
+
+    return (await getCurrentUserProfile()) ?? profile;
+  }
+
+  Map<String, dynamic> _rowToUserMap(Map<String, dynamic> row) {
+    return {
+      'email': row['email'] as String,
+      'displayName': row['display_name'] as String?,
+      'avatarUrl': row['avatar_url'] as String?,
+      'bio': row['bio'] as String?,
+      'role': row['role'] as String? ?? 'student',
+      'createdAt':
+          row['created_at']?.toString() ?? DateTime.now().toIso8601String(),
+      'updatedAt': row['updated_at']?.toString(),
+    };
+  }
+
+  /// Handle Supabase Auth exceptions
+  Exception _handleAuthException(String? message) {
+    final text = message?.toLowerCase() ?? '';
+    if (text.contains('invalid login credentials')) {
+      return Exception('Invalid email or password');
     }
+    if (text.contains('email rate limit exceeded')) {
+      return Exception('Too many attempts. Please try again later');
+    }
+    if (text.contains('user already registered')) {
+      return Exception('An account already exists with this email');
+    }
+    if (text.contains('password should be at least')) {
+      return Exception('Password is too weak');
+    }
+    if (text.contains('invalid email')) {
+      return Exception('Invalid email address');
+    }
+    return Exception(message ?? 'Authentication failed');
   }
 }

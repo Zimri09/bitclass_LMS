@@ -92,7 +92,7 @@ class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
             gradient: LinearGradient(
               begin: Alignment(-1.0 + _animation.value, 0),
               end: Alignment(_animation.value, 0),
-              colors: const [
+              colors: [
                 AppColors.surface,
                 AppColors.surfaceLight,
                 AppColors.surface,
@@ -563,7 +563,7 @@ class ErrorState extends StatelessWidget {
               const SizedBox(height: 24),
               OutlinedButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
+                icon: Icon(Icons.refresh),
                 label: const Text('Try Again'),
               ),
             ],

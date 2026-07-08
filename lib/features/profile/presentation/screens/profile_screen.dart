@@ -72,9 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
         builder: (context, profileState) {
           return Scaffold(
-            backgroundColor: AppColors.background,
             appBar: AppBar(
-              backgroundColor: AppColors.background,
               title: Text('Profile', style: AppTextStyles.h3),
               actions: [
                 if (profileState.isEditing) ...[
@@ -163,7 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                       child: isUploadingAvatar
-                          ? const Center(
+                          ? Center(
                               child: SizedBox(
                                 width: 32,
                                 height: 32,
@@ -204,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         child: IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.camera_alt,
                             size: 14,
                             color: AppColors.background,
@@ -274,7 +272,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     showModalBottomSheet(
       context: outerContext,
-      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -378,7 +375,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Text('Profile Details', style: AppTextStyles.h4),
             IconButton(
-              icon: const Icon(Icons.edit, color: AppColors.primary),
+              icon: Icon(Icons.edit, color: AppColors.primary),
               onPressed: () => _startEditing(user),
             ),
           ],
@@ -389,19 +386,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           label: 'Display Name',
           value: user.displayName ?? 'Not set',
         ),
-        const Divider(height: 32),
+        Divider(height: 32),
         _buildDetailRow(
           icon: Icons.email_outlined,
           label: 'Email',
           value: user.email,
         ),
-        const Divider(height: 32),
+        Divider(height: 32),
         _buildDetailRow(
           icon: Icons.info_outline,
           label: 'Bio',
           value: user.bio ?? 'No bio added yet',
         ),
-        const Divider(height: 32),
+        Divider(height: 32),
         _buildDetailRow(
           icon: Icons.calendar_today_outlined,
           label: 'Member Since',

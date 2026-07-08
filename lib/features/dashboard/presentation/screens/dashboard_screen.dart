@@ -22,7 +22,6 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: BlocBuilder<AuthBloc, AuthState>(
         builder: (context, state) {
           if (state is AuthAuthenticated) {
@@ -69,7 +68,6 @@ class _DashboardContent extends StatelessWidget {
               // App bar
               SliverAppBar(
                 floating: true,
-                backgroundColor: AppColors.background,
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -84,7 +82,7 @@ class _DashboardContent extends StatelessWidget {
                 ),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.notifications_outlined),
+                    icon: Icon(Icons.notifications_outlined),
                     onPressed: () {
                       context.push('/notifications');
                     },
@@ -288,7 +286,7 @@ class _DashboardContent extends StatelessWidget {
               color: AppColors.secondary,
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text('Announcements coming soon'),
                     backgroundColor: AppColors.info,
                   ),
@@ -414,7 +412,7 @@ class _DashboardContent extends StatelessWidget {
   Widget _buildRecentActivity(BuildContext context, DashboardState dashState) {
     if (dashState.status == DashboardStatus.loading ||
         dashState.status == DashboardStatus.initial) {
-      return const GlowCard(
+      return GlowCard(
         glowColor: AppColors.primary,
         glowIntensity: 0.05,
         isHoverable: false,
@@ -511,7 +509,7 @@ class _DashboardContent extends StatelessWidget {
   ) {
     if (dashState.status == DashboardStatus.loading ||
         dashState.status == DashboardStatus.initial) {
-      return const GlowCard(
+      return GlowCard(
         glowColor: AppColors.warning,
         glowIntensity: 0.05,
         isHoverable: false,

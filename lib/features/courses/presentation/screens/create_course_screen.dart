@@ -189,7 +189,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                   _selectedThumbnail = null;
                   _thumbnailBytes = null;
                 }),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.all(6),
                   child: Icon(
                     Icons.close,
@@ -223,7 +223,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () => setState(() => _selectedPresetId = null),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.all(6),
                   child: Icon(
                     Icons.close,
@@ -348,7 +348,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                       const SizedBox(height: 2),
                       Text(
                         preset.label,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
@@ -364,7 +364,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                     child: Container(
                       width: 16,
                       height: 16,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
@@ -386,9 +386,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
         title: Text(
           _isEditMode ? 'Edit Course' : 'Create Course',
           style: AppTextStyles.h3,
@@ -400,7 +398,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
               listener: (context, state) {
                 if (state is CourseCreated) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text('Course created successfully!'),
                       backgroundColor: AppColors.success,
                     ),
@@ -410,7 +408,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                   context.go(AppRoutes.uploadFilePath(state.course.id));
                 } else if (state is CourseUpdated) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text('Course updated successfully!'),
                       backgroundColor: AppColors.success,
                     ),
@@ -448,7 +446,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                                   color: AppColors.secondary.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.add_box,
                                   color: AppColors.secondary,
                                   size: 28,
@@ -582,11 +580,11 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                         // Upload button
                         OutlinedButton.icon(
                           onPressed: _pickThumbnail,
-                          icon: const Icon(Icons.upload),
+                          icon: Icon(Icons.upload),
                           label: const Text('Upload Custom Image'),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(double.infinity, 44),
-                            side: const BorderSide(color: AppColors.border),
+                            side: BorderSide(color: AppColors.border),
                           ),
                         ),
                         const SizedBox(height: 32),
@@ -612,7 +610,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                                         ? null
                                         : _handleCreateCourse,
                                     icon: isLoading
-                                        ? const SizedBox(
+                                        ? SizedBox(
                                             width: 20,
                                             height: 20,
                                             child: CircularProgressIndicator(

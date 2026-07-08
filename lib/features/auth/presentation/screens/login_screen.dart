@@ -43,7 +43,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
@@ -97,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
-          child: const Icon(Icons.code, color: AppColors.background, size: 44),
+          child: Icon(Icons.code, color: AppColors.background, size: 44),
         ),
         const SizedBox(height: 24),
         Text('BitClass', style: AppTextStyles.h1),
@@ -167,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
               decoration: InputDecoration(
                 labelText: 'Password',
                 hintText: 'Enter your password',
-                prefixIcon: const Icon(Icons.lock_outlined),
+                prefixIcon: Icon(Icons.lock_outlined),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscurePassword
@@ -208,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 return ElevatedButton(
                   onPressed: isLoading ? null : _handleLogin,
                   child: isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(

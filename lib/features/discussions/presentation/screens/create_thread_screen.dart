@@ -46,7 +46,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
         listener: (context, state) {
           if (state is ThreadCreated) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('Thread created successfully!'),
                 backgroundColor: AppColors.success,
               ),
@@ -66,14 +66,13 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
           return Scaffold(
             appBar: AppBar(
               title: const Text('New Discussion'),
-              backgroundColor: AppColors.background,
               actions: [
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: TextButton(
                     onPressed: _isSubmitting ? null : () => _submit(context),
                     child: _isSubmitting
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
@@ -81,7 +80,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                               strokeWidth: 2,
                             ),
                           )
-                        : const Text(
+                        : Text(
                             'Post',
                             style: TextStyle(
                               color: AppColors.primary,
@@ -92,14 +91,13 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                 ),
               ],
             ),
-            backgroundColor: AppColors.background,
             body: Form(
               key: _formKey,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
                   // Title field
-                  const Text(
+                  Text(
                     'Title',
                     style: TextStyle(
                       color: AppColors.textSecondary,
@@ -110,13 +108,13 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _titleController,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 16,
                     ),
                     decoration: InputDecoration(
                       hintText: 'What\'s your question or topic?',
-                      hintStyle: const TextStyle(
+                      hintStyle: TextStyle(
                         color: AppColors.textSecondary,
                       ),
                       filled: true,
@@ -127,7 +125,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
+                        borderSide: BorderSide(
                           color: AppColors.primary,
                           width: 1,
                         ),
@@ -148,7 +146,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                   const SizedBox(height: 24),
 
                   // Content field
-                  const Text(
+                  Text(
                     'Details',
                     style: TextStyle(
                       color: AppColors.textSecondary,
@@ -159,7 +157,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _contentController,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 15,
                       height: 1.5,
@@ -167,7 +165,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                     decoration: InputDecoration(
                       hintText:
                           'Provide details about your question or topic...\n\nTip: Be specific and include any relevant code or error messages.',
-                      hintStyle: const TextStyle(
+                      hintStyle: TextStyle(
                         color: AppColors.textSecondary,
                         height: 1.5,
                       ),
@@ -179,7 +177,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
+                        borderSide: BorderSide(
                           color: AppColors.primary,
                           width: 1,
                         ),
@@ -209,7 +207,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
                               Icon(
                                 Icons.lightbulb_outline,
@@ -250,11 +248,11 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(color: AppColors.textSecondary)),
+          Text('• ', style: TextStyle(color: AppColors.textSecondary)),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
               ),

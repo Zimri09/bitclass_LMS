@@ -59,7 +59,6 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: RefreshIndicator(
         onRefresh: _loadCourses,
         color: AppColors.primary,
@@ -68,12 +67,11 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
             // App bar
             SliverAppBar(
               floating: true,
-              backgroundColor: AppColors.background,
               title: Text('My Courses', style: AppTextStyles.h3),
               actions: [
                 TextButton.icon(
                   onPressed: () => context.go(AppRoutes.createCourse),
-                  icon: const Icon(Icons.add),
+                  icon: Icon(Icons.add),
                   label: const Text('New Course'),
                 ),
                 const SizedBox(width: 16),
@@ -95,7 +93,7 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
                   subtitle: 'Create your first course to start teaching',
                   action: ElevatedButton.icon(
                     onPressed: () => context.go(AppRoutes.createCourse),
-                    icon: const Icon(Icons.add),
+                    icon: Icon(Icons.add),
                     label: const Text('Create Course'),
                   ),
                 ),
@@ -229,7 +227,7 @@ class _InstructorCourseCard extends StatelessWidget {
 
           // Actions
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
+            icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
             onSelected: (value) {
               switch (value) {
                 case 'edit':
@@ -334,7 +332,7 @@ class _InstructorCourseCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
@@ -376,14 +374,13 @@ class _InstructorCourseCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
+        title: Text(
           'Delete Course?',
           style: TextStyle(color: AppColors.textPrimary),
         ),
         content: Text(
           'Are you sure you want to delete "${course.title}"? This action cannot be undone.',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -396,7 +393,7 @@ class _InstructorCourseCard extends StatelessWidget {
               try {
                 await context.read<CourseRepository>().deleteCourse(course.id);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text('Course deleted'),
                     backgroundColor: AppColors.success,
                   ),

@@ -79,7 +79,6 @@ class _QuizScreenState extends State<QuizScreen> {
         },
         builder: (context, state) {
           return Scaffold(
-            backgroundColor: AppColors.background,
             appBar: _buildAppBar(context, state),
             body: _buildBody(context, state),
           );
@@ -117,9 +116,8 @@ class _QuizScreenState extends State<QuizScreen> {
     }
 
     return AppBar(
-      backgroundColor: AppColors.surface,
       leading: IconButton(
-        icon: const Icon(Icons.close),
+        icon: Icon(Icons.close),
         onPressed: () => _showExitConfirmation(context, state),
       ),
       title: Text(
@@ -342,7 +340,7 @@ class _QuizScreenState extends State<QuizScreen> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: state.canAttempt ? _startQuiz : null,
-                icon: const Icon(Icons.play_arrow),
+                icon: Icon(Icons.play_arrow),
                 label: Text(
                   state.previousAttempts.isEmpty ? 'Start Quiz' : 'Retake Quiz',
                 ),
@@ -679,7 +677,7 @@ class _QuizScreenState extends State<QuizScreen> {
                         ),
                       ),
                       child: isSelected
-                          ? const Icon(
+                          ? Icon(
                               Icons.check,
                               size: 16,
                               color: Colors.white,
@@ -927,7 +925,7 @@ class _QuizScreenState extends State<QuizScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _quizBloc.add(const PreviousQuestion()),
-                    icon: const Icon(Icons.arrow_back, size: 18),
+                    icon: Icon(Icons.arrow_back, size: 18),
                     label: const Text('Previous'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -952,7 +950,7 @@ class _QuizScreenState extends State<QuizScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Icon(Icons.check, size: 18),
+                        : Icon(Icons.check, size: 18),
                     label: const Text('Submit'),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -965,7 +963,7 @@ class _QuizScreenState extends State<QuizScreen> {
                   child: FilledButton.icon(
                     onPressed: () => _quizBloc.add(const NextQuestion()),
                     icon: const Text('Next'),
-                    label: const Icon(Icons.arrow_forward, size: 18),
+                    label: Icon(Icons.arrow_forward, size: 18),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -1242,7 +1240,6 @@ class _QuizScreenState extends State<QuizScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: AppColors.surface,
           title: Text(
             'Exit Quiz?',
             style: TextStyle(color: AppColors.textPrimary),
@@ -1278,7 +1275,6 @@ class _QuizScreenState extends State<QuizScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
         title: Text(
           'Submit Quiz?',
           style: TextStyle(color: AppColors.textPrimary),

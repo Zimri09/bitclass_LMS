@@ -69,7 +69,6 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: RefreshIndicator(
         onRefresh: _loadEnrollments,
         color: AppColors.primary,
@@ -78,12 +77,11 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
             // App bar
             SliverAppBar(
               floating: true,
-              backgroundColor: AppColors.background,
               title: Text('My Learning', style: AppTextStyles.h3),
               actions: [
                 TextButton.icon(
                   onPressed: () => context.go(AppRoutes.courses),
-                  icon: const Icon(Icons.explore),
+                  icon: Icon(Icons.explore),
                   label: const Text('Browse'),
                 ),
                 const SizedBox(width: 16),
@@ -119,7 +117,7 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
                   subtitle: 'Browse our catalog and enroll in a course',
                   action: ElevatedButton.icon(
                     onPressed: () => context.go(AppRoutes.courses),
-                    icon: const Icon(Icons.explore),
+                    icon: Icon(Icons.explore),
                     label: const Text('Browse Courses'),
                   ),
                 ),
@@ -326,7 +324,7 @@ class _EnrolledCourseCard extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.check,
                                   size: 12,
                                   color: AppColors.success,
@@ -398,7 +396,6 @@ class _EnrolledCourseCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: enrollment.progress,
-                  backgroundColor: AppColors.surface,
                   valueColor: AlwaysStoppedAnimation<Color>(
                     isCompleted ? AppColors.success : AppColors.primary,
                   ),

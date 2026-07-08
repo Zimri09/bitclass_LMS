@@ -1,27 +1,30 @@
 import 'dart:developer';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../models/models.dart';
 
-/// Repository for assignment operations
+/// Repository for assignment operations.
 class AssignmentRepository {
-  final FirebaseFirestore? _firestore;
+  static const String _assignmentsTable = 'assignments';
+  static const String _submissionsTable = 'submissions';
+
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _legacyDemoStudentUserId = 'demo_user';
+
+  final SupabaseClient? _supabase;
 
   // Demo data storage
   final Map<String, AssignmentModel> _assignments = {};
   final Map<String, List<SubmissionModel>> _submissionsByAssignment = {};
   final Map<String, Map<String, SubmissionModel>> _submissionsByUser = {};
 
-  AssignmentRepository({FirebaseFirestore? firestore})
-    : _firestore = EnvironmentConfig.isDemoMode
+  AssignmentRepository({SupabaseClient? supabase})
+    : _supabase = EnvironmentConfig.isDemoMode
           ? null
-          : (firestore ?? FirebaseFirestore.instance) {
+          : (supabase ?? Supabase.instance.client) {
     if (EnvironmentConfig.isDemoMode) {
       _initDemoData();
     }
@@ -41,6 +44,55 @@ class AssignmentRepository {
     if (normalized == _demoStudentUserId) {
       yield _legacyDemoStudentUserId;
     }
+  }
+
+  Map<String, dynamic> _rowToAssignmentMap(Map<String, dynamic> row) {
+    return {
+      'id': row['id'],
+      'courseId': row['course_id'],
+      'lessonId': row['lesson_id'],
+      'title': row['title'],
+      'description': row['description'],
+      'instructions': row['instructions'],
+      'language': row['language'],
+      'starterCode': row['starter_code'],
+      'solutionCode': row['solution_code'],
+      'maxPoints': row['max_points'],
+      'dueDate': row['due_date']?.toString(),
+      'allowLateSubmission': row['allow_late_submission'],
+      'latePenaltyPercent': row['late_penalty_percent'],
+      'isPublished': row['is_published'],
+      'createdAt': row['created_at']?.toString(),
+      'updatedAt': row['updated_at']?.toString(),
+    };
+  }
+
+  AssignmentModel _assignmentFromRow(Map<String, dynamic> row) {
+    return AssignmentModel.fromMap(_rowToAssignmentMap(row));
+  }
+
+  Map<String, dynamic> _rowToSubmissionMap(Map<String, dynamic> row) {
+    return {
+      'id': row['id'],
+      'assignmentId': row['assignment_id'],
+      'courseId': row['course_id'],
+      'userId': row['user_id'],
+      'userDisplayName': row['user_display_name'],
+      'code': row['code'],
+      'status': row['status'],
+      'score': row['score'],
+      'feedback': row['feedback'],
+      'gradedBy': row['graded_by'],
+      'gradedAt': row['graded_at']?.toString(),
+      'isLate': row['is_late'],
+      'createdAt': row['created_at']?.toString(),
+      'updatedAt': row['updated_at']?.toString(),
+      'submittedAt': row['submitted_at']?.toString(),
+    };
+  }
+
+  SubmissionModel _submissionFromRow(Map<String, dynamic> row) {
+    return SubmissionModel.fromMap(_rowToSubmissionMap(row));
   }
 
   void _initDemoData() {
@@ -238,7 +290,6 @@ class _TodoListPageState extends State<TodoListPage> {
       createdAt: DateTime.now().subtract(const Duration(days: 3)),
     );
 
-    // Dart Course Assignment
     _assignments['assignment-dart-1'] = AssignmentModel(
       id: 'assignment-dart-1',
       courseId: 'course-2',
@@ -298,7 +349,6 @@ void main() async {
       createdAt: DateTime.now().subtract(const Duration(days: 7)),
     );
 
-    // Demo submission for the counter app assignment
     _submissionsByAssignment['assignment-flutter-1'] = [
       SubmissionModel(
         id: 'submission-1',
@@ -359,7 +409,7 @@ class _CounterPageState extends State<CounterPage> {
       body: Center(
         child: Text(
           '\$_counter',
-          style: const TextStyle(fontSize: 48),
+          style: TextStyle(fontSize: 48),
         ),
       ),
       floatingActionButton: Row(
@@ -367,12 +417,12 @@ class _CounterPageState extends State<CounterPage> {
         children: [
           FloatingActionButton(
             onPressed: _decrement,
-            child: const Icon(Icons.remove),
+            child: Icon(Icons.remove),
           ),
           const SizedBox(width: 16),
           FloatingActionButton(
             onPressed: _increment,
-            child: const Icon(Icons.add),
+            child: Icon(Icons.add),
           ),
         ],
       ),
@@ -400,10 +450,6 @@ class _CounterPageState extends State<CounterPage> {
     };
   }
 
-  // ============================================
-  // Assignment CRUD Operations
-  // ============================================
-
   /// Get all assignments for a course
   Future<List<AssignmentModel>> getAssignmentsForCourse(String courseId) async {
     if (EnvironmentConfig.isDemoMode) {
@@ -417,14 +463,16 @@ class _CounterPageState extends State<CounterPage> {
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.assignments)
-          .where('courseId', isEqualTo: courseId)
-          .where('isPublished', isEqualTo: true)
-          .get();
+      final rows = await _supabase!
+          .from(_assignmentsTable)
+          .select()
+          .eq('course_id', courseId)
+          .eq('is_published', true)
+          .order('due_date', ascending: true);
 
-      var assignments = snapshot.docs
-          .map((doc) => AssignmentModel.fromMap(doc.data()))
+      final assignments = (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_assignmentFromRow)
           .toList();
 
       assignments.sort(
@@ -433,8 +481,9 @@ class _CounterPageState extends State<CounterPage> {
 
       return assignments;
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Error fetching assignments: $e', name: 'AssignmentRepository');
+      }
       return [];
     }
   }
@@ -447,16 +496,18 @@ class _CounterPageState extends State<CounterPage> {
     }
 
     try {
-      final doc = await _firestore!
-          .collection(FirestorePaths.assignments)
-          .doc(assignmentId)
-          .get();
+      final row = await _supabase!
+          .from(_assignmentsTable)
+          .select()
+          .eq('id', assignmentId)
+          .maybeSingle();
 
-      if (!doc.exists) return null;
-      return AssignmentModel.fromMap(doc.data()!);
+      if (row == null) return null;
+      return _assignmentFromRow(row);
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Error fetching assignment: $e', name: 'AssignmentRepository');
+      }
       return null;
     }
   }
@@ -469,10 +520,24 @@ class _CounterPageState extends State<CounterPage> {
       return assignment;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.assignments)
-        .doc(assignment.id)
-        .set(assignment.toMap());
+    await _supabase!.from(_assignmentsTable).upsert({
+      'id': assignment.id,
+      'course_id': assignment.courseId,
+      'lesson_id': assignment.lessonId,
+      'title': assignment.title,
+      'description': assignment.description,
+      'instructions': assignment.instructions,
+      'language': assignment.language.name,
+      'starter_code': assignment.starterCode,
+      'solution_code': assignment.solutionCode,
+      'max_points': assignment.maxPoints,
+      'due_date': assignment.dueDate?.toIso8601String(),
+      'allow_late_submission': assignment.allowLateSubmission,
+      'late_penalty_percent': assignment.latePenaltyPercent,
+      'is_published': assignment.isPublished,
+      'created_at': assignment.createdAt.toIso8601String(),
+      'updated_at': assignment.updatedAt?.toIso8601String(),
+    });
 
     return assignment;
   }
@@ -485,10 +550,27 @@ class _CounterPageState extends State<CounterPage> {
       return assignment;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.assignments)
-        .doc(assignment.id)
-        .update(assignment.toMap());
+    await _supabase!
+        .from(_assignmentsTable)
+        .update({
+          'course_id': assignment.courseId,
+          'lesson_id': assignment.lessonId,
+          'title': assignment.title,
+          'description': assignment.description,
+          'instructions': assignment.instructions,
+          'language': assignment.language.name,
+          'starter_code': assignment.starterCode,
+          'solution_code': assignment.solutionCode,
+          'max_points': assignment.maxPoints,
+          'due_date': assignment.dueDate?.toIso8601String(),
+          'allow_late_submission': assignment.allowLateSubmission,
+          'late_penalty_percent': assignment.latePenaltyPercent,
+          'is_published': assignment.isPublished,
+          'updated_at':
+              assignment.updatedAt?.toIso8601String() ??
+              DateTime.now().toIso8601String(),
+        })
+        .eq('id', assignment.id);
 
     return assignment;
   }
@@ -502,25 +584,12 @@ class _CounterPageState extends State<CounterPage> {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.assignments)
-        .doc(assignmentId)
-        .delete();
-
-    // Also delete related submissions
-    final submissions = await _firestore
-        .collection(FirestorePaths.submissions)
-        .where('assignmentId', isEqualTo: assignmentId)
-        .get();
-
-    for (final doc in submissions.docs) {
-      await doc.reference.delete();
-    }
+    await _supabase!
+        .from(_submissionsTable)
+        .delete()
+        .eq('assignment_id', assignmentId);
+    await _supabase!.from(_assignmentsTable).delete().eq('id', assignmentId);
   }
-
-  // ============================================
-  // Submission Operations
-  // ============================================
 
   /// Get user's submission for an assignment
   Future<SubmissionModel?> getUserSubmission(
@@ -537,18 +606,19 @@ class _CounterPageState extends State<CounterPage> {
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.submissions)
-          .where('assignmentId', isEqualTo: assignmentId)
-          .where('userId', isEqualTo: userId)
-          .limit(1)
-          .get();
+      final row = await _supabase!
+          .from(_submissionsTable)
+          .select()
+          .eq('assignment_id', assignmentId)
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (snapshot.docs.isEmpty) return null;
-      return SubmissionModel.fromMap(snapshot.docs.first.data());
+      if (row == null) return null;
+      return _submissionFromRow(row);
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Error fetching user submission: $e', name: 'AssignmentRepository');
+      }
       return null;
     }
   }
@@ -563,20 +633,23 @@ class _CounterPageState extends State<CounterPage> {
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.submissions)
-          .where('assignmentId', isEqualTo: assignmentId)
-          .get();
+      final rows = await _supabase!
+          .from(_submissionsTable)
+          .select()
+          .eq('assignment_id', assignmentId)
+          .order('created_at', ascending: false);
 
-      return snapshot.docs
-          .map((doc) => SubmissionModel.fromMap(doc.data()))
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_submissionFromRow)
           .toList();
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log(
           'Error fetching assignment submissions: $e',
           name: 'AssignmentRepository',
         );
+      }
       return [];
     }
   }
@@ -593,7 +666,6 @@ class _CounterPageState extends State<CounterPage> {
       await Future.delayed(const Duration(milliseconds: 300));
 
       final normalizedUserId = _normalizeDemoUserId(userId);
-
       final existingSubmission =
           _submissionsByUser[normalizedUserId]?[assignmentId];
 
@@ -611,7 +683,6 @@ class _CounterPageState extends State<CounterPage> {
         updatedAt: DateTime.now(),
       );
 
-      // Update storage
       for (final key in _demoUserKeys(normalizedUserId)) {
         _submissionsByUser[key] ??= {};
         _submissionsByUser[key]![assignmentId] = submission;
@@ -632,36 +703,38 @@ class _CounterPageState extends State<CounterPage> {
       return submission;
     }
 
-    // Check for existing submission
-    final existingSnapshot = await _firestore!
-        .collection(FirestorePaths.submissions)
-        .where('assignmentId', isEqualTo: assignmentId)
-        .where('userId', isEqualTo: userId)
-        .limit(1)
-        .get();
-
-    final existingSubmission = existingSnapshot.docs.isNotEmpty
-        ? SubmissionModel.fromMap(existingSnapshot.docs.first.data())
-        : null;
-
+    final existing = await getUserSubmission(assignmentId, userId);
     final submission = SubmissionModel(
-      id:
-          existingSubmission?.id ??
-          'submission-${DateTime.now().millisecondsSinceEpoch}',
+      id: existing?.id ?? 'submission-${DateTime.now().millisecondsSinceEpoch}',
       assignmentId: assignmentId,
       courseId: courseId,
       userId: userId,
       userDisplayName: userDisplayName,
       code: code,
       status: SubmissionStatus.draft,
-      createdAt: existingSubmission?.createdAt ?? DateTime.now(),
+      createdAt: existing?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
     );
 
-    await _firestore
-        .collection(FirestorePaths.submissions)
-        .doc(submission.id)
-        .set(submission.toMap());
+    await _supabase!.from(_submissionsTable).upsert({
+      'id': submission.id,
+      'assignment_id': submission.assignmentId,
+      'course_id': submission.courseId,
+      'user_id': submission.userId,
+      'user_display_name': submission.userDisplayName,
+      'code': submission.code,
+      'status': submission.status.name,
+      'score': submission.score,
+      'feedback': submission.feedback,
+      'graded_by': submission.gradedBy,
+      'graded_at': submission.gradedAt?.toIso8601String(),
+      'is_late': submission.isLate,
+      'created_at': submission.createdAt.toIso8601String(),
+      'updated_at':
+          submission.updatedAt?.toIso8601String() ??
+          DateTime.now().toIso8601String(),
+      'submitted_at': submission.submittedAt?.toIso8601String(),
+    });
 
     return submission;
   }
@@ -678,12 +751,10 @@ class _CounterPageState extends State<CounterPage> {
       await Future.delayed(const Duration(milliseconds: 500));
 
       final normalizedUserId = _normalizeDemoUserId(userId);
-
       final assignment = _assignments[assignmentId];
       final isLate =
           assignment?.dueDate != null &&
           DateTime.now().isAfter(assignment!.dueDate!);
-
       final existingSubmission =
           _submissionsByUser[normalizedUserId]?[assignmentId];
 
@@ -703,7 +774,6 @@ class _CounterPageState extends State<CounterPage> {
         submittedAt: DateTime.now(),
       );
 
-      // Update storage
       for (final key in _demoUserKeys(normalizedUserId)) {
         _submissionsByUser[key] ??= {};
         _submissionsByUser[key]![assignmentId] = submission;
@@ -724,36 +794,14 @@ class _CounterPageState extends State<CounterPage> {
       return submission;
     }
 
-    // Check for existing submission
-    final existingSnapshot = await _firestore!
-        .collection(FirestorePaths.submissions)
-        .where('assignmentId', isEqualTo: assignmentId)
-        .where('userId', isEqualTo: userId)
-        .limit(1)
-        .get();
-
-    final existingSubmission = existingSnapshot.docs.isNotEmpty
-        ? SubmissionModel.fromMap(existingSnapshot.docs.first.data())
-        : null;
-
-    // Check if late
-    final assignmentDoc = await _firestore
-        .collection(FirestorePaths.assignments)
-        .doc(assignmentId)
-        .get();
-
-    bool isLate = false;
-    if (assignmentDoc.exists) {
-      final assignment = AssignmentModel.fromMap(assignmentDoc.data()!);
-      isLate =
-          assignment.dueDate != null &&
-          DateTime.now().isAfter(assignment.dueDate!);
-    }
+    final assignment = await getAssignment(assignmentId);
+    final existing = await getUserSubmission(assignmentId, userId);
+    final isLate =
+        assignment?.dueDate != null &&
+        DateTime.now().isAfter(assignment!.dueDate!);
 
     final submission = SubmissionModel(
-      id:
-          existingSubmission?.id ??
-          'submission-${DateTime.now().millisecondsSinceEpoch}',
+      id: existing?.id ?? 'submission-${DateTime.now().millisecondsSinceEpoch}',
       assignmentId: assignmentId,
       courseId: courseId,
       userId: userId,
@@ -761,15 +809,30 @@ class _CounterPageState extends State<CounterPage> {
       code: code,
       status: SubmissionStatus.submitted,
       isLate: isLate,
-      createdAt: existingSubmission?.createdAt ?? DateTime.now(),
+      createdAt: existing?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
       submittedAt: DateTime.now(),
     );
 
-    await _firestore
-        .collection(FirestorePaths.submissions)
-        .doc(submission.id)
-        .set(submission.toMap());
+    await _supabase!.from(_submissionsTable).upsert({
+      'id': submission.id,
+      'assignment_id': submission.assignmentId,
+      'course_id': submission.courseId,
+      'user_id': submission.userId,
+      'user_display_name': submission.userDisplayName,
+      'code': submission.code,
+      'status': submission.status.name,
+      'score': submission.score,
+      'feedback': submission.feedback,
+      'graded_by': submission.gradedBy,
+      'graded_at': submission.gradedAt?.toIso8601String(),
+      'is_late': submission.isLate,
+      'created_at': submission.createdAt.toIso8601String(),
+      'updated_at':
+          submission.updatedAt?.toIso8601String() ??
+          DateTime.now().toIso8601String(),
+      'submitted_at': submission.submittedAt?.toIso8601String(),
+    });
 
     return submission;
   }
@@ -813,29 +876,29 @@ class _CounterPageState extends State<CounterPage> {
       return updatedSubmission;
     }
 
-    final doc = await _firestore!
-        .collection(FirestorePaths.submissions)
-        .doc(submissionId)
-        .get();
+    await _supabase!
+        .from(_submissionsTable)
+        .update({
+          'status': SubmissionStatus.graded.name,
+          'score': score,
+          'feedback': feedback,
+          'graded_by': gradedBy,
+          'graded_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', submissionId);
 
-    if (!doc.exists) throw Exception('Submission not found');
+    final row = await _supabase!
+        .from(_submissionsTable)
+        .select()
+        .eq('id', submissionId)
+        .maybeSingle();
 
-    final submission = SubmissionModel.fromMap(doc.data()!);
-    final updatedSubmission = submission.copyWith(
-      status: SubmissionStatus.graded,
-      score: score,
-      feedback: feedback,
-      gradedBy: gradedBy,
-      gradedAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
+    if (row == null) {
+      throw Exception('Submission not found');
+    }
 
-    await _firestore
-        .collection(FirestorePaths.submissions)
-        .doc(submissionId)
-        .update(updatedSubmission.toMap());
-
-    return updatedSubmission;
+    return _submissionFromRow(row);
   }
 
   /// Get pending submissions for instructor (ungraded submissions)
@@ -856,21 +919,23 @@ class _CounterPageState extends State<CounterPage> {
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.submissions)
-          .where('courseId', isEqualTo: courseId)
-          .where('status', isEqualTo: 'submitted')
-          .get();
+      final rows = await _supabase!
+          .from(_submissionsTable)
+          .select()
+          .eq('course_id', courseId)
+          .eq('status', SubmissionStatus.submitted.name);
 
-      return snapshot.docs
-          .map((doc) => SubmissionModel.fromMap(doc.data()))
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_submissionFromRow)
           .toList();
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log(
           'Error fetching pending submissions: $e',
           name: 'AssignmentRepository',
         );
+      }
       return [];
     }
   }
@@ -896,21 +961,23 @@ class _CounterPageState extends State<CounterPage> {
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.submissions)
-          .where('courseId', isEqualTo: courseId)
-          .where('userId', isEqualTo: userId)
-          .get();
+      final rows = await _supabase!
+          .from(_submissionsTable)
+          .select()
+          .eq('course_id', courseId)
+          .eq('user_id', userId);
 
-      return snapshot.docs
-          .map((doc) => SubmissionModel.fromMap(doc.data()))
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_submissionFromRow)
           .toList();
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log(
           'Error fetching user submissions: $e',
           name: 'AssignmentRepository',
         );
+      }
       return [];
     }
   }

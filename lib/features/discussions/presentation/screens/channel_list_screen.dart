@@ -36,13 +36,11 @@ class ChannelListView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Discussions'),
-        backgroundColor: AppColors.background,
       ),
-      backgroundColor: AppColors.background,
       body: BlocBuilder<DiscussionBloc, DiscussionState>(
         builder: (context, state) {
           if (state is ChannelsLoading) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             );
           }
@@ -52,7 +50,7 @@ class ChannelListView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.error_outline,
                     color: AppColors.error,
                     size: 48,
@@ -60,7 +58,7 @@ class ChannelListView extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     state.message,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -80,7 +78,7 @@ class ChannelListView extends StatelessWidget {
           if (state is ChannelsLoaded) {
             final channels = state.channels;
             if (channels.isEmpty) {
-              return const Center(
+              return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -147,7 +145,7 @@ class ChannelListView extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -183,7 +181,7 @@ class ChannelListView extends StatelessWidget {
           children: [
             Text(
               channel.name,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
@@ -196,7 +194,7 @@ class ChannelListView extends StatelessWidget {
                   color: AppColors.success.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text(
+                child: Text(
                   'DEFAULT',
                   style: TextStyle(
                     color: AppColors.success,
@@ -210,7 +208,7 @@ class ChannelListView extends StatelessWidget {
         ),
         subtitle: Text(
           channel.description ?? '',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -226,14 +224,14 @@ class ChannelListView extends StatelessWidget {
                 ),
                 child: Text(
                   '${channel.threadCount}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
               ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            Icon(Icons.chevron_right, color: AppColors.textSecondary),
           ],
         ),
         onTap: () {

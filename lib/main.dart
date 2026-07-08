@@ -1,16 +1,17 @@
 import 'dart:developer';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/bloc/app_bloc_observer.dart';
 import 'core/constants/app_constants.dart';
 import 'core/config/environment.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/app_colors.dart';
 import 'core/utils/seed_data.dart';
 import 'features/assignments/data/repositories/assignment_repository.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
@@ -26,7 +27,6 @@ import 'features/notifications/data/repositories/notification_repository.dart';
 import 'features/quizzes/data/repositories/quiz_repository.dart';
 import 'features/settings/data/repositories/settings_repository.dart';
 import 'features/settings/presentation/cubit/settings_cubit.dart';
-import 'firebase_options.dart';
 
 /// Whether the app is running in demo mode
 /// Uses the centralized EnvironmentConfig
@@ -41,30 +41,19 @@ Future<void> main() async {
   // Log environment on startup
   EnvironmentConfig.logEnvironment();
 
-  // Initialize Firebase (skip in demo mode)
-  if (EnvironmentConfig.useFirebase) {
+  // Initialize Supabase when that backend mode is enabled.
+  if (EnvironmentConfig.useSupabase) {
     try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+      await Supabase.initialize(
+        url: EnvironmentConfig.supabaseUrl,
+        anonKey: EnvironmentConfig.supabaseAnonKey,
       );
       if (kDebugMode) {
-        log('✓ Firebase initialized successfully', name: 'Main');
-      }
-
-      // Seed sample data in development mode
-      if (EnvironmentConfig.current == Environment.development) {
-        try {
-          await SeedData().seedAll();
-        } catch (e) {
-          if (kDebugMode) {
-            log('Note: Could not seed data: $e', name: 'Main');
-          }
-        }
+        log('✓ Supabase initialized successfully', name: 'Main');
       }
     } catch (e) {
       if (kDebugMode) {
-        log('✗ Firebase initialization failed: $e', name: 'Main');
-        log('Some features may not work correctly.', name: 'Main');
+        log('✗ Supabase initialization failed: $e', name: 'Main');
       }
     }
   }
@@ -172,6 +161,7 @@ class _BitClassAppState extends State<BitClassApp> {
           buildWhen: (prev, curr) =>
               prev.settings.darkMode != curr.settings.darkMode,
           builder: (context, settingsState) {
+            AppColors.isDarkMode = settingsState.settings.darkMode;
             return MaterialApp.router(
               title: 'BitClass',
               debugShowCheckedModeBanner: false,

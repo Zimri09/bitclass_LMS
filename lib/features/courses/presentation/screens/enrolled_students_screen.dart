@@ -101,7 +101,7 @@ class _EnrolledStudentsScreenState extends State<EnrolledStudentsScreen> {
         title: const Text('Enrolled Students'),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.sort),
+            icon: Icon(Icons.sort),
             tooltip: 'Sort by',
             onSelected: _changeSortBy,
             itemBuilder: (_) => [
@@ -202,7 +202,7 @@ class _EnrolledStudentsScreenState extends State<EnrolledStudentsScreen> {
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: _loadEnrollments,
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh),
             label: const Text('Retry'),
           ),
         ],
@@ -319,10 +319,10 @@ class _EnrolledStudentsScreenState extends State<EnrolledStudentsScreen> {
         onChanged: _onSearch,
         decoration: InputDecoration(
           hintText: 'Search students...',
-          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+          prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear),
+                  icon: Icon(Icons.clear),
                   onPressed: () {
                     _searchController.clear();
                     _onSearch('');
@@ -412,7 +412,7 @@ class _EnrolledStudentsScreenState extends State<EnrolledStudentsScreen> {
             backgroundColor: AppColors.primary.withValues(alpha: 0.2),
             child: Text(
               initials,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.primary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
@@ -474,7 +474,6 @@ class _EnrolledStudentsScreenState extends State<EnrolledStudentsScreen> {
                         child: LinearProgressIndicator(
                           value: enrollment.progress,
                           minHeight: 6,
-                          backgroundColor: AppColors.backgroundSecondary,
                           valueColor: AlwaysStoppedAnimation<Color>(
                             enrollment.isCompleted
                                 ? AppColors.success

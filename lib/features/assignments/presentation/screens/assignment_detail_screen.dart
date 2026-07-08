@@ -78,7 +78,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
           }
           if (state is DraftSaved) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('Draft saved'),
                 backgroundColor: AppColors.success,
                 duration: Duration(seconds: 2),
@@ -110,7 +110,6 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
         },
         builder: (context, state) {
           return Scaffold(
-            backgroundColor: AppColors.background,
             appBar: _buildAppBar(state),
             body: _buildBody(state),
             bottomNavigationBar: _buildBottomBar(state),
@@ -127,10 +126,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     }
 
     return AppBar(
-      backgroundColor: AppColors.backgroundSecondary,
       title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
+        icon: Icon(Icons.arrow_back),
         onPressed: () => context.pop(),
       ),
       bottom: TabBar(
@@ -150,7 +148,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
           TextButton.icon(
             onPressed: state.isSaving ? null : () => _saveDraft(state),
             icon: state.isSaving
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -158,7 +156,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                       color: AppColors.primary,
                     ),
                   )
-                : const Icon(Icons.save_outlined, size: 18),
+                : Icon(Icons.save_outlined, size: 18),
             label: const Text('Save'),
           ),
       ],
@@ -167,7 +165,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
   Widget _buildBody(AssignmentState state) {
     if (state is AssignmentDetailLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppColors.primary),
       );
     }
@@ -478,7 +476,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.backgroundSecondary,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
@@ -490,11 +488,11 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                 onPressed: state.hasChanges && !isSubmitting
                     ? () => _saveDraft(state)
                     : null,
-                icon: const Icon(Icons.save_outlined),
+                icon: Icon(Icons.save_outlined),
                 label: const Text('Save Draft'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primary),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
@@ -552,7 +550,6 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
         title: const Text('Submit Assignment'),
         content: Column(
           mainAxisSize: MainAxisSize.min,

@@ -50,13 +50,11 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
           // App bar
           SliverAppBar(
             floating: true,
-            backgroundColor: AppColors.background,
             title: Text('Browse Courses', style: AppTextStyles.h3),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(120),
@@ -70,10 +68,10 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                       onSubmitted: (_) => _loadCourses(),
                       decoration: InputDecoration(
                         hintText: 'Search courses...',
-                        prefixIcon: const Icon(Icons.search),
+                        prefixIcon: Icon(Icons.search),
                         suffixIcon: _searchController.text.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear),
+                                icon: Icon(Icons.clear),
                                 onPressed: () {
                                   _searchController.clear();
                                   _loadCourses();
@@ -164,7 +162,6 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
           color: isSelected ? AppColors.background : AppColors.textPrimary,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
         ),
-        backgroundColor: AppColors.surface,
         selectedColor: AppColors.primary,
         checkmarkColor: AppColors.background,
         side: BorderSide(

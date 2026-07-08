@@ -54,9 +54,7 @@ class NotificationSettingsView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notification Settings'),
-        backgroundColor: AppColors.background,
       ),
-      backgroundColor: AppColors.background,
       body: BlocConsumer<NotificationBloc, NotificationState>(
         listener: (context, state) {
           if (state is NotificationSettingsUpdated) {
@@ -68,7 +66,7 @@ class NotificationSettingsView extends StatelessWidget {
         },
         builder: (context, state) {
           if (state is NotificationSettingsLoading) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             );
           }
@@ -78,7 +76,7 @@ class NotificationSettingsView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.error_outline,
                     color: AppColors.error,
                     size: 48,
@@ -86,7 +84,7 @@ class NotificationSettingsView extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     state.message,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -113,11 +111,11 @@ class NotificationSettingsView extends StatelessWidget {
           child: Card(
             color: AppColors.surface,
             child: SwitchListTile(
-              title: const Text(
+              title: Text(
                 'Enable Push Notifications',
                 style: TextStyle(color: AppColors.textPrimary),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 'Receive notifications on your device',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
@@ -221,11 +219,11 @@ class NotificationSettingsView extends StatelessWidget {
             child: Column(
               children: [
                 SwitchListTile(
-                  title: const Text(
+                  title: Text(
                     'Enable Quiet Hours',
                     style: TextStyle(color: AppColors.textPrimary),
                   ),
-                  subtitle: const Text(
+                  subtitle: Text(
                     '10:00 PM - 8:00 AM',
                     style: TextStyle(
                       color: AppColors.textSecondary,
@@ -237,7 +235,7 @@ class NotificationSettingsView extends StatelessWidget {
                   onChanged: (value) {
                     // In a full implementation, this would update quiet hours
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text('Quiet hours settings coming soon'),
                         backgroundColor: AppColors.info,
                       ),
@@ -258,7 +256,7 @@ class NotificationSettingsView extends StatelessWidget {
             color: AppColors.info.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Row(
+          child: Row(
             children: [
               Icon(Icons.info_outline, color: AppColors.info, size: 20),
               SizedBox(width: 12),
@@ -288,7 +286,7 @@ class NotificationSettingsView extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -298,7 +296,7 @@ class NotificationSettingsView extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
             ),
@@ -328,10 +326,10 @@ class NotificationSettingsView extends StatelessWidget {
         ),
         child: Icon(icon, color: AppColors.primary, size: 20),
       ),
-      title: Text(title, style: const TextStyle(color: AppColors.textPrimary)),
+      title: Text(title, style: TextStyle(color: AppColors.textPrimary)),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
       ),
       trailing: Switch(
         value: settings.isTypeEnabled(type),
@@ -352,6 +350,6 @@ class NotificationSettingsView extends StatelessWidget {
   }
 
   Widget _buildDivider() {
-    return const Divider(color: AppColors.surfaceLight, height: 1, indent: 72);
+    return Divider(color: AppColors.surfaceLight, height: 1, indent: 72);
   }
 }

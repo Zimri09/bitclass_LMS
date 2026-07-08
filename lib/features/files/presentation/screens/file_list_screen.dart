@@ -37,17 +37,15 @@ class _FileListScreenState extends State<FileListScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Course Materials'),
-          backgroundColor: AppColors.background,
           actions: [
             IconButton(
-              icon: const Icon(Icons.upload_file),
+              icon: Icon(Icons.upload_file),
               onPressed: () =>
                   context.push('/courses/${widget.courseId}/files/upload'),
               tooltip: 'Upload File',
             ),
           ],
         ),
-        backgroundColor: AppColors.background,
         body: Column(
           children: [
             // Search and filter bar
@@ -65,7 +63,7 @@ class _FileListScreenState extends State<FileListScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.error_outline,
                             color: AppColors.error,
                             size: 48,
@@ -73,7 +71,7 @@ class _FileListScreenState extends State<FileListScreen> {
                           const SizedBox(height: 16),
                           Text(
                             state.message,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                             ),
                           ),
@@ -125,11 +123,11 @@ class _FileListScreenState extends State<FileListScreen> {
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search files...',
-              hintStyle: const TextStyle(color: AppColors.textMuted),
-              prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
+              hintStyle: TextStyle(color: AppColors.textMuted),
+              prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear, color: AppColors.textMuted),
+                      icon: Icon(Icons.clear, color: AppColors.textMuted),
                       onPressed: () {
                         _searchController.clear();
                         context.read<FileBloc>().add(
@@ -150,7 +148,7 @@ class _FileListScreenState extends State<FileListScreen> {
                 vertical: 12,
               ),
             ),
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: AppColors.textPrimary),
             onSubmitted: (query) {
               if (query.isNotEmpty) {
                 context.read<FileBloc>().add(
@@ -235,7 +233,7 @@ class _FileListScreenState extends State<FileListScreen> {
           const SizedBox(height: 16),
           Text(
             hasFilter ? 'No files match your filter' : 'No files uploaded yet',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 16,
             ),
@@ -245,14 +243,14 @@ class _FileListScreenState extends State<FileListScreen> {
             hasFilter
                 ? 'Try a different filter or clear it'
                 : 'Upload course materials to get started',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
           ),
           if (!hasFilter) ...[
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () =>
                   context.push('/courses/${widget.courseId}/files/upload'),
-              icon: const Icon(Icons.upload_file),
+              icon: Icon(Icons.upload_file),
               label: const Text('Upload File'),
             ),
           ],
@@ -294,7 +292,7 @@ class _FileListScreenState extends State<FileListScreen> {
                   children: [
                     Text(
                       file.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w500,
                         fontSize: 15,
@@ -306,7 +304,7 @@ class _FileListScreenState extends State<FileListScreen> {
                     if (file.description.isNotEmpty)
                       Text(
                         file.description,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
@@ -318,13 +316,13 @@ class _FileListScreenState extends State<FileListScreen> {
                       children: [
                         Text(
                           file.formattedSize,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 12,
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Icon(
+                        Icon(
                           Icons.download,
                           size: 12,
                           color: AppColors.textMuted,
@@ -332,7 +330,7 @@ class _FileListScreenState extends State<FileListScreen> {
                         const SizedBox(width: 4),
                         Text(
                           '${file.downloadCount}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 12,
                           ),
@@ -340,7 +338,7 @@ class _FileListScreenState extends State<FileListScreen> {
                         const SizedBox(width: 12),
                         Text(
                           _formatDate(file.createdAt),
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 12,
                           ),
@@ -352,7 +350,7 @@ class _FileListScreenState extends State<FileListScreen> {
               ),
               // More button
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.more_vert,
                   color: AppColors.textSecondary,
                 ),
@@ -368,7 +366,6 @@ class _FileListScreenState extends State<FileListScreen> {
   void _showFileOptions(BuildContext blocContext, CourseFile file) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -386,8 +383,8 @@ class _FileListScreenState extends State<FileListScreen> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.download, color: AppColors.textPrimary),
-              title: const Text(
+              leading: Icon(Icons.download, color: AppColors.textPrimary),
+              title: Text(
                 'Download',
                 style: TextStyle(color: AppColors.textPrimary),
               ),
@@ -397,7 +394,7 @@ class _FileListScreenState extends State<FileListScreen> {
                   RecordDownload(courseId: widget.courseId, fileId: file.id),
                 );
                 ScaffoldMessenger.of(blocContext).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text('Download started (demo)'),
                     backgroundColor: AppColors.info,
                   ),
@@ -405,15 +402,15 @@ class _FileListScreenState extends State<FileListScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.share, color: AppColors.textPrimary),
-              title: const Text(
+              leading: Icon(Icons.share, color: AppColors.textPrimary),
+              title: Text(
                 'Share',
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               onTap: () {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(blocContext).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text('Share feature coming soon'),
                     backgroundColor: AppColors.info,
                   ),
@@ -421,8 +418,8 @@ class _FileListScreenState extends State<FileListScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.edit, color: AppColors.textPrimary),
-              title: const Text(
+              leading: Icon(Icons.edit, color: AppColors.textPrimary),
+              title: Text(
                 'Edit Details',
                 style: TextStyle(color: AppColors.textPrimary),
               ),
@@ -432,8 +429,8 @@ class _FileListScreenState extends State<FileListScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete, color: AppColors.error),
-              title: const Text(
+              leading: Icon(Icons.delete, color: AppColors.error),
+              title: Text(
                 'Delete',
                 style: TextStyle(color: AppColors.error),
               ),
@@ -456,8 +453,7 @@ class _FileListScreenState extends State<FileListScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
+        title: Text(
           'Edit File Details',
           style: TextStyle(color: AppColors.textPrimary),
         ),
@@ -466,20 +462,20 @@ class _FileListScreenState extends State<FileListScreen> {
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'File Name',
                 labelStyle: TextStyle(color: AppColors.textSecondary),
               ),
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: descController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Description',
                 labelStyle: TextStyle(color: AppColors.textSecondary),
               ),
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimary),
               maxLines: 2,
             ),
           ],
@@ -512,14 +508,13 @@ class _FileListScreenState extends State<FileListScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
+        title: Text(
           'Delete File?',
           style: TextStyle(color: AppColors.textPrimary),
         ),
         content: Text(
           'Are you sure you want to delete "${file.name}"? This action cannot be undone.',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(

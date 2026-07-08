@@ -53,7 +53,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
@@ -106,7 +105,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ],
           ),
-          child: const Icon(Icons.code, color: AppColors.background, size: 36),
+          child: Icon(Icons.code, color: AppColors.background, size: 36),
         ),
         const SizedBox(height: 16),
         Text('Create Account', style: AppTextStyles.h2),
@@ -198,7 +197,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: InputDecoration(
                 labelText: 'Password',
                 hintText: 'Create a password',
-                prefixIcon: const Icon(Icons.lock_outlined),
+                prefixIcon: Icon(Icons.lock_outlined),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscurePassword
@@ -231,7 +230,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: InputDecoration(
                 labelText: 'Confirm Password',
                 hintText: 'Re-enter your password',
-                prefixIcon: const Icon(Icons.lock_outlined),
+                prefixIcon: Icon(Icons.lock_outlined),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscureConfirmPassword
@@ -267,7 +266,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     backgroundColor: AppColors.secondary,
                   ),
                   child: isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(

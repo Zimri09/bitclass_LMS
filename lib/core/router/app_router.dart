@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../features/assignments/presentation/screens/screens.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
@@ -7,6 +8,10 @@ import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/todos/presentation/screens/todos_list_screen.dart';
+import '../../features/todos/presentation/state/todos_cubit.dart';
+import '../../features/todos/data/repositories/todos_repository.dart';
+
 import '../../features/courses/presentation/screens/course_catalog_screen.dart';
 import '../../features/courses/presentation/screens/course_detail_screen.dart';
 import '../../features/courses/presentation/screens/create_course_screen.dart';
@@ -64,6 +69,7 @@ class AppRouter {
           GoRoute(
             path: AppRoutes.dashboard,
             name: 'dashboard',
+
             pageBuilder: (context, state) => AppTransitions.fadeTransition(
               context: context,
               state: state,
@@ -71,8 +77,26 @@ class AppRouter {
             ),
           ),
           GoRoute(
+            path: AppRoutes.todos,
+            name: 'todos',
+            pageBuilder: (context, state) => AppTransitions.fadeTransition(
+              context: context,
+              state: state,
+              child: MultiBlocProvider(
+                providers: [
+                  BlocProvider<TodosCubit>(
+                    create: (context) =>
+                        TodosCubit(todosRepository: TodosRepository())..load(),
+                  ),
+                ],
+                child: const TodosListScreen(),
+              ),
+            ),
+          ),
+          GoRoute(
             path: AppRoutes.profile,
             name: 'profile',
+
             pageBuilder: (context, state) => AppTransitions.fadeTransition(
               context: context,
               state: state,

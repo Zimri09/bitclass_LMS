@@ -105,7 +105,6 @@ class _LessonScreenState extends State<LessonScreen> {
         },
         builder: (context, state) {
           return Scaffold(
-            backgroundColor: AppColors.background,
             appBar: _buildAppBar(context, state),
             body: _buildBody(context, state),
             bottomNavigationBar: state is LessonDetailLoaded
@@ -124,9 +123,8 @@ class _LessonScreenState extends State<LessonScreen> {
     }
 
     return AppBar(
-      backgroundColor: AppColors.surface,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
+        icon: Icon(Icons.arrow_back),
         onPressed: _handleBack,
       ),
       title: Text(
@@ -139,7 +137,7 @@ class _LessonScreenState extends State<LessonScreen> {
         if (state is LessonDetailLoaded) ...[
           // Lesson info
           IconButton(
-            icon: const Icon(Icons.info_outline),
+            icon: Icon(Icons.info_outline),
             onPressed: () => _showLessonInfo(context, state.lesson),
           ),
         ],
@@ -444,7 +442,7 @@ class _LessonScreenState extends State<LessonScreen> {
                           '/courses/${widget.courseId}/quizzes/${lesson.id}',
                         );
                       },
-                      icon: const Icon(Icons.play_arrow),
+                      icon: Icon(Icons.play_arrow),
                       label: const Text('Start Quiz'),
                     )
                   else
@@ -537,7 +535,6 @@ class _LessonScreenState extends State<LessonScreen> {
   void _showLessonInfo(BuildContext context, LessonModel lesson) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),

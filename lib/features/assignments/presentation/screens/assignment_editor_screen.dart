@@ -205,13 +205,11 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           widget.assignmentId == null ? 'Create Assignment' : 'Edit Assignment',
           style: AppTextStyles.h4,
         ),
-        backgroundColor: AppColors.surface,
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -360,12 +358,12 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.calendar_today),
+                        icon: Icon(Icons.calendar_today),
                         onPressed: _selectDueDate,
                       ),
                       if (_dueDate != null)
                         IconButton(
-                          icon: const Icon(Icons.clear),
+                          icon: Icon(Icons.clear),
                           onPressed: () {
                             setState(() {
                               _dueDate = null;
@@ -376,7 +374,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
                     ],
                   ),
                 ),
-                const Divider(),
+                Divider(),
 
                 // Late submission settings
                 SwitchListTile(
@@ -399,7 +397,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
                       keyboardType: TextInputType.number,
                     ),
                   ),
-                const Divider(),
+                Divider(),
 
                 // Published
                 SwitchListTile(
@@ -517,7 +515,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       color: AppColors.info,
                       height: 1.4,
@@ -591,7 +589,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       color: AppColors.secondary,
                       height: 1.4,

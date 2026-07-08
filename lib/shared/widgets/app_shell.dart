@@ -54,6 +54,7 @@ class _AppShellState extends State<AppShell> {
     final currentPath = GoRouterState.of(context).matchedLocation;
     final bottomItems = _getBottomNavItems(isInstructor);
     final currentIndex = _getBottomNavIndex(currentPath, bottomItems);
+    final colors = AppColors.of(context);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -61,8 +62,8 @@ class _AppShellState extends State<AppShell> {
       drawer: _buildDrawer(context, isInstructor),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: AppColors.backgroundSecondary,
-          border: Border(top: BorderSide(color: AppColors.border, width: 1)),
+          color: colors.backgroundSecondary,
+          border: Border(top: BorderSide(color: colors.border, width: 1)),
         ),
         child: SafeArea(
           child: Padding(
@@ -102,6 +103,7 @@ class _AppShellState extends State<AppShell> {
     required bool isActive,
     VoidCallback? onTap,
   }) {
+    final colors = AppColors.of(context);
     return Expanded(
       child: InkWell(
         onTap: onTap ?? () => context.go(item.path),
@@ -113,7 +115,7 @@ class _AppShellState extends State<AppShell> {
             children: [
               Icon(
                 isActive ? item.activeIcon : item.icon,
-                color: isActive ? AppColors.primary : AppColors.textSecondary,
+                color: isActive ? AppColors.primary : colors.textSecondary,
                 size: 22,
               ),
               const SizedBox(height: 2),
@@ -122,7 +124,7 @@ class _AppShellState extends State<AppShell> {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                  color: isActive ? AppColors.primary : AppColors.textSecondary,
+                  color: isActive ? AppColors.primary : colors.textSecondary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -136,15 +138,16 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildDrawer(BuildContext context, bool isInstructor) {
     final currentPath = GoRouterState.of(context).matchedLocation;
+    final colors = AppColors.of(context);
 
     return Drawer(
-      backgroundColor: AppColors.backgroundSecondary,
+      backgroundColor: colors.backgroundSecondary,
       child: SafeArea(
         child: Column(
           children: [
             // Header
             _buildExpandedHeader(),
-            const Divider(),
+            Divider(),
 
             // All nav items
             Expanded(
@@ -162,7 +165,7 @@ class _AppShellState extends State<AppShell> {
               ),
             ),
 
-            const Divider(),
+            Divider(),
             _buildLogoutButton(context, expanded: true),
             const SizedBox(height: 12),
           ],
@@ -178,11 +181,12 @@ class _AppShellState extends State<AppShell> {
   }) {
     final isActive =
         currentPath == item.path || currentPath.startsWith('${item.path}/');
+    final colors = AppColors.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: isActive ? AppColors.surface : Colors.transparent,
+        color: isActive ? colors.surface : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () {
@@ -204,16 +208,22 @@ class _AppShellState extends State<AppShell> {
               children: [
                 Icon(
                   isActive ? item.activeIcon : item.icon,
-                  color: isActive ? AppColors.primary : AppColors.textSecondary,
+                  color: isActive ? AppColors.primary : colors.textSecondary,
                   size: 22,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     item.label,
-                    style: isActive
-                        ? AppTextStyles.navItemActive
-                        : AppTextStyles.navItem,
+                    style:
+                        (isActive
+                                ? AppTextStyles.navItemActive
+                                : AppTextStyles.navItem)
+                            .copyWith(
+                              color: isActive
+                                  ? AppColors.primary
+                                  : colors.textSecondary,
+                            ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -272,18 +282,19 @@ class _AppShellState extends State<AppShell> {
     required bool expanded,
   }) {
     final currentPath = GoRouterState.of(context).matchedLocation;
+    final colors = AppColors.of(context);
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.backgroundSecondary,
-        border: Border(right: BorderSide(color: AppColors.border, width: 1)),
+        color: colors.backgroundSecondary,
+        border: Border(right: BorderSide(color: colors.border, width: 1)),
       ),
       child: Column(
         children: [
           // Logo/Brand
           expanded ? _buildExpandedHeader() : _buildCollapsedHeader(),
           const SizedBox(height: 8),
-          const Divider(),
+          Divider(),
           const SizedBox(height: 8),
 
           // Navigation items
@@ -303,7 +314,7 @@ class _AppShellState extends State<AppShell> {
           ),
 
           // Bottom section
-          const Divider(),
+          Divider(),
           _buildLogoutButton(context, expanded: expanded),
           const SizedBox(height: 12),
         ],
@@ -327,6 +338,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _buildExpandedHeader() {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -337,18 +349,23 @@ class _AppShellState extends State<AppShell> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('BitClass', style: AppTextStyles.h4),
-                Text('Learn to Code', style: AppTextStyles.caption),
+                Text(
+                  'BitClass',
+                  style: AppTextStyles.h4.copyWith(color: colors.textPrimary),
+                ),
+                Text(
+                  'Learn to Code',
+                  style: AppTextStyles.caption.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
           // Only show collapse on desktop
           if (MediaQuery.sizeOf(context).width >= _Breakpoints.tablet)
             IconButton(
-              icon: const Icon(
-                Icons.chevron_left,
-                color: AppColors.textSecondary,
-              ),
+              icon: Icon(Icons.chevron_left, color: colors.textSecondary),
               onPressed: () => setState(() => _isExpanded = false),
               tooltip: 'Collapse',
             ),
@@ -372,7 +389,7 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
-      child: const Icon(Icons.code, color: AppColors.background, size: 24),
+      child: Icon(Icons.code, color: AppColors.background, size: 24),
     );
   }
 
@@ -388,6 +405,7 @@ class _AppShellState extends State<AppShell> {
   }) {
     final isActive =
         currentPath == item.path || currentPath.startsWith('${item.path}/');
+    final colors = AppColors.of(context);
 
     if (item.isSectionHeader) {
       if (!expanded) return const SizedBox(height: 16);
@@ -398,6 +416,7 @@ class _AppShellState extends State<AppShell> {
           style: AppTextStyles.caption.copyWith(
             letterSpacing: 1,
             fontWeight: FontWeight.w600,
+            color: colors.textMuted,
           ),
         ),
       );
@@ -406,7 +425,7 @@ class _AppShellState extends State<AppShell> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: isActive ? AppColors.surface : Colors.transparent,
+        color: isActive ? colors.surface : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () => context.go(item.path),
@@ -431,7 +450,7 @@ class _AppShellState extends State<AppShell> {
               children: [
                 Icon(
                   isActive ? item.activeIcon : item.icon,
-                  color: isActive ? AppColors.primary : AppColors.textSecondary,
+                  color: isActive ? AppColors.primary : colors.textSecondary,
                   size: 22,
                 ),
                 if (expanded) ...[
@@ -439,9 +458,15 @@ class _AppShellState extends State<AppShell> {
                   Expanded(
                     child: Text(
                       item.label,
-                      style: isActive
-                          ? AppTextStyles.navItemActive
-                          : AppTextStyles.navItem,
+                      style:
+                          (isActive
+                                  ? AppTextStyles.navItemActive
+                                  : AppTextStyles.navItem)
+                              .copyWith(
+                                color: isActive
+                                    ? AppColors.primary
+                                    : colors.textSecondary,
+                              ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -475,7 +500,7 @@ class _AppShellState extends State<AppShell> {
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                const Icon(Icons.logout, color: AppColors.error, size: 22),
+                Icon(Icons.logout, color: AppColors.error, size: 22),
                 if (expanded) ...[
                   const SizedBox(width: 12),
                   Text(
@@ -543,6 +568,12 @@ class _AppShellState extends State<AppShell> {
         activeIcon: Icons.dashboard,
         label: 'Dashboard',
         path: AppRoutes.dashboard,
+      ),
+      _NavItem(
+        icon: Icons.check_box_outline_blank,
+        activeIcon: Icons.check_box,
+        label: 'Todos',
+        path: AppRoutes.todos,
       ),
       _NavItem(
         icon: Icons.explore_outlined,

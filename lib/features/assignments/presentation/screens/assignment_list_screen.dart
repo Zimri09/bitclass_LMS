@@ -47,22 +47,20 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
     return BlocProvider.value(
       value: _assignmentBloc,
       child: Scaffold(
-        backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: AppColors.backgroundSecondary,
           title: Text(
             'Assignments',
             style: GoogleFonts.inter(fontWeight: FontWeight.w600),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: Icon(Icons.arrow_back),
             onPressed: () => context.pop(),
           ),
         ),
         body: BlocBuilder<AssignmentBloc, AssignmentState>(
           builder: (context, state) {
             if (state is AssignmentsLoading) {
-              return const Center(
+              return Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               );
             }
@@ -216,7 +214,7 @@ class _AssignmentCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  Icon(Icons.chevron_right, color: AppColors.textMuted),
                 ],
               ),
               const SizedBox(height: 16),

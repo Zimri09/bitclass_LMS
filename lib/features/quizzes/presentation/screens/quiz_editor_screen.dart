@@ -197,13 +197,11 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           widget.quizId == null ? 'Create Quiz' : 'Edit Quiz',
           style: AppTextStyles.h4,
         ),
-        backgroundColor: AppColors.surface,
         actions: [
           if (!_isLoading)
             Padding(
@@ -428,7 +426,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             Text('Questions (${_questions.length})', style: AppTextStyles.h4),
             ElevatedButton.icon(
               onPressed: _addQuestion,
-              icon: const Icon(Icons.add),
+              icon: Icon(Icons.add),
               label: const Text('Add Question'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -670,7 +668,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
         initiallyExpanded: widget.question.questionText.isEmpty,
         leading: ReorderableDragStartListener(
           index: widget.index,
-          child: const Icon(Icons.drag_handle, color: AppColors.textSecondary),
+          child: Icon(Icons.drag_handle, color: AppColors.textSecondary),
         ),
         title: Text(
           widget.question.questionText.isEmpty
@@ -687,7 +685,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
           ),
         ),
         trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, color: AppColors.error),
+          icon: Icon(Icons.delete_outline, color: AppColors.error),
           onPressed: widget.onRemove,
         ),
         children: [
@@ -753,7 +751,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: _addOption,
-                    icon: const Icon(Icons.add),
+                    icon: Icon(Icons.add),
                     label: const Text('Add Option'),
                   ),
                 ],
@@ -809,9 +807,9 @@ class _QuestionEditorState extends State<_QuestionEditor> {
                 controller: _optionControllers[index],
                 decoration: InputDecoration(
                   hintText: 'Option ${index + 1}',
-                  border: const OutlineInputBorder(),
+                  border: OutlineInputBorder(),
                   suffixIcon: option.isCorrect
-                      ? const Icon(Icons.check_circle, color: AppColors.success)
+                      ? Icon(Icons.check_circle, color: AppColors.success)
                       : null,
                 ),
                 onChanged: (_) => _updateQuestion(),
@@ -819,7 +817,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
             ),
             // Remove option button
             IconButton(
-              icon: const Icon(Icons.close, size: 20),
+              icon: Icon(Icons.close, size: 20),
               onPressed: () => _removeOption(index),
               color: AppColors.textSecondary,
             ),

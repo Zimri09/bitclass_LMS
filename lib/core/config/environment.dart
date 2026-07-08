@@ -1,7 +1,7 @@
 /// Environment configuration for the BitClass app
 ///
 /// This file controls whether the app runs in demo mode (with mock data)
-/// or connects to real Firebase services.
+/// or connects to real Supabase services.
 library;
 
 import 'dart:developer';
@@ -10,13 +10,13 @@ import 'package:flutter/foundation.dart';
 
 /// Environment type
 enum Environment {
-  /// Demo mode with mock data - no Firebase required
+  /// Demo mode with mock data - no backend required
   demo,
 
-  /// Development environment with real Firebase
+  /// Development environment with real Supabase
   development,
 
-  /// Production environment with real Firebase
+  /// Production environment with real Supabase
   production,
 }
 
@@ -25,29 +25,23 @@ class EnvironmentConfig {
   EnvironmentConfig._();
 
   /// Current environment - change this to switch modes
-  static const Environment current = Environment.demo;
+  static const Environment current = Environment.development;
+
+  /// Backend provider for real services.
+  ///
+  /// Demo mode bypasses Supabase entirely.
+  static const String backendProvider = 'supabase';
 
   /// Whether the app is running in demo mode
   static bool get isDemoMode => current == Environment.demo;
 
-  /// Whether the app should use real Firebase services
-  static bool get useFirebase => current != Environment.demo;
+  /// Whether the app should use Supabase services.
+  static bool get useSupabase =>
+      current != Environment.demo && backendProvider == 'supabase';
 
   /// Whether to show debug information
   static bool get showDebugInfo =>
       kDebugMode && current != Environment.production;
-
-  /// Firebase project ID based on environment
-  static String get firebaseProjectId {
-    switch (current) {
-      case Environment.demo:
-        return '';
-      case Environment.development:
-        return 'bitclass-dev';
-      case Environment.production:
-        return 'bitclass-prod';
-    }
-  }
 
   /// API base URL for any external services
   static String get apiBaseUrl {
@@ -61,15 +55,39 @@ class EnvironmentConfig {
     }
   }
 
-  /// Storage bucket URL
+  /// Supabase project URL.
+  static String get supabaseUrl {
+    switch (current) {
+      case Environment.demo:
+        return '';
+      case Environment.development:
+        return 'https://ksrverpyybrwpoocbvqx.supabase.co';
+      case Environment.production:
+        return 'https://YOUR-PROJECT.supabase.co';
+    }
+  }
+
+  /// Supabase public anon key.
+  static String get supabaseAnonKey {
+    switch (current) {
+      case Environment.demo:
+        return '';
+      case Environment.development:
+        return 'sb_publishable_mBj1Da-qQw21P1ifD5PULQ_bJvyXqje';
+      case Environment.production:
+        return 'YOUR_SUPABASE_ANON_KEY';
+    }
+  }
+
+  /// Supabase Storage bucket name.
   static String get storageBucket {
     switch (current) {
       case Environment.demo:
         return '';
       case Environment.development:
-        return 'gs://bitclass-dev.appspot.com';
+        return 'bitclass-dev';
       case Environment.production:
-        return 'gs://bitclass-prod.appspot.com';
+        return 'bitclass-prod';
     }
   }
 
@@ -83,7 +101,7 @@ class EnvironmentConfig {
       );
       log('Demo Mode: $isDemoMode', name: 'Environment');
       log(
-        'Firebase: ${useFirebase ? 'enabled' : 'disabled'}',
+        'Backend: ${useSupabase ? 'Supabase' : 'none (demo)'}',
         name: 'Environment',
       );
       log('═══════════════════════════════════════════', name: 'Environment');

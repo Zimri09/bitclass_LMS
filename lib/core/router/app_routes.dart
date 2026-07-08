@@ -11,6 +11,7 @@ class AppRoutes {
 
   // Main app routes
   static const String dashboard = '/dashboard';
+  static const String todos = '/todos';
   static const String profile = '/profile';
 
   // Course routes

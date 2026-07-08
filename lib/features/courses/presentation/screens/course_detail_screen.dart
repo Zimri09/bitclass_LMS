@@ -47,12 +47,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: BlocConsumer<CourseBloc, CourseState>(
         listener: (context, state) {
           if (state is CourseEnrolled) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('Successfully enrolled in course!'),
                 backgroundColor: AppColors.success,
               ),
@@ -132,15 +131,14 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
         SliverAppBar(
           expandedHeight: 200,
           pinned: true,
-          backgroundColor: AppColors.backgroundSecondary,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: Icon(Icons.arrow_back),
             onPressed: () => context.go(AppRoutes.courses),
           ),
           actions: [
             if (isOwnCourse)
               IconButton(
-                icon: const Icon(Icons.edit),
+                icon: Icon(Icons.edit),
                 onPressed: () {
                   context.push(AppRoutes.editCoursePath(course.id));
                 },
@@ -289,7 +287,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
         children: [
           Row(
             children: [
-              const Icon(Icons.people, color: AppColors.primary, size: 22),
+              Icon(Icons.people, color: AppColors.primary, size: 22),
               const SizedBox(width: 8),
               Text('Enrolled Students', style: AppTextStyles.h3),
               const Spacer(),
@@ -313,11 +311,11 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               onPressed: () {
                 context.push(AppRoutes.courseStudentsPath(course.id));
               },
-              icon: const Icon(Icons.visibility),
+              icon: Icon(Icons.visibility),
               label: const Text('View All Students'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: const BorderSide(color: AppColors.primary),
+                side: BorderSide(color: AppColors.primary),
                 foregroundColor: AppColors.primary,
               ),
             ),
@@ -361,7 +359,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                   }
                 }
               },
-              icon: const Icon(Icons.play_arrow),
+              icon: Icon(Icons.play_arrow),
               label: const Text('Continue Learning'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -395,7 +393,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
             }
           }
         },
-        icon: const Icon(Icons.visibility),
+        icon: Icon(Icons.visibility),
         label: const Text('Preview Course'),
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -419,7 +417,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
           context.go(AppRoutes.login);
         }
       },
-      icon: const Icon(Icons.add),
+      icon: Icon(Icons.add),
       label: const Text('Enroll in Course'),
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.secondary,
@@ -448,7 +446,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.build_circle_outlined,
                 color: AppColors.primary,
                 size: 22,
@@ -570,7 +568,6 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: AppColors.surface,
               valueColor: AlwaysStoppedAnimation<Color>(
                 progress >= 1.0 ? AppColors.success : AppColors.primary,
               ),
@@ -637,7 +634,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               color: AppColors.warning.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.assignment_outlined,
               color: AppColors.warning,
             ),
@@ -658,7 +655,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: AppColors.textMuted),
+          Icon(Icons.chevron_right, color: AppColors.textMuted),
         ],
       ),
     );
@@ -746,7 +743,7 @@ class _CourseQuizzesSection extends StatelessWidget {
                 color: AppColors.secondary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.quiz_outlined,
                 color: AppColors.secondary,
                 size: 24,
@@ -812,7 +809,7 @@ class _CourseQuizzesSection extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            Icon(Icons.chevron_right, color: AppColors.textSecondary),
           ],
         ),
       ),

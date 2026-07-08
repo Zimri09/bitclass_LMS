@@ -54,15 +54,13 @@ class ThreadListView extends StatelessWidget {
             return const Text('Threads');
           },
         ),
-        backgroundColor: AppColors.background,
       ),
-      backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           context.push('/courses/$courseId/discussions/$channelId/new');
         },
         backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: AppColors.background),
+        child: Icon(Icons.add, color: AppColors.background),
       ),
       body: BlocBuilder<DiscussionBloc, DiscussionState>(
         builder: (context, state) {
@@ -75,7 +73,7 @@ class ThreadListView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.error_outline,
                     color: AppColors.error,
                     size: 48,
@@ -83,7 +81,7 @@ class ThreadListView extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     state.message,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -99,13 +97,13 @@ class ThreadListView extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.chat_bubble_outline,
                       color: AppColors.textSecondary,
                       size: 64,
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'No discussions yet',
                       style: TextStyle(
                         color: AppColors.textSecondary,
@@ -165,7 +163,7 @@ class ThreadListView extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -195,7 +193,7 @@ class ThreadListView extends StatelessWidget {
               Row(
                 children: [
                   if (thread.isPinned) ...[
-                    const Icon(
+                    Icon(
                       Icons.push_pin,
                       color: AppColors.warning,
                       size: 16,
@@ -205,7 +203,7 @@ class ThreadListView extends StatelessWidget {
                   Expanded(
                     child: Text(
                       thread.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
@@ -231,7 +229,7 @@ class ThreadListView extends StatelessWidget {
                           color: AppColors.success.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
@@ -263,7 +261,7 @@ class ThreadListView extends StatelessWidget {
                           color: AppColors.textSecondary.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
@@ -292,7 +290,7 @@ class ThreadListView extends StatelessWidget {
               // Content preview
               Text(
                 thread.content,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 14,
                 ),
@@ -310,7 +308,7 @@ class ThreadListView extends StatelessWidget {
                     backgroundColor: AppColors.primary.withValues(alpha: 0.2),
                     child: Text(
                       thread.authorName[0].toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.primary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,

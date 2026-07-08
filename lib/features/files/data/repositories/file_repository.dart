@@ -2,26 +2,29 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../models/models.dart';
 
-/// Repository handling file upload operations
+/// Repository handling file upload operations.
 class FileRepository {
-  final FirebaseFirestore? _firestore;
-  final FirebaseStorage? _storage;
+  static const String _filesTable = 'files';
+  static const String _storageBucket = 'materials';
 
-  FileRepository({FirebaseFirestore? firestore, FirebaseStorage? storage})
-    : _firestore = EnvironmentConfig.isDemoMode
+  final SupabaseClient? _supabase;
+
+  // Demo files for testing UI
+  final List<CourseFile> _demoFiles = [];
+
+  // Stream controller for real-time updates
+  final _filesController = StreamController<List<CourseFile>>.broadcast();
+
+  FileRepository({SupabaseClient? supabase})
+    : _supabase = EnvironmentConfig.isDemoMode
           ? null
-          : (firestore ?? FirebaseFirestore.instance),
-      _storage = EnvironmentConfig.isDemoMode
-          ? null
-          : (storage ?? FirebaseStorage.instance) {
+          : (supabase ?? Supabase.instance.client) {
     if (EnvironmentConfig.isDemoMode) {
       _initDemoData();
     }
@@ -120,11 +123,40 @@ class FileRepository {
     ]);
   }
 
-  // Demo files for testing UI
-  final List<CourseFile> _demoFiles = [];
+  Map<String, dynamic> _rowToFileMap(Map<String, dynamic> row) {
+    return {
+      'courseId': row['course_id'],
+      'lessonId': row['lesson_id'],
+      'uploaderId': row['uploader_id'],
+      'uploaderName': row['uploader_name'],
+      'name': row['name'],
+      'description': row['description'],
+      'url': row['public_url'],
+      'thumbnailUrl': row['thumbnail_url'],
+      'type': row['file_type'],
+      'mimeType': row['mime_type'],
+      'sizeBytes': row['size_bytes'],
+      'downloadCount': row['download_count'],
+      'createdAt': row['created_at']?.toString(),
+      'updatedAt': row['updated_at']?.toString(),
+    };
+  }
 
-  // Stream controller for real-time updates
-  final _filesController = StreamController<List<CourseFile>>.broadcast();
+  CourseFile _fileFromRow(Map<String, dynamic> row) {
+    return CourseFile.fromMap(_rowToFileMap(row), row['id'] as String);
+  }
+
+  Future<Map<String, dynamic>?> _getFileRow(
+    String courseId,
+    String fileId,
+  ) async {
+    return await _supabase!
+        .from(_filesTable)
+        .select()
+        .eq('course_id', courseId)
+        .eq('id', fileId)
+        .maybeSingle();
+  }
 
   /// Get all files for a course
   Future<List<CourseFile>> getCourseFiles(String courseId) async {
@@ -134,15 +166,15 @@ class FileRepository {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .orderBy('createdAt', descending: true)
-        .get();
+    final rows = await _supabase!
+        .from(_filesTable)
+        .select()
+        .eq('course_id', courseId)
+        .order('created_at', ascending: false);
 
-    return snapshot.docs
-        .map((doc) => CourseFile.fromMap(doc.data(), doc.id))
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(_fileFromRow)
         .toList();
   }
 
@@ -159,16 +191,16 @@ class FileRepository {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .where('lessonId', isEqualTo: lessonId)
-        .orderBy('createdAt', descending: true)
-        .get();
+    final rows = await _supabase!
+        .from(_filesTable)
+        .select()
+        .eq('course_id', courseId)
+        .eq('lesson_id', lessonId)
+        .order('created_at', ascending: false);
 
-    return snapshot.docs
-        .map((doc) => CourseFile.fromMap(doc.data(), doc.id))
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(_fileFromRow)
         .toList();
   }
 
@@ -179,25 +211,18 @@ class FileRepository {
       try {
         return _demoFiles.firstWhere((f) => f.id == fileId);
       } catch (_) {
-        return null; // File not found in demo data
+        return null;
       }
     }
 
-    final doc = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .doc(fileId)
-        .get();
-
-    if (!doc.exists) return null;
-    return CourseFile.fromMap(doc.data()!, doc.id);
+    final row = await _getFileRow(courseId, fileId);
+    if (row == null) return null;
+    return _fileFromRow(row);
   }
 
   /// Stream of files for real-time updates
   Stream<List<CourseFile>> watchCourseFiles(String courseId) {
     if (EnvironmentConfig.isDemoMode) {
-      // Emit initial data
       getCourseFiles(courseId).then((files) {
         if (!_filesController.isClosed) {
           _filesController.add(files);
@@ -206,16 +231,14 @@ class FileRepository {
       return _filesController.stream;
     }
 
-    return _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
+    return _supabase!
+        .from(_filesTable)
+        .stream(primaryKey: ['id'])
+        .eq('course_id', courseId)
+        .order('created_at', ascending: false)
         .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => CourseFile.fromMap(doc.data(), doc.id))
-              .toList(),
+          (rows) =>
+              rows.cast<Map<String, dynamic>>().map(_fileFromRow).toList(),
         );
   }
 
@@ -242,7 +265,6 @@ class FileRepository {
     );
 
     if (EnvironmentConfig.isDemoMode) {
-      // Simulate upload progress
       for (var i = 1; i <= 10; i++) {
         await Future.delayed(const Duration(milliseconds: 200));
         yield UploadProgress(
@@ -298,56 +320,49 @@ class FileRepository {
       return;
     }
 
-    // Real Firebase upload
     try {
-      final storagePath =
-          '${StoragePaths.materials}/$courseId/$fileId-$fileName';
-      final ref = _storage!.ref().child(storagePath);
-
-      final uploadTask = ref.putData(
-        fileData,
-        SettableMetadata(contentType: mimeType),
-      );
-
-      await for (final event in uploadTask.snapshotEvents) {
-        final progress = event.bytesTransferred / event.totalBytes;
-        yield UploadProgress(
-          fileId: fileId,
-          fileName: fileName,
-          status: event.state == TaskState.running
-              ? UploadStatus.uploading
-              : UploadStatus.processing,
-          progress: progress,
-          startedAt: startTime,
-        );
-      }
-
-      // Get download URL
-      final downloadUrl = await ref.getDownloadURL();
-
-      // Save metadata to Firestore
       final extension = fileName.split('.').last;
-      final newFile = CourseFile(
-        id: fileId,
-        courseId: courseId,
-        lessonId: lessonId,
-        uploaderId: uploaderId,
-        uploaderName: uploaderName,
-        name: fileName,
-        description: description,
-        url: downloadUrl,
-        type: CourseFile.getTypeFromExtension(extension),
-        mimeType: mimeType,
-        sizeBytes: fileData.length,
-        createdAt: DateTime.now(),
+      final fileType = CourseFile.getTypeFromExtension(extension);
+      final storagePath = '$courseId/$fileId-$fileName';
+
+      yield UploadProgress(
+        fileId: fileId,
+        fileName: fileName,
+        status: UploadStatus.processing,
+        progress: 0.85,
+        startedAt: startTime,
       );
 
-      await _firestore!
-          .collection(FirestorePaths.courses)
-          .doc(courseId)
-          .collection('files')
-          .doc(fileId)
-          .set(newFile.toMap());
+      await _supabase!.storage
+          .from(_storageBucket)
+          .uploadBinary(
+            storagePath,
+            fileData,
+            fileOptions: FileOptions(contentType: mimeType, upsert: false),
+          );
+
+      final publicUrl = _supabase!.storage
+          .from(_storageBucket)
+          .getPublicUrl(storagePath);
+
+      await _supabase!.from(_filesTable).insert({
+        'id': fileId,
+        'course_id': courseId,
+        'lesson_id': lessonId,
+        'uploader_id': uploaderId,
+        'uploader_name': uploaderName,
+        'name': fileName,
+        'description': description,
+        'bucket': _storageBucket,
+        'storage_path': storagePath,
+        'public_url': publicUrl,
+        'thumbnail_url': null,
+        'file_type': fileType.name,
+        'mime_type': mimeType,
+        'size_bytes': fileData.length,
+        'download_count': 0,
+        'created_at': DateTime.now().toIso8601String(),
+      });
 
       yield UploadProgress(
         fileId: fileId,
@@ -369,7 +384,7 @@ class FileRepository {
     }
   }
 
-  /// Upload a file (simulated for demo - legacy method)
+  /// Upload a file (legacy compatibility method).
   Stream<UploadProgress> uploadFile({
     required String courseId,
     String? lessonId,
@@ -381,17 +396,16 @@ class FileRepository {
     required String uploaderName,
   }) async* {
     final fileId = 'file-${DateTime.now().millisecondsSinceEpoch}';
+    final startTime = DateTime.now();
 
-    // Start upload
     yield UploadProgress(
       fileId: fileId,
       fileName: fileName,
       status: UploadStatus.uploading,
       progress: 0.0,
-      startedAt: DateTime.now(),
+      startedAt: startTime,
     );
 
-    // Simulate upload progress
     for (var i = 1; i <= 10; i++) {
       await Future.delayed(const Duration(milliseconds: 200));
       yield UploadProgress(
@@ -399,22 +413,20 @@ class FileRepository {
         fileName: fileName,
         status: UploadStatus.uploading,
         progress: i / 10,
-        startedAt: DateTime.now(),
+        startedAt: startTime,
       );
     }
 
-    // Processing
     yield UploadProgress(
       fileId: fileId,
       fileName: fileName,
       status: UploadStatus.processing,
       progress: 1.0,
-      startedAt: DateTime.now(),
+      startedAt: startTime,
     );
 
     await Future.delayed(const Duration(milliseconds: 500));
 
-    // Create the file
     final extension = fileName.split('.').last;
     final newFile = CourseFile(
       id: fileId,
@@ -431,21 +443,21 @@ class FileRepository {
       createdAt: DateTime.now(),
     );
 
-    _demoFiles.add(newFile);
+    if (EnvironmentConfig.isDemoMode) {
+      _demoFiles.add(newFile);
 
-    // Notify listeners
-    final files = await getCourseFiles(courseId);
-    if (!_filesController.isClosed) {
-      _filesController.add(files);
+      final files = await getCourseFiles(courseId);
+      if (!_filesController.isClosed) {
+        _filesController.add(files);
+      }
     }
 
-    // Completed
     yield UploadProgress(
       fileId: fileId,
       fileName: fileName,
       status: UploadStatus.completed,
       progress: 1.0,
-      startedAt: DateTime.now(),
+      startedAt: startTime,
       completedAt: DateTime.now(),
     );
   }
@@ -456,7 +468,6 @@ class FileRepository {
       await Future.delayed(const Duration(milliseconds: 300));
       _demoFiles.removeWhere((f) => f.id == fileId);
 
-      // Notify listeners
       final files = await getCourseFiles(courseId);
       if (!_filesController.isClosed) {
         _filesController.add(files);
@@ -464,27 +475,20 @@ class FileRepository {
       return;
     }
 
-    // Get file to delete from storage
-    final file = await getFile(courseId, fileId);
-    if (file != null) {
-      // Delete from storage
+    final row = await _getFileRow(courseId, fileId);
+    if (row != null) {
       try {
-        final ref = _storage!.refFromURL(file.url);
-        await ref.delete();
+        await _supabase!.storage.from(_storageBucket).remove([
+          row['storage_path'] as String,
+        ]);
       } catch (e) {
-        // File might not exist in storage
-        if (kDebugMode)
+        if (kDebugMode) {
           log('Could not delete file from storage: $e', name: 'FileRepository');
+        }
       }
     }
 
-    // Delete from Firestore
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .doc(fileId)
-        .delete();
+    await _supabase!.from(_filesTable).delete().eq('id', fileId);
   }
 
   /// Increment download count
@@ -500,12 +504,14 @@ class FileRepository {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .doc(fileId)
-        .update({'downloadCount': FieldValue.increment(1)});
+    final row = await _getFileRow(courseId, fileId);
+    if (row == null) return;
+
+    final current = (row['download_count'] as num?)?.toInt() ?? 0;
+    await _supabase!
+        .from(_filesTable)
+        .update({'download_count': current + 1})
+        .eq('id', fileId);
   }
 
   /// Update file metadata
@@ -530,7 +536,6 @@ class FileRepository {
       );
       _demoFiles[index] = updatedFile;
 
-      // Notify listeners
       final files = await getCourseFiles(courseId);
       if (!_filesController.isClosed) {
         _filesController.add(files);
@@ -540,17 +545,12 @@ class FileRepository {
     }
 
     final updates = <String, dynamic>{
-      'updatedAt': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
     if (name != null) updates['name'] = name;
     if (description != null) updates['description'] = description;
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .doc(fileId)
-        .update(updates);
+    await _supabase!.from(_filesTable).update(updates).eq('id', fileId);
 
     final updatedFile = await getFile(courseId, fileId);
     if (updatedFile == null) {
@@ -574,7 +574,6 @@ class FileRepository {
           .toList();
     }
 
-    // Firestore doesn't support full-text search, so fetch all and filter
     final files = await getCourseFiles(courseId);
     final lowerQuery = query.toLowerCase();
     return files
@@ -598,15 +597,15 @@ class FileRepository {
           .toList();
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection('files')
-        .where('type', isEqualTo: type.name)
-        .get();
+    final rows = await _supabase!
+        .from(_filesTable)
+        .select()
+        .eq('course_id', courseId)
+        .eq('file_type', type.name);
 
-    return snapshot.docs
-        .map((doc) => CourseFile.fromMap(doc.data(), doc.id))
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(_fileFromRow)
         .toList();
   }
 

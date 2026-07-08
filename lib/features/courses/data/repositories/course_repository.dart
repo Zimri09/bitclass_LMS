@@ -1,15 +1,17 @@
 import 'dart:developer';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/config/environment.dart';
 import '../models/course_model.dart';
 
 /// Repository handling course operations
 class CourseRepository {
-  final FirebaseFirestore? _firestore;
+  static const String _coursesTable = 'courses';
+  static const String _enrollmentsTable = 'enrollments';
+
+  final SupabaseClient? _supabase;
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoStudentName = 'Demo Student';
   static const String _demoStudentEmail = 'student@demo.com';
@@ -18,10 +20,10 @@ class CourseRepository {
   final List<CourseModel> _demoCourses = [];
   final List<EnrollmentModel> _demoEnrollments = [];
 
-  CourseRepository({FirebaseFirestore? firestore})
-    : _firestore = EnvironmentConfig.isDemoMode
+  CourseRepository({SupabaseClient? supabase})
+    : _supabase = EnvironmentConfig.isDemoMode
           ? null
-          : (firestore ?? FirebaseFirestore.instance) {
+          : (supabase ?? Supabase.instance.client) {
     // Initialize with demo data
     if (EnvironmentConfig.isDemoMode) {
       _initDemoData();
@@ -231,12 +233,43 @@ class CourseRepository {
     }
   }
 
+  CourseModel _courseFromRow(Map<String, dynamic> row, String id) {
+    return CourseModel.fromMap({
+      'title': row['title'],
+      'description': row['description'],
+      'category': row['category'],
+      'instructorId': row['instructor_id'],
+      'instructorName': row['instructor_name'],
+      'thumbnailUrl': row['thumbnail_url'],
+      'enrollmentCount': row['enrollment_count'],
+      'lessonCount': row['lesson_count'],
+      'isPublished': row['is_published'],
+      'createdAt': row['created_at']?.toString(),
+      'updatedAt': row['updated_at']?.toString(),
+    }, id);
+  }
+
+  EnrollmentModel _enrollmentFromRow(Map<String, dynamic> row, String id) {
+    return EnrollmentModel.fromMap({
+      'courseId': row['course_id'],
+      'userId': row['user_id'],
+      'studentName': row['student_name'],
+      'studentEmail': row['student_email'],
+      'progress': row['progress'],
+      'completedLessons': row['completed_lessons'],
+      'totalLessons': row['total_lessons'],
+      'enrolledAt': row['enrolled_at']?.toString(),
+      'completedAt': row['completed_at']?.toString(),
+      'lastAccessedAt': row['last_accessed_at']?.toString(),
+    }, id);
+  }
+
   /// Get all published courses
   Future<List<CourseModel>> getCourses({
     String? category,
     String? searchQuery,
     int limit = 20,
-    DocumentSnapshot? startAfter,
+    Object? startAfter,
   }) async {
     // Demo mode: return filtered demo courses
     if (EnvironmentConfig.isDemoMode) {
@@ -262,41 +295,18 @@ class CourseRepository {
     }
 
     try {
-      // Simple query - just get courses collection
-      // Filter and sort in memory to avoid requiring composite indexes
       if (kDebugMode)
-        log('Fetching courses from Firestore...', name: 'CourseRepository');
-      if (kDebugMode)
-        log(
-          'Collection path: ${FirestorePaths.courses}',
-          name: 'CourseRepository',
-        );
+        log('Fetching courses from Supabase...', name: 'CourseRepository');
 
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.courses)
-          .get();
+      final rows = await _supabase!
+          .from(_coursesTable)
+          .select()
+          .eq('is_published', true);
 
-      if (kDebugMode)
-        log(
-          'Got ${snapshot.docs.length} documents from Firestore',
-          name: 'CourseRepository',
-        );
-
-      for (final doc in snapshot.docs) {
-        if (kDebugMode)
-          log('Doc ${doc.id}: ${doc.data()}', name: 'CourseRepository');
-      }
-
-      var courses = snapshot.docs
-          .map((doc) => CourseModel.fromMap(doc.data(), doc.id))
-          .where((c) => c.isPublished)
+      var courses = (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map((row) => _courseFromRow(row, row['id'] as String))
           .toList();
-
-      if (kDebugMode)
-        log(
-          'After isPublished filter: ${courses.length} courses',
-          name: 'CourseRepository',
-        );
 
       // Apply category filter
       if (category != null && category.isNotEmpty) {
@@ -315,7 +325,6 @@ class CourseRepository {
             .toList();
       }
 
-      // Sort by createdAt descending
       courses.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       // Apply limit
@@ -325,7 +334,6 @@ class CourseRepository {
 
       return courses;
     } catch (e) {
-      // Log error and return empty list for graceful degradation
       if (kDebugMode)
         log('Error fetching courses: $e', name: 'CourseRepository');
       return [];
@@ -340,14 +348,14 @@ class CourseRepository {
     }
 
     try {
-      // Simple query to avoid index requirement - filter in memory
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.courses)
-          .get();
+      final rows = await _supabase!
+          .from(_coursesTable)
+          .select()
+          .eq('instructor_id', instructorId);
 
-      var courses = snapshot.docs
-          .map((doc) => CourseModel.fromMap(doc.data(), doc.id))
-          .where((c) => c.instructorId == instructorId)
+      var courses = (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map((row) => _courseFromRow(row, row['id'] as String))
           .toList();
 
       courses.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -369,13 +377,14 @@ class CourseRepository {
       }
     }
 
-    final doc = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .get();
+    final row = await _supabase!
+        .from(_coursesTable)
+        .select()
+        .eq('id', courseId)
+        .maybeSingle();
 
-    if (!doc.exists) return null;
-    return CourseModel.fromMap(doc.data()!, doc.id);
+    if (row == null) return null;
+    return _courseFromRow(row, row['id'] as String);
   }
 
   /// Create a new course
@@ -408,24 +417,24 @@ class CourseRepository {
       return course;
     }
 
-    final data = {
-      'title': title,
-      'description': description,
-      'category': category,
-      'instructorId': instructorId,
-      'instructorName': instructorName,
-      'thumbnailUrl': thumbnailUrl,
-      'enrollmentCount': 0,
-      'lessonCount': 0,
-      'isPublished': false,
-      'createdAt': now.toIso8601String(),
-    };
+    final row = await _supabase!
+        .from(_coursesTable)
+        .insert({
+          'title': title,
+          'description': description,
+          'category': category,
+          'instructor_id': instructorId,
+          'instructor_name': instructorName,
+          'thumbnail_url': thumbnailUrl,
+          'enrollment_count': 0,
+          'lesson_count': 0,
+          'is_published': false,
+          'created_at': now.toIso8601String(),
+        })
+        .select()
+        .single();
 
-    final docRef = await _firestore!
-        .collection(FirestorePaths.courses)
-        .add(data);
-
-    return CourseModel.fromMap(data, docRef.id);
+    return _courseFromRow(row, row['id'] as String);
   }
 
   /// Update a course
@@ -459,12 +468,22 @@ class CourseRepository {
       return updated;
     }
 
-    updates['updatedAt'] = DateTime.now().toIso8601String();
+    final dbUpdates = <String, dynamic>{};
+    if (updates.containsKey('title')) dbUpdates['title'] = updates['title'];
+    if (updates.containsKey('description')) {
+      dbUpdates['description'] = updates['description'];
+    }
+    if (updates.containsKey('category'))
+      dbUpdates['category'] = updates['category'];
+    if (updates.containsKey('thumbnailUrl')) {
+      dbUpdates['thumbnail_url'] = updates['thumbnailUrl'];
+    }
+    if (updates.containsKey('isPublished')) {
+      dbUpdates['is_published'] = updates['isPublished'];
+    }
+    dbUpdates['updated_at'] = DateTime.now().toIso8601String();
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .update(updates);
+    await _supabase!.from(_coursesTable).update(dbUpdates).eq('id', courseId);
 
     final updated = await getCourse(courseId);
     if (updated == null) {
@@ -480,7 +499,7 @@ class CourseRepository {
       _demoEnrollments.removeWhere((e) => e.courseId == courseId);
       return;
     }
-    await _firestore!.collection(FirestorePaths.courses).doc(courseId).delete();
+    await _supabase!.from(_coursesTable).delete().eq('id', courseId);
   }
 
   /// Publish/unpublish a course
@@ -544,28 +563,28 @@ class CourseRepository {
     }
 
     final data = {
-      'courseId': courseId,
-      'userId': userId,
-      'studentName': studentName,
-      'studentEmail': studentEmail,
+      'course_id': courseId,
+      'user_id': userId,
+      'student_name': studentName,
+      'student_email': studentEmail,
       'progress': 0.0,
-      'completedLessons': 0,
-      'totalLessons': course.lessonCount,
-      'enrolledAt': now.toIso8601String(),
+      'completed_lessons': 0,
+      'total_lessons': course.lessonCount,
+      'enrolled_at': now.toIso8601String(),
     };
 
-    final docRef = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.enrollments)
-        .add(data);
+    final row = await _supabase!
+        .from(_enrollmentsTable)
+        .insert(data)
+        .select()
+        .single();
 
-    // Increment enrollment count
-    await _firestore.collection(FirestorePaths.courses).doc(courseId).update({
-      'enrollmentCount': FieldValue.increment(1),
-    });
+    await _supabase!
+        .from(_coursesTable)
+        .update({'enrollment_count': course.enrollmentCount + 1})
+        .eq('id', courseId);
 
-    return EnrollmentModel.fromMap(data, docRef.id);
+    return _enrollmentFromRow(row, row['id'] as String);
   }
 
   /// Get enrollment for a user in a course
@@ -580,17 +599,15 @@ class CourseRepository {
       }
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.enrollments)
-        .where('userId', isEqualTo: userId)
-        .limit(1)
-        .get();
+    final row = await _supabase!
+        .from(_enrollmentsTable)
+        .select()
+        .eq('course_id', courseId)
+        .eq('user_id', userId)
+        .maybeSingle();
 
-    if (snapshot.docs.isEmpty) return null;
-    final doc = snapshot.docs.first;
-    return EnrollmentModel.fromMap(doc.data(), doc.id);
+    if (row == null) return null;
+    return _enrollmentFromRow(row, row['id'] as String);
   }
 
   /// Get all enrollments for a user
@@ -599,25 +616,15 @@ class CourseRepository {
       return _demoEnrollments.where((e) => e.userId == userId).toList();
     }
 
-    // This requires a collection group query or storing enrollments differently
-    // For now, we'll get all courses and check enrollments
-    final coursesSnapshot = await _firestore!
-        .collection(FirestorePaths.courses)
-        .get();
+    final rows = await _supabase!
+        .from(_enrollmentsTable)
+        .select()
+        .eq('user_id', userId);
 
-    final enrollments = <EnrollmentModel>[];
-    for (final courseDoc in coursesSnapshot.docs) {
-      final enrollmentSnapshot = await courseDoc.reference
-          .collection(FirestorePaths.enrollments)
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      for (final doc in enrollmentSnapshot.docs) {
-        enrollments.add(EnrollmentModel.fromMap(doc.data(), doc.id));
-      }
-    }
-
-    return enrollments;
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map((row) => _enrollmentFromRow(row, row['id'] as String))
+        .toList();
   }
 
   /// Get all enrollments for a specific course (for instructors)
@@ -628,14 +635,14 @@ class CourseRepository {
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.courses)
-          .doc(courseId)
-          .collection(FirestorePaths.enrollments)
-          .get();
+      final rows = await _supabase!
+          .from(_enrollmentsTable)
+          .select()
+          .eq('course_id', courseId);
 
-      return snapshot.docs
-          .map((doc) => EnrollmentModel.fromMap(doc.data(), doc.id))
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map((row) => _enrollmentFromRow(row, row['id'] as String))
           .toList()
         ..sort((a, b) => b.enrolledAt.compareTo(a.enrolledAt));
     } catch (e) {
@@ -673,20 +680,19 @@ class CourseRepository {
 
     final updates = <String, dynamic>{
       'progress': progress,
-      'completedLessons': completedLessons,
-      'lastAccessedAt': DateTime.now().toIso8601String(),
+      'completed_lessons': completedLessons,
+      'last_accessed_at': DateTime.now().toIso8601String(),
     };
 
     if (progress >= 1.0) {
-      updates['completedAt'] = DateTime.now().toIso8601String();
+      updates['completed_at'] = DateTime.now().toIso8601String();
     }
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.enrollments)
-        .doc(enrollmentId)
-        .update(updates);
+    await _supabase!
+        .from(_enrollmentsTable)
+        .update(updates)
+        .eq('id', enrollmentId)
+        .eq('course_id', courseId);
   }
 
   /// Unenroll from a course
@@ -714,16 +720,16 @@ class CourseRepository {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.enrollments)
-        .doc(enrollmentId)
-        .delete();
+    await _supabase!.from(_enrollmentsTable).delete().eq('id', enrollmentId);
 
-    // Decrement enrollment count
-    await _firestore.collection(FirestorePaths.courses).doc(courseId).update({
-      'enrollmentCount': FieldValue.increment(-1),
-    });
+    final course = await getCourse(courseId);
+    if (course != null) {
+      await _supabase!
+          .from(_coursesTable)
+          .update({
+            'enrollment_count': (course.enrollmentCount - 1).clamp(0, 999999),
+          })
+          .eq('id', courseId);
+    }
   }
 }

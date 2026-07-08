@@ -1,21 +1,21 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart' as fcm;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
-import '../../../../core/constants/firestore_paths.dart';
 import '../models/models.dart';
 
-/// Repository for managing notifications
+/// Repository for managing notifications.
 class NotificationRepository {
+  static const String _notificationsTable = 'notifications';
+  static const String _settingsTable = 'notification_settings';
+  static const String _deviceTokensTable = 'device_tokens';
+
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoInstructorUserId = 'demo-instructor-1';
   static const String _legacyDemoUserId = 'demo-user';
 
-  // Firebase instances (null in demo mode)
-  final FirebaseFirestore? _firestore;
-  final fcm.FirebaseMessaging? _messaging;
+  final SupabaseClient? _supabase;
 
   // Demo data storage
   final List<NotificationModel> _notifications = [];
@@ -39,13 +39,10 @@ class NotificationRepository {
   /// Stream of settings updates
   Stream<NotificationSettings> get settingsStream => _settingsController.stream;
 
-  NotificationRepository()
-    : _firestore = EnvironmentConfig.isDemoMode
+  NotificationRepository({SupabaseClient? supabase})
+    : _supabase = EnvironmentConfig.isDemoMode
           ? null
-          : FirebaseFirestore.instance,
-      _messaging = EnvironmentConfig.isDemoMode
-          ? null
-          : fcm.FirebaseMessaging.instance {
+          : (supabase ?? Supabase.instance.client) {
     final now = DateTime.now();
 
     _notifications.addAll([
@@ -192,6 +189,45 @@ class NotificationRepository {
     _unreadCountController.add(_unreadCount);
   }
 
+  Map<String, dynamic> _rowToNotificationMap(Map<String, dynamic> row) {
+    return {
+      'userId': row['user_id'],
+      'type': row['type'],
+      'title': row['title'],
+      'body': row['body'],
+      'imageUrl': row['image_url'],
+      'data': row['data'],
+      'isRead': row['is_read'],
+      'createdAt': row['created_at']?.toString(),
+      'courseId': row['course_id'],
+      'actionUrl': row['action_url'],
+    };
+  }
+
+  NotificationModel _notificationFromRow(Map<String, dynamic> row) {
+    return NotificationModel.fromMap(
+      _rowToNotificationMap(row),
+      row['id'] as String,
+    );
+  }
+
+  Map<String, dynamic> _rowToSettingsMap(Map<String, dynamic> row) {
+    return {
+      'userId': row['user_id'],
+      'pushEnabled': row['push_enabled'],
+      'emailEnabled': row['email_enabled'],
+      'typeSettings': row['type_settings'] ?? {},
+      'quietHoursEnabled': row['quiet_hours_enabled'],
+      'quietHoursStart': row['quiet_hours_start'],
+      'quietHoursEnd': row['quiet_hours_end'],
+      'updatedAt': row['updated_at']?.toString(),
+    };
+  }
+
+  NotificationSettings _settingsFromRow(Map<String, dynamic> row) {
+    return NotificationSettings.fromMap(_rowToSettingsMap(row));
+  }
+
   /// Get all notifications for a user
   Future<List<NotificationModel>> getNotifications(String userId) async {
     if (EnvironmentConfig.isDemoMode) {
@@ -202,14 +238,15 @@ class NotificationRepository {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.notifications)
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .get();
+    final rows = await _supabase!
+        .from(_notificationsTable)
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
 
-    return snapshot.docs
-        .map((doc) => NotificationModel.fromMap(doc.data(), doc.id))
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(_notificationFromRow)
         .toList();
   }
 
@@ -221,14 +258,13 @@ class NotificationRepository {
           .length;
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.notifications)
-        .where('userId', isEqualTo: userId)
-        .where('isRead', isEqualTo: false)
-        .count()
-        .get();
+    final rows = await _supabase!
+        .from(_notificationsTable)
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_read', false);
 
-    return snapshot.count ?? 0;
+    return (rows as List<dynamic>).length;
   }
 
   /// Mark a notification as read
@@ -245,21 +281,22 @@ class NotificationRepository {
       throw Exception('Notification not found');
     }
 
-    await _firestore!
-        .collection(FirestorePaths.notifications)
-        .doc(notificationId)
-        .update({'isRead': true});
+    await _supabase!
+        .from(_notificationsTable)
+        .update({'is_read': true})
+        .eq('id', notificationId);
 
-    final doc = await _firestore
-        .collection(FirestorePaths.notifications)
-        .doc(notificationId)
-        .get();
+    final row = await _supabase!
+        .from(_notificationsTable)
+        .select()
+        .eq('id', notificationId)
+        .maybeSingle();
 
-    if (!doc.exists) {
+    if (row == null) {
       throw Exception('Notification not found');
     }
 
-    return NotificationModel.fromMap(doc.data()!, doc.id);
+    return _notificationFromRow(row);
   }
 
   /// Mark all notifications as read
@@ -277,19 +314,11 @@ class NotificationRepository {
       return;
     }
 
-    // Get all unread notifications for user
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.notifications)
-        .where('userId', isEqualTo: userId)
-        .where('isRead', isEqualTo: false)
-        .get();
-
-    // Batch update all to read
-    final batch = _firestore.batch();
-    for (var doc in snapshot.docs) {
-      batch.update(doc.reference, {'isRead': true});
-    }
-    await batch.commit();
+    await _supabase!
+        .from(_notificationsTable)
+        .update({'is_read': true})
+        .eq('user_id', userId)
+        .eq('is_read', false);
   }
 
   /// Delete a notification
@@ -302,10 +331,10 @@ class NotificationRepository {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.notifications)
-        .doc(notificationId)
-        .delete();
+    await _supabase!
+        .from(_notificationsTable)
+        .delete()
+        .eq('id', notificationId);
   }
 
   /// Clear all notifications for a user
@@ -318,18 +347,7 @@ class NotificationRepository {
       return;
     }
 
-    // Get all notifications for user
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.notifications)
-        .where('userId', isEqualTo: userId)
-        .get();
-
-    // Batch delete all
-    final batch = _firestore.batch();
-    for (var doc in snapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    await batch.commit();
+    await _supabase!.from(_notificationsTable).delete().eq('user_id', userId);
   }
 
   /// Get notification settings
@@ -341,26 +359,19 @@ class NotificationRepository {
           NotificationSettings.defaults(normalizedUserId);
     }
 
-    final doc = await _firestore!
-        .collection(FirestorePaths.users)
-        .doc(userId)
-        .collection('settings')
-        .doc('notifications')
-        .get();
+    final row = await _supabase!
+        .from(_settingsTable)
+        .select()
+        .eq('user_id', userId)
+        .maybeSingle();
 
-    if (!doc.exists) {
-      // Create default settings if not exists
+    if (row == null) {
       final defaults = NotificationSettings.defaults(userId);
-      await _firestore
-          .collection(FirestorePaths.users)
-          .doc(userId)
-          .collection('settings')
-          .doc('notifications')
-          .set(defaults.toMap());
+      await updateSettings(defaults);
       return defaults;
     }
 
-    return NotificationSettings.fromMap(doc.data()!);
+    return _settingsFromRow(row);
   }
 
   /// Update notification settings
@@ -376,12 +387,18 @@ class NotificationRepository {
     }
 
     final updatedSettings = settings.copyWith(updatedAt: DateTime.now());
-    await _firestore!
-        .collection(FirestorePaths.users)
-        .doc(settings.userId)
-        .collection('settings')
-        .doc('notifications')
-        .set(updatedSettings.toMap());
+    await _supabase!.from(_settingsTable).upsert({
+      'user_id': updatedSettings.userId,
+      'push_enabled': updatedSettings.pushEnabled,
+      'email_enabled': updatedSettings.emailEnabled,
+      'type_settings': updatedSettings.typeSettings.map(
+        (key, value) => MapEntry(key.name, value),
+      ),
+      'quiet_hours_enabled': updatedSettings.quietHoursEnabled,
+      'quiet_hours_start': updatedSettings.quietHoursStart,
+      'quiet_hours_end': updatedSettings.quietHoursEnd,
+      'updated_at': updatedSettings.updatedAt.toIso8601String(),
+    });
     _settingsController.add(updatedSettings);
     return updatedSettings;
   }
@@ -416,17 +433,12 @@ class NotificationRepository {
       return;
     }
 
-    // Save token to user's device tokens collection
-    await _firestore!
-        .collection(FirestorePaths.users)
-        .doc(userId)
-        .collection('deviceTokens')
-        .doc(token)
-        .set({
-          'token': token,
-          'createdAt': DateTime.now().toIso8601String(),
-          'platform': _getPlatform(),
-        });
+    await _supabase!.from(_deviceTokensTable).upsert({
+      'user_id': userId,
+      'token': token,
+      'created_at': DateTime.now().toIso8601String(),
+      'platform': 'flutter',
+    });
   }
 
   /// Unregister device token
@@ -436,63 +448,55 @@ class NotificationRepository {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.users)
-        .doc(userId)
-        .collection('deviceTokens')
-        .doc(token)
-        .delete();
+    await _supabase!
+        .from(_deviceTokensTable)
+        .delete()
+        .eq('user_id', userId)
+        .eq('token', token);
   }
 
   /// Get the FCM token for this device
   Future<String?> getFcmToken() async {
-    if (EnvironmentConfig.isDemoMode) {
-      return null;
-    }
-    return await _messaging!.getToken();
+    return null;
   }
 
   /// Request notification permissions
   Future<bool> requestPermissions() async {
-    if (EnvironmentConfig.isDemoMode) {
-      return true;
-    }
-
-    final settings = await _messaging!.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    return settings.authorizationStatus == fcm.AuthorizationStatus.authorized;
+    return EnvironmentConfig.isDemoMode;
   }
 
   /// Subscribe to a topic (e.g., course updates)
   Future<void> subscribeToTopic(String topic) async {
-    if (EnvironmentConfig.isDemoMode) {
-      return;
-    }
-    await _messaging!.subscribeToTopic(topic);
+    return;
   }
 
   /// Unsubscribe from a topic
   Future<void> unsubscribeFromTopic(String topic) async {
-    if (EnvironmentConfig.isDemoMode) {
-      return;
-    }
-    await _messaging!.unsubscribeFromTopic(topic);
-  }
-
-  String _getPlatform() {
-    // This can be determined programmatically
-    return 'flutter';
+    return;
   }
 
   /// Simulate receiving a new notification (for demo)
-  void simulateNewNotification(NotificationModel notification) {
-    _notifications.insert(0, notification);
-    _updateUnreadCount();
-    _notificationsController.add(_notifications);
+  void simulateNewNotification(NotificationModel notification) async {
+    if (EnvironmentConfig.isDemoMode) {
+      _notifications.insert(0, notification);
+      _updateUnreadCount();
+      _notificationsController.add(_notifications);
+      return;
+    }
+
+    await _supabase!.from(_notificationsTable).insert({
+      'id': notification.id,
+      'user_id': notification.userId,
+      'type': notification.type.name,
+      'title': notification.title,
+      'body': notification.body,
+      'image_url': notification.imageUrl,
+      'data': notification.data,
+      'is_read': notification.isRead,
+      'created_at': notification.createdAt.toIso8601String(),
+      'course_id': notification.courseId,
+      'action_url': notification.actionUrl,
+    });
   }
 
   void dispose() {

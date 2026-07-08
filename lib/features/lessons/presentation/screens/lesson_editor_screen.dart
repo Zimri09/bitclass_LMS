@@ -180,13 +180,11 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           widget.lessonId == null ? 'Create Lesson' : 'Edit Lesson',
           style: AppTextStyles.h4,
         ),
-        backgroundColor: AppColors.surface,
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

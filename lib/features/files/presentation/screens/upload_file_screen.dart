@@ -57,7 +57,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
             setState(() => _isUploading = true);
             if (state.progress.status == UploadStatus.completed) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                   content: Text('File uploaded successfully!'),
                   backgroundColor: AppColors.success,
                 ),
@@ -78,9 +78,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
           return Scaffold(
             appBar: AppBar(
               title: const Text('Upload File'),
-              backgroundColor: AppColors.background,
             ),
-            backgroundColor: AppColors.background,
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(
@@ -99,7 +97,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                         controller: _fileNameController,
                         decoration: InputDecoration(
                           hintText: 'Enter file name',
-                          hintStyle: const TextStyle(
+                          hintStyle: TextStyle(
                             color: AppColors.textMuted,
                           ),
                           filled: true,
@@ -109,11 +107,11 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                             borderSide: BorderSide.none,
                           ),
                           suffixText: '.$_selectedFileType',
-                          suffixStyle: const TextStyle(
+                          suffixStyle: TextStyle(
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        style: const TextStyle(color: AppColors.textPrimary),
+                        style: TextStyle(color: AppColors.textPrimary),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter a file name';
@@ -132,7 +130,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                         maxLines: 3,
                         decoration: InputDecoration(
                           hintText: 'Describe what this file contains...',
-                          hintStyle: const TextStyle(
+                          hintStyle: TextStyle(
                             color: AppColors.textMuted,
                           ),
                           filled: true,
@@ -142,7 +140,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                             borderSide: BorderSide.none,
                           ),
                         ),
-                        style: const TextStyle(color: AppColors.textPrimary),
+                        style: TextStyle(color: AppColors.textPrimary),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -178,7 +176,6 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                               fontSize: 12,
                             ),
                             selectedColor: AppColors.primary,
-                            backgroundColor: AppColors.surface,
                             onSelected: (selected) {
                               if (selected) {
                                 setState(() {
@@ -206,7 +203,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                             ? null
                             : () => _uploadFile(context),
                         icon: _isUploading
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
@@ -214,7 +211,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                                   color: AppColors.textPrimary,
                                 ),
                               )
-                            : const Icon(Icons.cloud_upload),
+                            : Icon(Icons.cloud_upload),
                         label: Text(
                           _isUploading ? 'Uploading...' : 'Upload File',
                         ),
@@ -237,7 +234,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                         color: AppColors.info.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
                           Icon(
                             Icons.info_outline,
@@ -247,7 +244,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                           SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'This is a demo upload screen. In production, this would use Firebase Storage for actual file uploads.',
+                              'This is a demo upload screen. In production, this would use Supabase Storage for actual file uploads.',
                               style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 13,
@@ -272,7 +269,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
       onTap: () {
         // In production, this would open file picker
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('File picker would open here'),
             backgroundColor: AppColors.info,
           ),
@@ -301,14 +298,14 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                 color: AppColors.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.cloud_upload_outlined,
                 color: AppColors.primary,
                 size: 32,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Tap to select a file',
               style: TextStyle(
                 color: AppColors.textPrimary,
@@ -317,12 +314,12 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'or drag and drop here',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Max file size: 100MB • Supported: PDF, DOC, PPT, Images, Videos, Code files',
               style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               textAlign: TextAlign.center,
@@ -339,7 +336,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w500,
           ),
@@ -365,14 +362,14 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
             children: [
               Text(
                 _getStatusText(progress.status),
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               Text(
                 '${progress.progressPercent}%',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w600,
                 ),

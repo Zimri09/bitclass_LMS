@@ -16,9 +16,7 @@ class QuizListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
         title: Text(
           'Course Quizzes',
           style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),

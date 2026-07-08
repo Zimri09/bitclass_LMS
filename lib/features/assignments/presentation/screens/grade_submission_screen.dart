@@ -80,12 +80,10 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
         title: Text('Grade Submissions', style: AppTextStyles.h3),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
       ),
@@ -94,7 +92,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
         listener: (context, state) {
           if (state is SubmissionGraded) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('Submission graded successfully!'),
                 backgroundColor: AppColors.success,
               ),
@@ -188,7 +186,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                 width: 320,
                 child: _buildSubmissionsList(submissions, assignment),
               ),
-              const VerticalDivider(width: 1),
+              VerticalDivider(width: 1),
               // Detail / grading panel (right)
               Expanded(
                 child: _selectedSubmission != null
@@ -210,7 +208,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => setState(() => _selectedSubmission = null),
-                    icon: const Icon(Icons.arrow_back),
+                    icon: Icon(Icons.arrow_back),
                     label: const Text('Back to list'),
                   ),
                 ),
@@ -265,20 +263,19 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                   value: submissions.isNotEmpty
                       ? gradedCount / submissions.length
                       : 0,
-                  backgroundColor: AppColors.surface,
-                  valueColor: const AlwaysStoppedAnimation(AppColors.success),
+                  valueColor: AlwaysStoppedAnimation(AppColors.success),
                   minHeight: 6,
                 ),
               ),
             ],
           ),
         ),
-        const Divider(height: 1),
+        Divider(height: 1),
         // Submissions
         Expanded(
           child: ListView.separated(
             itemCount: sorted.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) => Divider(height: 1),
             itemBuilder: (context, index) {
               final submission = sorted[index];
               final isSelected = _selectedSubmission?.id == submission.id;
@@ -334,8 +331,8 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
         style: AppTextStyles.caption.copyWith(color: statusColor),
       ),
       trailing: submission.isGraded
-          ? const Icon(Icons.check_circle, color: AppColors.success, size: 20)
-          : const Icon(
+          ? Icon(Icons.check_circle, color: AppColors.success, size: 20)
+          : Icon(
               Icons.pending_outlined,
               color: AppColors.textMuted,
               size: 20,
@@ -387,7 +384,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                     submission.userDisplayName.isNotEmpty
                         ? submission.userDisplayName[0].toUpperCase()
                         : '?',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
@@ -473,7 +470,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                     decoration: InputDecoration(
                       labelText: 'Score',
                       hintText: 'Out of ${assignment.maxPoints}',
-                      prefixIcon: const Icon(Icons.grade),
+                      prefixIcon: Icon(Icons.grade),
                       suffixText: '/ ${assignment.maxPoints}',
                     ),
                     validator: (value) {
@@ -520,7 +517,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _gradeSubmission,
-                      icon: const Icon(Icons.check),
+                      icon: Icon(Icons.check),
                       label: Text(
                         submission.isGraded ? 'Update Grade' : 'Submit Grade',
                       ),
@@ -547,7 +544,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.history,
                         color: AppColors.textSecondary,
                         size: 20,

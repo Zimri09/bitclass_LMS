@@ -370,7 +370,7 @@ class LessonNavigationBar extends StatelessWidget {
                     if (onPrevious != null)
                       TextButton.icon(
                         onPressed: onPrevious,
-                        icon: const Icon(Icons.arrow_back, size: 18),
+                        icon: Icon(Icons.arrow_back, size: 18),
                         label: const Text('Previous'),
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.textSecondary,
@@ -382,7 +382,7 @@ class LessonNavigationBar extends StatelessWidget {
                       TextButton.icon(
                         onPressed: onNext,
                         icon: const Text('Next'),
-                        label: const Icon(Icons.arrow_forward, size: 18),
+                        label: Icon(Icons.arrow_forward, size: 18),
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.primary,
                         ),
@@ -401,7 +401,7 @@ class LessonNavigationBar extends StatelessWidget {
               if (onPrevious != null)
                 TextButton.icon(
                   onPressed: onPrevious,
-                  icon: const Icon(Icons.arrow_back, size: 18),
+                  icon: Icon(Icons.arrow_back, size: 18),
                   label: const Text('Previous'),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
@@ -446,7 +446,7 @@ class LessonNavigationBar extends StatelessWidget {
                 TextButton.icon(
                   onPressed: onNext,
                   icon: const Text('Next'),
-                  label: const Icon(Icons.arrow_forward, size: 18),
+                  label: Icon(Icons.arrow_forward, size: 18),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primary,
                   ),

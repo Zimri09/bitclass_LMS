@@ -70,9 +70,9 @@ class AppConstants {
   static const Duration courseCacheDuration = Duration(hours: 24);
 }
 
-/// Firebase collection paths
-class FirestorePaths {
-  FirestorePaths._();
+/// Supabase table names
+class SupabaseTables {
+  SupabaseTables._();
 
   static const String users = 'users';
   static const String courses = 'courses';
@@ -88,11 +88,12 @@ class FirestorePaths {
   static const String threads = 'threads';
   static const String replies = 'replies';
   static const String notifications = 'notifications';
+  static const String lessonProgress = 'lesson_progress';
 }
 
-/// Storage bucket paths
-class StoragePaths {
-  StoragePaths._();
+/// Supabase Storage bucket paths
+class SupabaseStoragePaths {
+  SupabaseStoragePaths._();
 
   static const String avatars = 'avatars';
   static const String courseThumbnails = 'course_thumbnails';

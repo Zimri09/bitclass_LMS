@@ -1,25 +1,70 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/config/environment.dart';
 import '../models/models.dart';
 
 /// Repository handling lesson and module operations
 class LessonRepository {
-  final FirebaseFirestore? _firestore;
+  static const String _modulesTable = 'modules';
+  static const String _lessonsTable = 'lessons';
+  static const String _lessonProgressTable = 'lesson_progress';
+  static const String _enrollmentsTable = 'enrollments';
+
+  final SupabaseClient? _supabase;
 
   // Demo mode storage
   final List<ModuleModel> _demoModules = [];
   final List<LessonModel> _demoLessons = [];
   final List<LessonProgressModel> _demoProgress = [];
 
-  LessonRepository({FirebaseFirestore? firestore})
-    : _firestore = EnvironmentConfig.isDemoMode
+  LessonRepository({SupabaseClient? supabase})
+    : _supabase = EnvironmentConfig.isDemoMode
           ? null
-          : (firestore ?? FirebaseFirestore.instance) {
+          : (supabase ?? Supabase.instance.client) {
     if (EnvironmentConfig.isDemoMode) {
       _initDemoData();
     }
+  }
+
+  ModuleModel _moduleFromRow(Map<String, dynamic> row, String id) {
+    return ModuleModel.fromMap({
+      'courseId': row['course_id'],
+      'title': row['title'],
+      'description': row['description'],
+      'order': row['sort_order'],
+      'isPublished': row['is_published'],
+      'createdAt': row['created_at']?.toString(),
+      'updatedAt': row['updated_at']?.toString(),
+    }, id);
+  }
+
+  LessonModel _lessonFromRow(Map<String, dynamic> row, String id) {
+    return LessonModel.fromMap({
+      'courseId': row['course_id'],
+      'moduleId': row['module_id'],
+      'title': row['title'],
+      'description': row['description'],
+      'order': row['sort_order'],
+      'type': row['lesson_type'],
+      'content': row['content'],
+      'videoUrl': row['video_url'],
+      'durationMinutes': row['duration_minutes'],
+      'isPublished': row['is_published'],
+      'createdAt': row['created_at']?.toString(),
+      'updatedAt': row['updated_at']?.toString(),
+    }, id);
+  }
+
+  LessonProgressModel _progressFromRow(Map<String, dynamic> row, String id) {
+    return LessonProgressModel.fromMap({
+      'lessonId': row['lesson_id'],
+      'enrollmentId': row['enrollment_id'],
+      'userId': row['user_id'],
+      'isCompleted': row['is_completed'],
+      'completedAt': row['completed_at']?.toString(),
+      'lastAccessedAt': row['last_accessed_at']?.toString(),
+      'savedState': row['saved_state'],
+    }, id);
   }
 
   void _initDemoData() {
@@ -1346,167 +1391,153 @@ class BST {
 | Min height for N nodes | log₂(N+1) - 1 |
 ''';
 
-  String _getFlutterFireContent() => '''
-# FlutterFire CLI Setup
+  String _getSupabaseSetupContent() => '''
+# Supabase Flutter Setup
 
-Learn to set up Firebase quickly using the FlutterFire CLI.
+Learn to connect your Flutter app to Supabase — an open-source Firebase
+alternative with a Postgres database, Auth, and Storage.
 
 ## Prerequisites
 
-1. **Firebase CLI** installed globally
+1. A **Supabase account** at [supabase.com](https://supabase.com)
+2. A **Flutter project** (Flutter 3.x+)
 
-```bash
-npm install -g firebase-tools
-```
+## Step 1: Create a Supabase Project
 
-2. **FlutterFire CLI** installed
+1. Go to [app.supabase.com](https://app.supabase.com) and sign in.
+2. Click **New project** and fill in the details.
+3. Wait for the database to provision (~1 minute).
 
-```bash
-dart pub global activate flutterfire_cli
-```
+## Step 2: Get Your Credentials
 
-3. **Firebase account** with a project created
+Navigate to **Project Settings → API**:
 
-## Step 1: Login to Firebase
+| Key | Where to find it |
+|-----|------------------|
+| `Project URL` | Settings → API → Project URL |
+| `anon public key` | Settings → API → Project API keys |
 
-```bash
-firebase login
-```
-
-This opens a browser for authentication.
-
-## Step 2: Configure Project
-
-Run from your Flutter project root:
-
-```bash
-flutterfire configure
-```
-
-This will:
-1. List your Firebase projects
-2. Let you select platforms (iOS, Android, Web, macOS)
-3. Generate `firebase_options.dart`
-4. Update native configuration files
-
-## Step 3: Add Dependencies
+## Step 3: Add the Package
 
 ```yaml
 # pubspec.yaml
 dependencies:
-  firebase_core: ^2.24.0
-  firebase_auth: ^4.16.0
-  cloud_firestore: ^4.14.0
+  supabase_flutter: ^2.0.0
 ```
-
-Then run:
 
 ```bash
 flutter pub get
 ```
 
-## Step 4: Initialize Firebase
+## Step 4: Initialize Supabase
 
 ```dart
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+
+  await Supabase.initialize(
+    url: 'https://YOUR-PROJECT.supabase.co',
+    anonKey: 'YOUR_ANON_KEY',
   );
-  
-  runApp(MyApp());
+
+  runApp(const MyApp());
 }
+```
+
+## Step 5: Access the Client
+
+Anywhere in your app:
+
+```dart
+final supabase = Supabase.instance.client;
 ```
 
 ## Project Structure
 
-After configuration, your project will have:
-
 ```
 lib/
-  firebase_options.dart    # Generated config
-  main.dart               # Initialize here
-  
-android/
-  app/
-    google-services.json  # Android config
-    
-ios/
-  Runner/
-    GoogleService-Info.plist  # iOS config
+  main.dart                # Initialize here
+  core/
+    config/
+      environment.dart     # Store URL + key here
+  features/
+    auth/
+      data/
+        repositories/
+          auth_repository.dart
 ```
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "No Firebase project found" | Run `firebase projects:list` |
-| "Configuration failed" | Check internet connection |
-| "Platform not supported" | Ensure Flutter platform is enabled |
+| "Invalid API key" | Check your anon key in Project Settings |
+| "Connection refused" | Verify Project URL has no trailing slash |
+| Timeout on first call | Supabase projects "pause" on free tier — wake by visiting dashboard |
 ''';
 
-  String _getFirebaseAuthContent() => '''
-# Email Authentication
+  String _getSupabaseAuthContent() => '''
+# Supabase Auth — Email & Password
 
-Implement secure email/password authentication with Firebase Auth.
+Supabase Auth provides secure, JWT-based authentication. It integrates
+seamlessly with Row Level Security (RLS) policies on your database.
 
 ## Setup
 
-Add the Firebase Auth package:
+Add the package (already included with `supabase_flutter`):
 
 ```yaml
 dependencies:
-  firebase_auth: ^4.16.0
+  supabase_flutter: ^2.0.0
 ```
 
 ## AuthRepository
 
 ```dart
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthRepository {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  
-  // Current user stream
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-  
+  final SupabaseClient _client = Supabase.instance.client;
+
+  // Current session stream
+  Stream<AuthState> get authStateChanges =>
+      _client.auth.onAuthStateChange;
+
   // Current user
-  User? get currentUser => _auth.currentUser;
-  
+  User? get currentUser => _client.auth.currentUser;
+
   // Sign up with email/password
-  Future<UserCredential> signUp({
+  Future<AuthResponse> signUp({
     required String email,
     required String password,
   }) async {
-    return await _auth.createUserWithEmailAndPassword(
+    return await _client.auth.signUp(
       email: email,
       password: password,
     );
   }
-  
+
   // Sign in with email/password
-  Future<UserCredential> signIn({
+  Future<AuthResponse> signIn({
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
+    return await _client.auth.signInWithPassword(
       email: email,
       password: password,
     );
   }
-  
+
   // Sign out
   Future<void> signOut() async {
-    await _auth.signOut();
+    await _client.auth.signOut();
   }
-  
+
   // Password reset
   Future<void> resetPassword(String email) async {
-    await _auth.sendPasswordResetEmail(email: email);
+    await _client.auth.resetPasswordForEmail(email);
   }
 }
 ```
@@ -1519,22 +1550,17 @@ try {
     email: email,
     password: password,
   );
-} on FirebaseAuthException catch (e) {
-  switch (e.code) {
-    case 'user-not-found':
-      showError('No account found with this email');
+} on AuthException catch (e) {
+  // e.message contains a human-readable description
+  switch (e.statusCode) {
+    case '400':
+      showError('Invalid credentials');
       break;
-    case 'wrong-password':
-      showError('Invalid password');
-      break;
-    case 'invalid-email':
-      showError('Invalid email address');
-      break;
-    case 'user-disabled':
-      showError('This account has been disabled');
+    case '422':
+      showError('Invalid email format');
       break;
     default:
-      showError('Authentication failed');
+      showError(e.message);
   }
 }
 ```
@@ -1545,35 +1571,32 @@ try {
 class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return StreamBuilder<AuthState>(
+      stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return LoadingScreen();
+        if (!snapshot.hasData) return const LoadingScreen();
+
+        final event = snapshot.data!.event;
+        if (event == AuthChangeEvent.signedIn) {
+          return const HomeScreen();
         }
-        
-        if (snapshot.hasData) {
-          return HomeScreen();
-        }
-        
-        return LoginScreen();
+        return const LoginScreen();
       },
     );
   }
 }
 ```
 
-## Email Verification
+## Email Confirmation
 
 ```dart
-// Send verification email
-await currentUser?.sendEmailVerification();
-
-// Check if verified
-if (currentUser?.emailVerified ?? false) {
-  // User is verified
+// Supabase sends a confirmation email on sign-up automatically.
+// You can check if the user confirmed their email:
+final user = Supabase.instance.client.auth.currentUser;
+if (user?.emailConfirmedAt != null) {
+  // User confirmed their email
 } else {
-  // Prompt to verify email
+  // Prompt to check their inbox
 }
 ```
 ''';
@@ -2417,132 +2440,126 @@ Map<String, int> charFrequency(String s) {
 
   // ── Course 4 new content ───────────────────────────────────────────────
 
-  String _getFirestoreCrudContent() => '''
-# Firestore CRUD Operations
+  String _getSupabaseCrudContent() => '''
+# Supabase CRUD Operations
 
-Cloud Firestore is a NoSQL document database. Data is organized into
-**collections** and **documents**.
+Supabase uses PostgreSQL as its database. The `supabase_flutter` package
+provides a fluent query builder inspired by PostgREST.
 
 ## Setup
 
 ```dart
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-final db = FirebaseFirestore.instance;
+final supabase = Supabase.instance.client;
 ```
 
-## Create (Add a document)
+## Create (Insert a row)
 
 ```dart
-// Auto-generated ID
-final docRef = await db.collection('users').add({
-  'name': 'Alice',
-  'email': 'alice@example.com',
-  'createdAt': FieldValue.serverTimestamp(),
-});
-print('Created: \${docRef.id}');
+// Insert and return the created row
+final data = await supabase
+    .from('users')
+    .insert({
+      'name': 'Alice',
+      'email': 'alice@example.com',
+      'created_at': DateTime.now().toIso8601String(),
+    })
+    .select()
+    .single();
 
-// Custom ID
-await db.collection('users').doc('alice-123').set({
-  'name': 'Alice',
-  'email': 'alice@example.com',
-});
+print('Created user with ID: \${data['id']}');
 ```
 
-## Read (Get documents)
+## Read (Query rows)
 
-### Single document
+### Single row by ID
 
 ```dart
-final doc = await db.collection('users').doc('alice-123').get();
-if (doc.exists) {
-  final data = doc.data()!;
-  print(data['name']); // Alice
-}
+final row = await supabase
+    .from('users')
+    .select()
+    .eq('id', 'alice-123')
+    .single();
+
+print(row['name']); // Alice
 ```
 
-### Query a collection
+### Query with filters
 
 ```dart
-final snapshot = await db
-    .collection('courses')
-    .where('isPublished', isEqualTo: true)
-    .where('category', isEqualTo: 'Flutter')
-    .orderBy('createdAt', descending: true)
-    .limit(10)
-    .get();
+final rows = await supabase
+    .from('courses')
+    .select('id, title, category')
+    .eq('is_published', true)
+    .eq('category', 'Flutter')
+    .order('created_at', ascending: false)
+    .limit(10);
 
-for (final doc in snapshot.docs) {
-  print('\${doc.id}: \${doc.data()['title']}');
+for (final row in rows) {
+  print('\${row['id']}: \${row['title']}');
 }
 ```
 
 ### Real-time listener
 
 ```dart
-db.collection('messages')
-    .orderBy('timestamp')
-    .snapshots()
-    .listen((snapshot) {
-  for (final change in snapshot.docChanges) {
-    switch (change.type) {
-      case DocumentChangeType.added:
-        print('New: \${change.doc.data()}');
-      case DocumentChangeType.modified:
-        print('Modified: \${change.doc.data()}');
-      case DocumentChangeType.removed:
-        print('Removed: \${change.doc.id}');
-    }
-  }
-});
+final channel = supabase
+    .channel('messages')
+    .onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'messages',
+      callback: (payload) {
+        final newRow = payload.newRecord;
+        print('New message: \${newRow['body']}');
+      },
+    )
+    .subscribe();
+
+// Cancel later:
+await supabase.removeChannel(channel);
 ```
 
 ## Update
 
 ```dart
-// Update specific fields
-await db.collection('users').doc('alice-123').update({
-  'name': 'Alice Smith',
-  'updatedAt': FieldValue.serverTimestamp(),
-});
+// Update specific columns
+await supabase
+    .from('users')
+    .update({
+      'name': 'Alice Smith',
+      'updated_at': DateTime.now().toIso8601String(),
+    })
+    .eq('id', 'alice-123');
 
-// Increment a numeric field
-await db.collection('courses').doc('c1').update({
-  'enrollmentCount': FieldValue.increment(1),
-});
-
-// Array operations
-await db.collection('users').doc('alice-123').update({
-  'interests': FieldValue.arrayUnion(['flutter']),
-});
+// Increment a numeric column with RPC
+await supabase.rpc('increment_enrollment_count',
+    params: {'course_id': 'c1'});
 ```
 
 ## Delete
 
 ```dart
-// Delete a document
-await db.collection('users').doc('alice-123').delete();
-
-// Delete a field
-await db.collection('users').doc('alice-123').update({
-  'phone': FieldValue.delete(),
-});
+// Delete a row
+await supabase
+    .from('users')
+    .delete()
+    .eq('id', 'alice-123');
 ```
 
-## Batch Writes
-
-Execute multiple operations atomically:
+## Upsert (Insert or Update)
 
 ```dart
-final batch = db.batch();
-
-batch.set(db.collection('users').doc('u1'), {'name': 'Bob'});
-batch.update(db.collection('counters').doc('stats'), {
-  'userCount': FieldValue.increment(1),
-});
-batch.delete(db.collection('temp').doc('old-session'));
-
-await batch.commit(); // all or nothing
+await supabase
+    .from('lesson_progress')
+    .upsert({
+      'user_id': userId,
+      'lesson_id': lessonId,
+      'is_completed': true,
+      'completed_at': DateTime.now().toIso8601String(),
+    })
+    .select();
 ```
 
 ## Data Modeling with Dart Classes
@@ -2555,18 +2572,17 @@ class CourseModel {
 
   CourseModel({required this.id, required this.title, required this.isPublished});
 
-  factory CourseModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory CourseModel.fromRow(Map<String, dynamic> row) {
     return CourseModel(
-      id: doc.id,
-      title: data['title'] ?? '',
-      isPublished: data['isPublished'] ?? false,
+      id: row['id'] as String,
+      title: row['title'] as String,
+      isPublished: row['is_published'] as bool,
     );
   }
 
-  Map<String, dynamic> toMap() => {
+  Map<String, dynamic> toRow() => {
     'title': title,
-    'isPublished': isPublished,
+    'is_published': isPublished,
   };
 }
 ```
@@ -2574,30 +2590,30 @@ class CourseModel {
 ## Practice Exercise
 
 Create a `NotesRepository` class with methods for:
-1. `addNote(title, body)` — add with auto ID
-2. `getNotes()` — return all notes ordered by date
-3. `updateNote(id, newBody)` — update body field
-4. `deleteNote(id)` — remove the document
+1. `addNote(title, body)` â€” insert with auto UUID
+2. `getNotes()` â€” return all notes ordered by date
+3. `updateNote(id, newBody)` â€” update the body column
+4. `deleteNote(id)` â€” delete the row
 ''';
 
-  String _getCloudStorageContent() => '''
-# Cloud Storage Uploads
+  String _getSupabaseStorageContent() => r'''
+# Supabase Storage Uploads
 
-Firebase Cloud Storage lets you upload and serve user-generated content
-such as images, PDFs, and other files.
+Supabase Storage lets you store and serve user-generated files
+such as images, PDFs, and videos using familiar bucket/path semantics.
 
 ## Setup
 
 ```yaml
 # pubspec.yaml
 dependencies:
-  firebase_storage: ^12.0.0
+  supabase_flutter: ^2.0.0
   image_picker: ^1.0.0
 ```
 
 ```dart
-import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:typed_data';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 ```
 
@@ -2615,102 +2631,101 @@ Future<String?> uploadProfilePicture(String userId) async {
   );
   if (picked == null) return null;
 
-  // 2. Create a storage reference
-  final ref = FirebaseStorage.instance
-      .ref()
-      .child('users/\$userId/profile.jpg');
+  // 2. Read bytes
+  final bytes = await picked.readAsBytes();
+  final path = 'users/$userId/profile.jpg';
 
-  // 3. Upload
-  final file = File(picked.path);
-  final task = ref.putFile(
-    file,
-    SettableMetadata(contentType: 'image/jpeg'),
-  );
+  // 3. Upload to Supabase Storage
+  await Supabase.instance.client.storage
+      .from('avatars')           // bucket name
+      .uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(
+          contentType: 'image/jpeg',
+          upsert: true,          // overwrite existing
+        ),
+      );
 
-  // 4. Monitor progress
-  task.snapshotEvents.listen((snapshot) {
-    final progress =
-        snapshot.bytesTransferred / snapshot.totalBytes;
-    print('Upload: \${(progress * 100).toStringAsFixed(0)}%');
-  });
+  // 4. Get the public URL
+  final publicUrl = Supabase.instance.client.storage
+      .from('avatars')
+      .getPublicUrl(path);
 
-  // 5. Get download URL
-  final snapshot = await task;
-  return await snapshot.ref.getDownloadURL();
+  return publicUrl;
 }
 ```
 
 ## Upload from Web (Uint8List)
 
 ```dart
-Future<String> uploadBytes(String path, Uint8List data) async {
-  final ref = FirebaseStorage.instance.ref().child(path);
-  final task = ref.putData(
-    data,
-    SettableMetadata(contentType: 'application/pdf'),
-  );
-  final snapshot = await task;
-  return await snapshot.ref.getDownloadURL();
+Future<String> uploadBytes(String bucket, String path, Uint8List data) async {
+  await Supabase.instance.client.storage
+      .from(bucket)
+      .uploadBinary(
+        path,
+        data,
+        fileOptions: const FileOptions(contentType: 'application/pdf'),
+      );
+
+  return Supabase.instance.client.storage
+      .from(bucket)
+      .getPublicUrl(path);
 }
 ```
 
 ## Download & Display
 
 ```dart
-// In a widget
-FutureBuilder<String>(
-  future: FirebaseStorage.instance
-      .ref('courses/banner.png')
-      .getDownloadURL(),
-  builder: (context, snapshot) {
-    if (snapshot.hasData) {
-      return Image.network(snapshot.data!);
-    }
-    return const CircularProgressIndicator();
-  },
-)
+// Build a public URL and use Image.network
+final url = Supabase.instance.client.storage
+    .from('course_thumbnails')
+    .getPublicUrl('courses/banner.png');
+
+Image.network(url);
 ```
 
 ## List Files in a Folder
 
 ```dart
 Future<List<String>> listCourseFiles(String courseId) async {
-  final ref = FirebaseStorage.instance
-      .ref()
-      .child('courses/\$courseId/files');
+  final objects = await Supabase.instance.client.storage
+      .from('materials')
+      .list(path: 'courses/$courseId/files');
 
-  final result = await ref.listAll();
-
-  final urls = <String>[];
-  for (final item in result.items) {
-    urls.add(await item.getDownloadURL());
-  }
-  return urls;
+  return objects
+      .map((obj) => Supabase.instance.client.storage
+          .from('materials')
+          .getPublicUrl('courses/$courseId/files/${obj.name}'))
+      .toList();
 }
 ```
 
 ## Delete a File
 
 ```dart
-await FirebaseStorage.instance
-    .ref('users/user123/old_photo.jpg')
-    .delete();
+await Supabase.instance.client.storage
+    .from('avatars')
+    .remove(['users/user123/old_photo.jpg']);
 ```
 
-## Security Rules (storage.rules)
+## Storage Policies (SQL)
 
-```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /users/{userId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-    }
-  }
-}
+Supabase Storage uses PostgreSQL RLS policies:
+
+```sql
+-- Allow authenticated users to upload their own avatars
+create policy "Users can upload own avatar"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'avatars'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Allow anyone to read avatars
+create policy "Public avatar access"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
 ```
 
 ## Practice Exercise
@@ -2718,48 +2733,53 @@ service firebase.storage {
 Build a file upload widget that:
 1. Lets the user pick a file via `FilePicker`
 2. Shows a linear progress indicator during the upload
-3. Displays the download URL when complete
+3. Displays the public URL when complete
 
 ```dart
 class UploadWidget extends StatefulWidget { /* ... */ }
 
 class _UploadWidgetState extends State<UploadWidget> {
   double _progress = 0;
-  String? _downloadUrl;
+  String? _publicUrl;
 
   Future<void> _upload() async {
-    final result = await FilePicker.platform.pickFiles();
+    final result = await FilePicker.platform.pickFiles(withData: true);
     if (result == null) return;
 
-    final bytes = result.files.single.bytes!;
-    final name = result.files.single.name;
+    final file = result.files.single;
+    final bytes = file.bytes!;
+    final name = file.name;
+    final path = 'uploads/$name';
 
-    final ref = FirebaseStorage.instance.ref('uploads/\$name');
-    final task = ref.putData(bytes);
+    setState(() => _progress = 0.3); // show indeterminate start
 
-    task.snapshotEvents.listen((s) {
-      setState(() {
-        _progress = s.bytesTransferred / s.totalBytes;
-      });
-    });
+    await Supabase.instance.client.storage
+        .from('materials')
+        .uploadBinary(path, bytes,
+            fileOptions: const FileOptions(upsert: true));
 
-    final snap = await task;
-    setState(() async {
-      _downloadUrl = await snap.ref.getDownloadURL();
+    final url = Supabase.instance.client.storage
+        .from('materials')
+        .getPublicUrl(path);
+
+    setState(() {
+      _progress = 1.0;
+      _publicUrl = url;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      ElevatedButton(onPressed: _upload, child: Text('Upload')),
+      ElevatedButton(onPressed: _upload, child: const Text('Upload')),
       LinearProgressIndicator(value: _progress),
-      if (_downloadUrl != null) SelectableText(_downloadUrl!),
+      if (_publicUrl != null) SelectableText(_publicUrl!),
     ]);
   }
 }
 ```
 ''';
+
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Module Operations
@@ -2775,15 +2795,15 @@ class _UploadWidgetState extends State<UploadWidget> {
       return modules;
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.modules)
-        .orderBy('order')
-        .get();
+    final rows = await _supabase!
+        .from(_modulesTable)
+        .select()
+        .eq('course_id', courseId)
+        .order('sort_order');
 
-    return snapshot.docs
-        .map((doc) => ModuleModel.fromMap(doc.data(), doc.id))
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map((row) => _moduleFromRow(row, row['id'] as String))
         .toList();
   }
 
@@ -2797,15 +2817,15 @@ class _UploadWidgetState extends State<UploadWidget> {
       }
     }
 
-    final doc = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.modules)
-        .doc(moduleId)
-        .get();
+    final row = await _supabase!
+        .from(_modulesTable)
+        .select()
+        .eq('course_id', courseId)
+        .eq('id', moduleId)
+        .maybeSingle();
 
-    if (!doc.exists) return null;
-    return ModuleModel.fromMap(doc.data()!, doc.id);
+    if (row == null) return null;
+    return _moduleFromRow(row, row['id'] as String);
   }
 
   /// Create a new module
@@ -2831,22 +2851,20 @@ class _UploadWidgetState extends State<UploadWidget> {
       return module;
     }
 
-    final data = {
-      'courseId': courseId,
-      'title': title,
-      'description': description,
-      'order': order,
-      'isPublished': false,
-      'createdAt': now.toIso8601String(),
-    };
+    final row = await _supabase!
+        .from(_modulesTable)
+        .insert({
+          'course_id': courseId,
+          'title': title,
+          'description': description,
+          'sort_order': order,
+          'is_published': false,
+          'created_at': now.toIso8601String(),
+        })
+        .select()
+        .single();
 
-    final docRef = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.modules)
-        .add(data);
-
-    return ModuleModel.fromMap(data, docRef.id);
+    return _moduleFromRow(row, row['id'] as String);
   }
 
   /// Update a module
@@ -2874,14 +2892,23 @@ class _UploadWidgetState extends State<UploadWidget> {
       return updated;
     }
 
-    updates['updatedAt'] = DateTime.now().toIso8601String();
+    final dbUpdates = <String, dynamic>{};
+    if (updates.containsKey('title')) dbUpdates['title'] = updates['title'];
+    if (updates.containsKey('description')) {
+      dbUpdates['description'] = updates['description'];
+    }
+    if (updates.containsKey('order'))
+      dbUpdates['sort_order'] = updates['order'];
+    if (updates.containsKey('isPublished')) {
+      dbUpdates['is_published'] = updates['isPublished'];
+    }
+    dbUpdates['updated_at'] = DateTime.now().toIso8601String();
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.modules)
-        .doc(moduleId)
-        .update(updates);
+    await _supabase!
+        .from(_modulesTable)
+        .update(dbUpdates)
+        .eq('course_id', courseId)
+        .eq('id', moduleId);
 
     final updated = await getModule(courseId, moduleId);
     if (updated == null) throw Exception('Failed to fetch updated module');
@@ -2902,12 +2929,11 @@ class _UploadWidgetState extends State<UploadWidget> {
       await deleteLesson(courseId, lesson.id);
     }
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.modules)
-        .doc(moduleId)
-        .delete();
+    await _supabase!
+        .from(_modulesTable)
+        .delete()
+        .eq('course_id', courseId)
+        .eq('id', moduleId);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2929,22 +2955,16 @@ class _UploadWidgetState extends State<UploadWidget> {
       return list;
     }
 
-    Query query = _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.lessons)
-        .orderBy('order');
+    var query = _supabase!.from(_lessonsTable).select().eq('course_id', courseId);
 
     if (moduleId != null) {
-      query = query.where('moduleId', isEqualTo: moduleId);
+      query = query.eq('module_id', moduleId);
     }
 
-    final snapshot = await query.get();
-    return snapshot.docs
-        .map(
-          (doc) =>
-              LessonModel.fromMap(doc.data() as Map<String, dynamic>, doc.id),
-        )
+    final rows = await query.order('sort_order');
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map((row) => _lessonFromRow(row, row['id'] as String))
         .toList();
   }
 
@@ -2958,15 +2978,15 @@ class _UploadWidgetState extends State<UploadWidget> {
       }
     }
 
-    final doc = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.lessons)
-        .doc(lessonId)
-        .get();
+    final row = await _supabase!
+        .from(_lessonsTable)
+        .select()
+        .eq('course_id', courseId)
+        .eq('id', lessonId)
+        .maybeSingle();
 
-    if (!doc.exists) return null;
-    return LessonModel.fromMap(doc.data()!, doc.id);
+    if (row == null) return null;
+    return _lessonFromRow(row, row['id'] as String);
   }
 
   /// Create a new lesson
@@ -3024,27 +3044,37 @@ class _UploadWidgetState extends State<UploadWidget> {
       return lesson;
     }
 
-    final data = {
-      'courseId': courseId,
-      'moduleId': moduleId,
-      'title': title,
-      'description': description,
-      'order': order,
-      'type': type.name,
-      'content': content,
-      'videoUrl': videoUrl,
-      'durationMinutes': durationMinutes,
-      'isPublished': false,
-      'createdAt': now.toIso8601String(),
-    };
+    final existingModule = await getModule(courseId, moduleId);
+    if (existingModule == null) {
+      await _supabase!.from(_modulesTable).insert({
+        'id': moduleId,
+        'course_id': courseId,
+        'title': 'Course Content',
+        'sort_order': 0,
+        'is_published': true,
+        'created_at': now.toIso8601String(),
+      });
+    }
 
-    final docRef = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.lessons)
-        .add(data);
+    final row = await _supabase!
+        .from(_lessonsTable)
+        .insert({
+          'course_id': courseId,
+          'module_id': moduleId,
+          'title': title,
+          'description': description,
+          'sort_order': order,
+          'lesson_type': type.name,
+          'content': content,
+          'video_url': videoUrl,
+          'duration_minutes': durationMinutes,
+          'is_published': isPublished,
+          'created_at': now.toIso8601String(),
+        })
+        .select()
+        .single();
 
-    return LessonModel.fromMap(data, docRef.id);
+    return _lessonFromRow(row, row['id'] as String);
   }
 
   /// Update a lesson
@@ -3080,14 +3110,29 @@ class _UploadWidgetState extends State<UploadWidget> {
       return updated;
     }
 
-    updates['updatedAt'] = DateTime.now().toIso8601String();
+    final dbUpdates = <String, dynamic>{};
+    if (updates.containsKey('moduleId')) dbUpdates['module_id'] = updates['moduleId'];
+    if (updates.containsKey('title')) dbUpdates['title'] = updates['title'];
+    if (updates.containsKey('description')) {
+      dbUpdates['description'] = updates['description'];
+    }
+    if (updates.containsKey('order')) dbUpdates['sort_order'] = updates['order'];
+    if (updates.containsKey('type')) dbUpdates['lesson_type'] = updates['type'] is LessonType ? (updates['type'] as LessonType).name : updates['type'];
+    if (updates.containsKey('content')) dbUpdates['content'] = updates['content'];
+    if (updates.containsKey('videoUrl')) dbUpdates['video_url'] = updates['videoUrl'];
+    if (updates.containsKey('durationMinutes')) {
+      dbUpdates['duration_minutes'] = updates['durationMinutes'];
+    }
+    if (updates.containsKey('isPublished')) {
+      dbUpdates['is_published'] = updates['isPublished'];
+    }
+    dbUpdates['updated_at'] = DateTime.now().toIso8601String();
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.lessons)
-        .doc(lessonId)
-        .update(updates);
+    await _supabase!
+        .from(_lessonsTable)
+        .update(dbUpdates)
+        .eq('course_id', courseId)
+        .eq('id', lessonId);
 
     final updated = await getLesson(courseId, lessonId);
     if (updated == null) throw Exception('Failed to fetch updated lesson');
@@ -3102,12 +3147,11 @@ class _UploadWidgetState extends State<UploadWidget> {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.lessons)
-        .doc(lessonId)
-        .delete();
+    await _supabase!
+        .from(_lessonsTable)
+        .delete()
+        .eq('course_id', courseId)
+        .eq('id', lessonId);
   }
 
   /// Toggle lesson publish status
@@ -3134,22 +3178,19 @@ class _UploadWidgetState extends State<UploadWidget> {
           (p) => p.lessonId == lessonId && p.userId == userId,
         );
       } catch (_) {
-        return null; // No progress found for this lesson/user
+        return null;
       }
     }
 
-    final snapshot = await _firestore!
-        .collectionGroup('lessonProgress')
-        .where('lessonId', isEqualTo: lessonId)
-        .where('userId', isEqualTo: userId)
-        .limit(1)
-        .get();
+    final row = await _supabase!
+        .from(_lessonProgressTable)
+        .select()
+        .eq('lesson_id', lessonId)
+        .eq('user_id', userId)
+        .maybeSingle();
 
-    if (snapshot.docs.isEmpty) return null;
-    return LessonProgressModel.fromMap(
-      snapshot.docs.first.data(),
-      snapshot.docs.first.id,
-    );
+    if (row == null) return null;
+    return _progressFromRow(row, row['id'] as String);
   }
 
   /// Get all lesson progress for a course enrollment
@@ -3163,17 +3204,15 @@ class _UploadWidgetState extends State<UploadWidget> {
           .toList();
     }
 
-    final snapshot = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.enrollments)
-        .doc(enrollmentId)
-        .collection('lessonProgress')
-        .get();
+    final rows = await _supabase!
+      .from(_lessonProgressTable)
+      .select()
+      .eq('enrollment_id', enrollmentId);
 
-    return snapshot.docs
-        .map((doc) => LessonProgressModel.fromMap(doc.data(), doc.id))
-        .toList();
+    return (rows as List<dynamic>)
+      .cast<Map<String, dynamic>>()
+      .map((row) => _progressFromRow(row, row['id'] as String))
+      .toList();
   }
 
   /// Mark a lesson as complete
@@ -3215,20 +3254,20 @@ class _UploadWidgetState extends State<UploadWidget> {
 
     final existing = await getLessonProgress(lessonId, userId);
 
-    if (existing != null) {
-      await _firestore!
-          .collection(FirestorePaths.courses)
-          .doc(courseId)
-          .collection(FirestorePaths.enrollments)
-          .doc(enrollmentId)
-          .collection('lessonProgress')
-          .doc(existing.id)
-          .update({
-            'isCompleted': true,
-            'completedAt': now.toIso8601String(),
-            'lastAccessedAt': now.toIso8601String(),
-          });
+    final data = {
+      'lesson_id': lessonId,
+      'enrollment_id': enrollmentId,
+      'user_id': userId,
+      'is_completed': true,
+      'completed_at': now.toIso8601String(),
+      'last_accessed_at': now.toIso8601String(),
+    };
 
+    if (existing != null) {
+      await _supabase!
+          .from(_lessonProgressTable)
+          .update(data)
+          .eq('id', existing.id);
       return existing.copyWith(
         isCompleted: true,
         completedAt: now,
@@ -3236,24 +3275,13 @@ class _UploadWidgetState extends State<UploadWidget> {
       );
     }
 
-    final data = {
-      'lessonId': lessonId,
-      'enrollmentId': enrollmentId,
-      'userId': userId,
-      'isCompleted': true,
-      'completedAt': now.toIso8601String(),
-      'lastAccessedAt': now.toIso8601String(),
-    };
+    final row = await _supabase!
+        .from(_lessonProgressTable)
+        .insert(data)
+        .select()
+        .single();
 
-    final docRef = await _firestore!
-        .collection(FirestorePaths.courses)
-        .doc(courseId)
-        .collection(FirestorePaths.enrollments)
-        .doc(enrollmentId)
-        .collection('lessonProgress')
-        .add(data);
-
-    return LessonProgressModel.fromMap(data, docRef.id);
+    return _progressFromRow(row, row['id'] as String);
   }
 
   /// Update lesson access time
@@ -3295,31 +3323,21 @@ class _UploadWidgetState extends State<UploadWidget> {
     final existing = await getLessonProgress(lessonId, userId);
 
     final data = {
-      'lessonId': lessonId,
-      'enrollmentId': enrollmentId,
-      'userId': userId,
-      'lastAccessedAt': now.toIso8601String(),
-      'savedState': ?savedState,
+      'lesson_id': lessonId,
+      'enrollment_id': enrollmentId,
+      'user_id': userId,
+      'last_accessed_at': now.toIso8601String(),
+      'saved_state': savedState,
     };
 
     if (existing != null) {
-      await _firestore!
-          .collection(FirestorePaths.courses)
-          .doc(courseId)
-          .collection(FirestorePaths.enrollments)
-          .doc(enrollmentId)
-          .collection('lessonProgress')
-          .doc(existing.id)
-          .update(data);
+      await _supabase!
+          .from(_lessonProgressTable)
+          .update(data)
+          .eq('id', existing.id);
     } else {
-      data['isCompleted'] = false;
-      await _firestore!
-          .collection(FirestorePaths.courses)
-          .doc(courseId)
-          .collection(FirestorePaths.enrollments)
-          .doc(enrollmentId)
-          .collection('lessonProgress')
-          .add(data);
+      data['is_completed'] = false;
+      await _supabase!.from(_lessonProgressTable).insert(data);
     }
   }
 

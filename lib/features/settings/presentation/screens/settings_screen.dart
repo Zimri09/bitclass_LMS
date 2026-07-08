@@ -77,10 +77,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final notif = _notificationSettings;
 
         return Scaffold(
-          backgroundColor: AppColors.background,
           appBar: AppBar(
             title: Text('Settings', style: AppTextStyles.h3),
-            backgroundColor: AppColors.surface,
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
@@ -93,16 +91,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               // Appearance
               _buildSectionHeader('Appearance'),
-              _buildSettingsCard([
-                _buildSwitchTile(
-                  icon: Icons.dark_mode,
-                  title: 'Dark Mode',
-                  subtitle: 'Use dark theme',
-                  value: appSettings.darkMode,
-                  onChanged: (value) =>
-                      context.read<SettingsCubit>().setDarkMode(value),
-                ),
-              ]),
+              _buildThemeToggleCard(
+                isDark: appSettings.darkMode,
+                onToggle: () => context
+                    .read<SettingsCubit>()
+                    .setDarkMode(!appSettings.darkMode),
+              ),
               const SizedBox(height: 24),
 
               // Notifications
@@ -116,7 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) =>
                       _updateNotificationSetting(pushEnabled: value),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildSwitchTile(
                   icon: Icons.email,
                   title: 'Email Notifications',
@@ -125,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) =>
                       _updateNotificationSetting(emailEnabled: value),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildSwitchTile(
                   icon: Icons.school,
                   title: 'Course Updates',
@@ -138,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     typeEnabled: value,
                   ),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildSwitchTile(
                   icon: Icons.grade,
                   title: 'Grade Alerts',
@@ -151,7 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     typeEnabled: value,
                   ),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildSwitchTile(
                   icon: Icons.forum,
                   title: 'Discussion Replies',
@@ -178,7 +172,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) =>
                       context.read<SettingsCubit>().setAutoPlayVideos(value),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildSwitchTile(
                   icon: Icons.wifi,
                   title: 'Download on Wi-Fi Only',
@@ -199,13 +193,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Edit Profile',
                   onTap: () => context.push(AppRoutes.profile),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.lock,
                   title: 'Change Password',
                   onTap: () => _showChangePasswordDialog(),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.notifications_active,
                   title: 'Notification Preferences',
@@ -222,13 +216,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Help Center',
                   onTap: () => _showComingSoon('Help Center'),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.feedback,
                   title: 'Send Feedback',
                   onTap: () => _showComingSoon('Feedback'),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.bug_report,
                   title: 'Report a Bug',
@@ -245,19 +239,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Version',
                   value: AppConstants.appVersion,
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.description,
                   title: 'Terms of Service',
                   onTap: () => _showComingSoon('Terms of Service'),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.privacy_tip,
                   title: 'Privacy Policy',
                   onTap: () => _showComingSoon('Privacy Policy'),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.article,
                   title: 'Licenses',
@@ -325,12 +319,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title.toUpperCase(),
         style: AppTextStyles.caption.copyWith(
-          color: AppColors.textSecondary,
+          color: colorScheme.onSurfaceVariant,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.2,
         ),
@@ -339,13 +334,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildSettingsCard(List<Widget> children) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(children: children),
+    );
+  }
+
+  /// Premium animated theme toggle card
+  Widget _buildThemeToggleCard({
+    required bool isDark,
+    required VoidCallback onToggle,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onToggle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            // Animated icon
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, anim) => RotationTransition(
+                turns: anim,
+                child: FadeTransition(opacity: anim, child: child),
+              ),
+              child: Icon(
+                isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                key: ValueKey(isDark),
+                color: isDark ? AppColors.primary : const Color(0xFFE97F28),
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Label
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isDark ? 'Dark Mode' : 'Light Mode',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    isDark
+                        ? 'Switch to light theme'
+                        : 'Switch to dark theme',
+                    style: AppTextStyles.caption.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Custom pill toggle
+            _ThemePillToggle(isDark: isDark),
+          ],
+        ),
+      ),
     );
   }
 
@@ -356,16 +417,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return SwitchListTile(
-      secondary: Icon(icon, color: AppColors.primary),
-      title: Text(title, style: AppTextStyles.bodyMedium),
+      secondary: Icon(icon, color: colorScheme.primary),
+      title: Text(
+        title,
+        style: AppTextStyles.bodyMedium.copyWith(color: colorScheme.onSurface),
+      ),
       subtitle: Text(
         subtitle,
-        style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+        style: AppTextStyles.caption.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
       ),
       value: value,
       onChanged: onChanged,
-      activeThumbColor: AppColors.primary,
+      activeColor: colorScheme.primary,
     );
   }
 
@@ -374,10 +441,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required VoidCallback onTap,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return ListTile(
-      leading: Icon(icon, color: AppColors.primary),
-      title: Text(title, style: AppTextStyles.bodyMedium),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+      leading: Icon(icon, color: colorScheme.primary),
+      title: Text(
+        title,
+        style: AppTextStyles.bodyMedium.copyWith(color: colorScheme.onSurface),
+      ),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: colorScheme.onSurfaceVariant,
+      ),
       onTap: onTap,
     );
   }
@@ -387,13 +461,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required String value,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return ListTile(
-      leading: Icon(icon, color: AppColors.primary),
-      title: Text(title, style: AppTextStyles.bodyMedium),
+      leading: Icon(icon, color: colorScheme.primary),
+      title: Text(
+        title,
+        style: AppTextStyles.bodyMedium.copyWith(color: colorScheme.onSurface),
+      ),
       trailing: Text(
         value,
         style: AppTextStyles.bodyMedium.copyWith(
-          color: AppColors.textSecondary,
+          color: colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -405,7 +483,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    final color = isDestructive ? AppColors.error : AppColors.primary;
+    final colorScheme = Theme.of(context).colorScheme;
+    final color = isDestructive ? colorScheme.error : colorScheme.primary;
     return ListTile(
       leading: Icon(icon, color: color),
       title: Text(
@@ -417,10 +496,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showComingSoon(String feature) {
+    final colorScheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('$feature coming soon!'),
-        backgroundColor: AppColors.primary,
+        backgroundColor: colorScheme.primary,
       ),
     );
   }
@@ -429,7 +509,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
         title: const Text('Change Password'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -461,7 +540,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                   content: Text('Password change coming soon!'),
                   backgroundColor: AppColors.primary,
                 ),
@@ -477,22 +556,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showLogoutDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<AuthBloc>().add(AuthLogoutRequested());
-            },
-            child: const Text('Log Out'),
+      builder: (context) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: const Text('Log Out'),
+          content: const Text('Are you sure you want to log out?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                context.read<AuthBloc>().add(AuthLogoutRequested());
+              },
+              child: const Text('Log Out'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Animated pill-style toggle for light/dark theme
+class _ThemePillToggle extends StatelessWidget {
+  final bool isDark;
+
+  const _ThemePillToggle({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = isDark ? AppColors.primary : const Color(0xFFE97F28);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      width: 56,
+      height: 30,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(15),
+        color: isDark
+            ? primary.withValues(alpha: 0.25)
+            : primary.withValues(alpha: 0.15),
+        border: Border.all(color: primary.withValues(alpha: 0.6), width: 1.5),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: primary,
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withValues(alpha: 0.5),
+                    blurRadius: 6,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Icon(
+                isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                size: 13,
+                color: Colors.white,
+              ),
+            ),
           ),
         ],
       ),

@@ -47,7 +47,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
           if (state is ReplyCreated) {
             _replyController.clear();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('Reply posted!'),
                 backgroundColor: AppColors.success,
               ),
@@ -67,7 +67,6 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
               title: Text(
                 state is ThreadDetailLoaded ? state.thread.title : 'Thread',
               ),
-              backgroundColor: AppColors.background,
               actions: [
                 if (state is ThreadDetailLoaded) ...[
                   IconButton(
@@ -91,7 +90,6 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                 ],
               ],
             ),
-            backgroundColor: AppColors.background,
             body: _buildBody(context, state),
           );
         },
@@ -101,7 +99,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
 
   Widget _buildBody(BuildContext context, DiscussionState state) {
     if (state is ThreadDetailLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppColors.primary),
       );
     }
@@ -111,11 +109,11 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
+            Icon(Icons.error_outline, color: AppColors.error, size: 48),
             const SizedBox(height: 16),
             Text(
               state.message,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -196,7 +194,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                   backgroundColor: AppColors.primary.withValues(alpha: 0.2),
                   child: Text(
                     thread.authorName[0].toUpperCase(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
                     ),
@@ -209,14 +207,14 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                     children: [
                       Text(
                         thread.authorName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
                         _formatFullDate(thread.createdAt),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                         ),
@@ -232,7 +230,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
             // Title
             Text(
               thread.title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -244,7 +242,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
             // Content
             Text(
               thread.content,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 15,
                 height: 1.5,
@@ -252,7 +250,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
             ),
 
             const SizedBox(height: 16),
-            const Divider(color: AppColors.surfaceLight),
+            Divider(color: AppColors.surfaceLight),
             const SizedBox(height: 8),
 
             // Actions
@@ -349,7 +347,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
       children: [
         Text(
           '$count ${count == 1 ? 'Reply' : 'Replies'}',
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -375,7 +373,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: isAccepted
-            ? const BorderSide(color: AppColors.success, width: 1)
+            ? BorderSide(color: AppColors.success, width: 1)
             : BorderSide.none,
       ),
       child: Padding(
@@ -411,7 +409,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                         children: [
                           Text(
                             reply.authorName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
@@ -428,7 +426,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                                 color: AppColors.warning.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'INSTRUCTOR',
                                 style: TextStyle(
                                   color: AppColors.warning,
@@ -442,7 +440,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                       ),
                       Text(
                         _formatDate(reply.createdAt),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 11,
                         ),
@@ -460,7 +458,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                       color: AppColors.success.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.check, color: AppColors.success, size: 14),
@@ -484,7 +482,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
             // Content
             Text(
               reply.content,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 14,
                 height: 1.5,
@@ -551,11 +549,11 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                         ),
                       );
                     },
-                    icon: const Icon(Icons.check_circle_outline, size: 16),
+                    icon: Icon(Icons.check_circle_outline, size: 16),
                     label: const Text('Accept'),
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.success,
-                      textStyle: const TextStyle(fontSize: 12),
+                      textStyle: TextStyle(fontSize: 12),
                     ),
                   ),
               ],
@@ -569,7 +567,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
   Widget _buildReplyInput(BuildContext context, bool isSubmitting) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.surfaceLight)),
       ),
@@ -580,10 +578,10 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
               child: TextField(
                 controller: _replyController,
                 focusNode: _replyFocusNode,
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Write a reply...',
-                  hintStyle: const TextStyle(color: AppColors.textSecondary),
+                  hintStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
                   fillColor: AppColors.surfaceLight,
                   border: OutlineInputBorder(
@@ -607,7 +605,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
               ),
               child: IconButton(
                 icon: isSubmitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
@@ -615,7 +613,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Icon(Icons.send, color: AppColors.background),
+                    : Icon(Icons.send, color: AppColors.background),
                 onPressed: isSubmitting
                     ? null
                     : () {

@@ -1,32 +1,104 @@
 import 'dart:developer';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../models/models.dart';
 
-/// Repository for quiz operations
+/// Repository for quiz operations.
 class QuizRepository {
-  final FirebaseFirestore? _firestore;
+  static const String _quizzesTable = 'quizzes';
+  static const String _questionsTable = 'questions';
+  static const String _attemptsTable = 'quiz_attempts';
+  static const String _answersTable = 'quiz_answers';
+
+  final SupabaseClient? _supabase;
 
   // Demo data storage
   final Map<String, QuizModel> _quizzes = {};
   final Map<String, List<QuestionModel>> _questionsByQuiz = {};
   final Map<String, List<QuizAttemptModel>> _attemptsByUser = {};
 
-  QuizRepository({FirebaseFirestore? firestore})
-    : _firestore = EnvironmentConfig.isDemoMode
+  QuizRepository({SupabaseClient? supabase})
+    : _supabase = EnvironmentConfig.isDemoMode
           ? null
-          : (firestore ?? FirebaseFirestore.instance) {
+          : (supabase ?? Supabase.instance.client) {
     if (EnvironmentConfig.isDemoMode) {
       _initDemoData();
     }
   }
 
+  Map<String, dynamic> _rowToQuizMap(Map<String, dynamic> row) {
+    return {
+      'id': row['id'],
+      'courseId': row['course_id'],
+      'lessonId': row['lesson_id'],
+      'title': row['title'],
+      'description': row['description'],
+      'timeLimitMinutes': row['time_limit_minutes'],
+      'passingScore': row['passing_score'],
+      'totalPoints': row['total_points'],
+      'questionCount': row['question_count'],
+      'shuffleQuestions': row['shuffle_questions'],
+      'shuffleAnswers': row['shuffle_answers'],
+      'showCorrectAnswers': row['show_correct_answers'],
+      'allowRetakes': row['allow_retakes'],
+      'maxAttempts': row['max_attempts'],
+      'isPublished': row['is_published'],
+      'createdAt': row['created_at']?.toString(),
+      'updatedAt': row['updated_at']?.toString(),
+    };
+  }
+
+  QuizModel _quizFromRow(Map<String, dynamic> row) =>
+      QuizModel.fromMap(_rowToQuizMap(row));
+
+  Map<String, dynamic> _rowToQuestionMap(Map<String, dynamic> row) {
+    return {
+      'id': row['id'],
+      'quizId': row['quiz_id'],
+      'type': row['question_type'],
+      'questionText': row['prompt'],
+      'questionCode': row['question_code'],
+      'codeLanguage': row['code_language'],
+      'options': row['options'] ?? const [],
+      'correctAnswers': row['correct_answer'] ?? const [],
+      'explanation': row['explanation'],
+      'points': row['points'],
+      'order': row['sort_order'],
+      'hint': row['hint'],
+      'testCases': row['test_cases'] ?? const [],
+    };
+  }
+
+  QuestionModel _questionFromRow(Map<String, dynamic> row) =>
+      QuestionModel.fromMap(_rowToQuestionMap(row));
+
+  Map<String, dynamic> _rowToAttemptMap(Map<String, dynamic> row) {
+    return {
+      'id': row['id'],
+      'quizId': row['quiz_id'],
+      'userId': row['user_id'],
+      'enrollmentId': row['enrollment_id'],
+      'status': row['status'],
+      'attemptNumber': row['attempt_number'],
+      'startedAt': row['started_at']?.toString(),
+      'submittedAt': row['submitted_at']?.toString(),
+      'gradedAt': row['graded_at']?.toString(),
+      'score': row['score'],
+      'totalPoints': row['total_points'],
+      'percentage': row['percentage'],
+      'passed': row['passed'],
+      'timeSpentSeconds': row['time_spent_seconds'],
+      'answers': row['answers'] ?? const {},
+    };
+  }
+
+  QuizAttemptModel _attemptFromRow(Map<String, dynamic> row) =>
+      QuizAttemptModel.fromMap(_rowToAttemptMap(row));
+
   void _initDemoData() {
-    // Flutter Course Quiz
     _quizzes['quiz-flutter-basics'] = QuizModel(
       id: 'quiz-flutter-basics',
       courseId: 'course-1',
@@ -97,378 +169,9 @@ class QuizRepository {
         points: 2,
         order: 1,
       ),
-      QuestionModel(
-        id: 'q-flutter-3',
-        quizId: 'quiz-flutter-basics',
-        type: QuestionType.trueFalse,
-        questionText: 'Flutter can only be used to build mobile applications.',
-        options: const [
-          AnswerOptionModel(id: 'true', text: 'True', isCorrect: false),
-          AnswerOptionModel(id: 'false', text: 'False', isCorrect: true),
-        ],
-        correctAnswers: const ['false'],
-        explanation:
-            'Flutter can build applications for mobile, web, desktop, and embedded devices.',
-        points: 2,
-        order: 2,
-      ),
-      QuestionModel(
-        id: 'q-flutter-4',
-        quizId: 'quiz-flutter-basics',
-        type: QuestionType.multipleSelect,
-        questionText:
-            'Which of the following are valid Flutter widget types? (Select all that apply)',
-        options: const [
-          AnswerOptionModel(
-            id: 'opt-1',
-            text: 'StatelessWidget',
-            isCorrect: true,
-          ),
-          AnswerOptionModel(
-            id: 'opt-2',
-            text: 'StatefulWidget',
-            isCorrect: true,
-          ),
-          AnswerOptionModel(
-            id: 'opt-3',
-            text: 'MutableWidget',
-            isCorrect: false,
-          ),
-          AnswerOptionModel(
-            id: 'opt-4',
-            text: 'InheritedWidget',
-            isCorrect: true,
-          ),
-        ],
-        correctAnswers: const ['opt-1', 'opt-2', 'opt-4'],
-        explanation:
-            'StatelessWidget, StatefulWidget, and InheritedWidget are core Flutter widget types.',
-        points: 2,
-        order: 3,
-      ),
-      QuestionModel(
-        id: 'q-flutter-5',
-        quizId: 'quiz-flutter-basics',
-        type: QuestionType.multipleChoice,
-        questionText: 'What is the main() function in a Flutter app?',
-        options: const [
-          AnswerOptionModel(
-            id: 'opt-1',
-            text: 'The entry point of the application',
-            isCorrect: true,
-          ),
-          AnswerOptionModel(
-            id: 'opt-2',
-            text: 'A widget builder function',
-            isCorrect: false,
-          ),
-          AnswerOptionModel(
-            id: 'opt-3',
-            text: 'A state management function',
-            isCorrect: false,
-          ),
-          AnswerOptionModel(
-            id: 'opt-4',
-            text: 'A routing function',
-            isCorrect: false,
-          ),
-        ],
-        correctAnswers: const ['opt-1'],
-        explanation:
-            'main() is the entry point where the app starts execution and calls runApp().',
-        points: 2,
-        order: 4,
-      ),
-    ];
-
-    // Dart Programming Quiz
-    _quizzes['quiz-dart-basics'] = QuizModel(
-      id: 'quiz-dart-basics',
-      courseId: 'course-2',
-      title: 'Dart Programming Fundamentals',
-      description: 'Assess your Dart programming knowledge',
-      timeLimitMinutes: 20,
-      passingScore: 60,
-      totalPoints: 15,
-      questionCount: 6,
-      shuffleQuestions: true,
-      shuffleAnswers: true,
-      showCorrectAnswers: true,
-      allowRetakes: true,
-      maxAttempts: 0,
-      isPublished: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 15)),
-    );
-
-    _questionsByQuiz['quiz-dart-basics'] = [
-      QuestionModel(
-        id: 'q-dart-1',
-        quizId: 'quiz-dart-basics',
-        type: QuestionType.multipleChoice,
-        questionText: 'How do you declare a nullable variable in Dart?',
-        options: const [
-          AnswerOptionModel(id: 'opt-1', text: 'String? name', isCorrect: true),
-          AnswerOptionModel(
-            id: 'opt-2',
-            text: 'String name?',
-            isCorrect: false,
-          ),
-          AnswerOptionModel(
-            id: 'opt-3',
-            text: 'nullable String name',
-            isCorrect: false,
-          ),
-          AnswerOptionModel(
-            id: 'opt-4',
-            text: 'String name = null',
-            isCorrect: false,
-          ),
-        ],
-        correctAnswers: const ['opt-1'],
-        explanation:
-            'In Dart, you add ? after the type to make it nullable: String? name',
-        points: 2,
-        order: 0,
-      ),
-      QuestionModel(
-        id: 'q-dart-2',
-        quizId: 'quiz-dart-basics',
-        type: QuestionType.coding,
-        questionText: 'Write a function that returns the sum of two integers.',
-        questionCode: '''
-// Complete the function below
-int sum(int a, int b) {
-  // Your code here
-}
-''',
-        codeLanguage: 'dart',
-        correctAnswers: const ['return a + b;'],
-        explanation:
-            'The function should return the sum of parameters a and b.',
-        points: 3,
-        order: 1,
-        testCases: const [
-          TestCaseModel(
-            id: 'tc-1',
-            input: 'sum(2, 3)',
-            expectedOutput: '5',
-            description: 'Basic addition',
-          ),
-          TestCaseModel(
-            id: 'tc-2',
-            input: 'sum(-1, 1)',
-            expectedOutput: '0',
-            description: 'Adding negative number',
-          ),
-          TestCaseModel(
-            id: 'tc-3',
-            input: 'sum(0, 0)',
-            expectedOutput: '0',
-            description: 'Adding zeros',
-            isHidden: true,
-          ),
-        ],
-      ),
-      QuestionModel(
-        id: 'q-dart-3',
-        quizId: 'quiz-dart-basics',
-        type: QuestionType.trueFalse,
-        questionText: 'Dart is a statically typed language.',
-        options: const [
-          AnswerOptionModel(id: 'true', text: 'True', isCorrect: true),
-          AnswerOptionModel(id: 'false', text: 'False', isCorrect: false),
-        ],
-        correctAnswers: const ['true'],
-        explanation: 'Dart is indeed statically typed with sound null safety.',
-        points: 2,
-        order: 2,
-      ),
-      QuestionModel(
-        id: 'q-dart-4',
-        quizId: 'quiz-dart-basics',
-        type: QuestionType.multipleChoice,
-        questionText:
-            'What keyword is used to create an asynchronous function?',
-        options: const [
-          AnswerOptionModel(id: 'opt-1', text: 'async', isCorrect: true),
-          AnswerOptionModel(id: 'opt-2', text: 'await', isCorrect: false),
-          AnswerOptionModel(id: 'opt-3', text: 'future', isCorrect: false),
-          AnswerOptionModel(id: 'opt-4', text: 'defer', isCorrect: false),
-        ],
-        correctAnswers: const ['opt-1'],
-        explanation:
-            'The async keyword marks a function as asynchronous, allowing use of await.',
-        points: 2,
-        order: 3,
-      ),
-      QuestionModel(
-        id: 'q-dart-5',
-        quizId: 'quiz-dart-basics',
-        type: QuestionType.shortAnswer,
-        questionText:
-            'What is the keyword used to define a constant at compile time in Dart?',
-        correctAnswers: const ['const'],
-        explanation:
-            'The const keyword creates compile-time constants in Dart.',
-        points: 3,
-        order: 4,
-        hint: 'It starts with "c"',
-      ),
-      QuestionModel(
-        id: 'q-dart-6',
-        quizId: 'quiz-dart-basics',
-        type: QuestionType.multipleSelect,
-        questionText:
-            'Which of the following are valid collection types in Dart?',
-        options: const [
-          AnswerOptionModel(id: 'opt-1', text: 'List', isCorrect: true),
-          AnswerOptionModel(id: 'opt-2', text: 'Set', isCorrect: true),
-          AnswerOptionModel(id: 'opt-3', text: 'Map', isCorrect: true),
-          AnswerOptionModel(id: 'opt-4', text: 'Tuple', isCorrect: false),
-        ],
-        correctAnswers: const ['opt-1', 'opt-2', 'opt-3'],
-        explanation: 'Dart has List, Set, and Map as core collection types.',
-        points: 3,
-        order: 5,
-      ),
-    ];
-
-    // Data Structures Quiz
-    _quizzes['quiz-data-structures'] = QuizModel(
-      id: 'quiz-data-structures',
-      courseId: 'course-3',
-      title: 'Data Structures Challenge',
-      description: 'Test your knowledge of arrays, trees, and algorithms',
-      timeLimitMinutes: 30,
-      passingScore: 70,
-      totalPoints: 20,
-      questionCount: 5,
-      shuffleQuestions: false,
-      shuffleAnswers: true,
-      showCorrectAnswers: true,
-      allowRetakes: true,
-      maxAttempts: 2,
-      isPublished: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-    );
-
-    _questionsByQuiz['quiz-data-structures'] = [
-      QuestionModel(
-        id: 'q-ds-1',
-        quizId: 'quiz-data-structures',
-        type: QuestionType.multipleChoice,
-        questionText:
-            'What is the time complexity of accessing an element in an array by index?',
-        options: const [
-          AnswerOptionModel(id: 'opt-1', text: 'O(1)', isCorrect: true),
-          AnswerOptionModel(id: 'opt-2', text: 'O(n)', isCorrect: false),
-          AnswerOptionModel(id: 'opt-3', text: 'O(log n)', isCorrect: false),
-          AnswerOptionModel(id: 'opt-4', text: 'O(n²)', isCorrect: false),
-        ],
-        correctAnswers: const ['opt-1'],
-        explanation:
-            'Array access by index is O(1) because arrays use contiguous memory.',
-        points: 4,
-        order: 0,
-      ),
-      QuestionModel(
-        id: 'q-ds-2',
-        quizId: 'quiz-data-structures',
-        type: QuestionType.coding,
-        questionText: 'Write a function to reverse a list of integers.',
-        questionCode: '''
-List<int> reverseList(List<int> numbers) {
-  // Your code here
-}
-''',
-        codeLanguage: 'dart',
-        correctAnswers: const ['return numbers.reversed.toList();'],
-        explanation: 'You can use .reversed.toList() or implement manually.',
-        points: 5,
-        order: 1,
-        testCases: const [
-          TestCaseModel(
-            id: 'tc-1',
-            input: 'reverseList([1, 2, 3])',
-            expectedOutput: '[3, 2, 1]',
-          ),
-          TestCaseModel(
-            id: 'tc-2',
-            input: 'reverseList([])',
-            expectedOutput: '[]',
-          ),
-        ],
-      ),
-      QuestionModel(
-        id: 'q-ds-3',
-        quizId: 'quiz-data-structures',
-        type: QuestionType.multipleChoice,
-        questionText:
-            'In a binary search tree, where is the smallest element located?',
-        options: const [
-          AnswerOptionModel(id: 'opt-1', text: 'Root node', isCorrect: false),
-          AnswerOptionModel(
-            id: 'opt-2',
-            text: 'Leftmost leaf node',
-            isCorrect: true,
-          ),
-          AnswerOptionModel(
-            id: 'opt-3',
-            text: 'Rightmost leaf node',
-            isCorrect: false,
-          ),
-          AnswerOptionModel(
-            id: 'opt-4',
-            text: 'Any leaf node',
-            isCorrect: false,
-          ),
-        ],
-        correctAnswers: const ['opt-2'],
-        explanation:
-            'In a BST, smaller values go left, so the smallest is the leftmost node.',
-        points: 4,
-        order: 2,
-      ),
-      QuestionModel(
-        id: 'q-ds-4',
-        quizId: 'quiz-data-structures',
-        type: QuestionType.trueFalse,
-        questionText: 'A stack follows FIFO (First-In-First-Out) principle.',
-        options: const [
-          AnswerOptionModel(id: 'true', text: 'True', isCorrect: false),
-          AnswerOptionModel(id: 'false', text: 'False', isCorrect: true),
-        ],
-        correctAnswers: const ['false'],
-        explanation:
-            'A stack follows LIFO (Last-In-First-Out). Queues follow FIFO.',
-        points: 3,
-        order: 3,
-      ),
-      QuestionModel(
-        id: 'q-ds-5',
-        quizId: 'quiz-data-structures',
-        type: QuestionType.multipleChoice,
-        questionText: 'What is the space complexity of merge sort?',
-        options: const [
-          AnswerOptionModel(id: 'opt-1', text: 'O(1)', isCorrect: false),
-          AnswerOptionModel(id: 'opt-2', text: 'O(log n)', isCorrect: false),
-          AnswerOptionModel(id: 'opt-3', text: 'O(n)', isCorrect: true),
-          AnswerOptionModel(id: 'opt-4', text: 'O(n log n)', isCorrect: false),
-        ],
-        correctAnswers: const ['opt-3'],
-        explanation:
-            'Merge sort requires O(n) auxiliary space for the temporary arrays.',
-        points: 4,
-        order: 4,
-      ),
     ];
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Quiz Operations
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Get all quizzes for a course
   Future<List<QuizModel>> getQuizzesByCourse(String courseId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -478,20 +181,25 @@ List<int> reverseList(List<int> numbers) {
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.quizzes)
-          .where('courseId', isEqualTo: courseId)
-          .where('isPublished', isEqualTo: true)
-          .get();
+      final rows = await _supabase!
+          .from(_quizzesTable)
+          .select()
+          .eq('course_id', courseId)
+          .eq('is_published', true)
+          .order('created_at', ascending: false);
 
-      return snapshot.docs.map((doc) => QuizModel.fromMap(doc.data())).toList();
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_quizFromRow)
+          .toList();
     } catch (e) {
-      if (kDebugMode) log('Error fetching quizzes: $e', name: 'QuizRepository');
+      if (kDebugMode) {
+        log('Error fetching quizzes: $e', name: 'QuizRepository');
+      }
       return [];
     }
   }
 
-  /// Get a specific quiz
   Future<QuizModel?> getQuiz(String quizId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 200));
@@ -499,104 +207,112 @@ List<int> reverseList(List<int> numbers) {
     }
 
     try {
-      final doc = await _firestore!
-          .collection(FirestorePaths.quizzes)
-          .doc(quizId)
-          .get();
-
-      if (!doc.exists) return null;
-      return QuizModel.fromMap(doc.data()!);
+      final row = await _supabase!
+          .from(_quizzesTable)
+          .select()
+          .eq('id', quizId)
+          .maybeSingle();
+      if (row == null) return null;
+      return _quizFromRow(row);
     } catch (e) {
-      if (kDebugMode) log('Error fetching quiz: $e', name: 'QuizRepository');
+      if (kDebugMode) {
+        log('Error fetching quiz: $e', name: 'QuizRepository');
+      }
       return null;
     }
   }
 
-  /// Get quiz by lesson ID
   Future<QuizModel?> getQuizByLesson(String lessonId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 200));
       try {
         return _quizzes.values.firstWhere((q) => q.lessonId == lessonId);
       } catch (_) {
-        return null; // No quiz found for this lesson
+        return null;
       }
     }
 
     try {
-      final snapshot = await _firestore!
-          .collection(FirestorePaths.quizzes)
-          .where('lessonId', isEqualTo: lessonId)
-          .limit(1)
-          .get();
-
-      if (snapshot.docs.isEmpty) return null;
-      return QuizModel.fromMap(snapshot.docs.first.data());
+      final row = await _supabase!
+          .from(_quizzesTable)
+          .select()
+          .eq('lesson_id', lessonId)
+          .maybeSingle();
+      if (row == null) return null;
+      return _quizFromRow(row);
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Error fetching quiz by lesson: $e', name: 'QuizRepository');
+      }
       return null;
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Question Operations
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Get all questions for a quiz
   Future<List<QuestionModel>> getQuestions(String quizId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
     if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
       final questions = _questionsByQuiz[quizId] ?? [];
       return List.from(questions)..sort((a, b) => a.order.compareTo(b.order));
     }
 
-    return [];
+    try {
+      final rows = await _supabase!
+          .from(_questionsTable)
+          .select()
+          .eq('quiz_id', quizId)
+          .order('sort_order', ascending: true);
+
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_questionFromRow)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
-  /// Get a specific question
   Future<QuestionModel?> getQuestion(String quizId, String questionId) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-
     if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 100));
       final questions = _questionsByQuiz[quizId] ?? [];
       try {
         return questions.firstWhere((q) => q.id == questionId);
       } catch (_) {
-        return null; // Question not found
+        return null;
       }
     }
 
-    return null;
+    try {
+      final row = await _supabase!
+          .from(_questionsTable)
+          .select()
+          .eq('quiz_id', quizId)
+          .eq('id', questionId)
+          .maybeSingle();
+      if (row == null) return null;
+      return _questionFromRow(row);
+    } catch (_) {
+      return null;
+    }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Attempt Operations
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Start a new quiz attempt
   Future<QuizAttemptModel> startAttempt({
     required String quizId,
     required String userId,
     String? enrollmentId,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
     final quiz = await getQuiz(quizId);
     if (quiz == null) {
       throw Exception('Quiz not found');
     }
 
-    // Check attempt limits
     final existingAttempts = await getAttempts(quizId: quizId, userId: userId);
     if (quiz.maxAttempts > 0 && existingAttempts.length >= quiz.maxAttempts) {
       throw Exception('Maximum attempts reached');
     }
 
-    final attemptId = 'attempt-${DateTime.now().millisecondsSinceEpoch}';
     final attempt = QuizAttemptModel(
-      id: attemptId,
+      id: 'attempt-${DateTime.now().millisecondsSinceEpoch}',
       quizId: quizId,
       userId: userId,
       enrollmentId: enrollmentId,
@@ -609,44 +325,78 @@ List<int> reverseList(List<int> numbers) {
     if (EnvironmentConfig.isDemoMode) {
       _attemptsByUser.putIfAbsent(userId, () => []);
       _attemptsByUser[userId]!.add(attempt);
+      return attempt;
     }
+
+    await _supabase!.from(_attemptsTable).insert({
+      'id': attempt.id,
+      'quiz_id': attempt.quizId,
+      'user_id': attempt.userId,
+      'enrollment_id': attempt.enrollmentId,
+      'status': attempt.status.name,
+      'attempt_number': attempt.attemptNumber,
+      'started_at': attempt.startedAt.toIso8601String(),
+      'score': attempt.score,
+      'total_points': attempt.totalPoints,
+      'percentage': attempt.percentage,
+      'passed': attempt.passed,
+      'time_spent_seconds': attempt.timeSpentSeconds,
+      'answers': attempt.answers.map((k, v) => MapEntry(k, v.toMap())),
+    });
 
     return attempt;
   }
 
-  /// Get attempts for a user/quiz
   Future<List<QuizAttemptModel>> getAttempts({
     required String quizId,
     required String userId,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 200));
-
     if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 200));
       final userAttempts = _attemptsByUser[userId] ?? [];
       return userAttempts.where((a) => a.quizId == quizId).toList();
     }
 
-    return [];
+    try {
+      final rows = await _supabase!
+          .from(_attemptsTable)
+          .select()
+          .eq('quiz_id', quizId)
+          .eq('user_id', userId)
+          .order('attempt_number', ascending: true);
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_attemptFromRow)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
-  /// Get a specific attempt
   Future<QuizAttemptModel?> getAttempt(String attemptId) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-
     if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 100));
       for (final attempts in _attemptsByUser.values) {
         for (final attempt in attempts) {
-          if (attempt.id == attemptId) {
-            return attempt;
-          }
+          if (attempt.id == attemptId) return attempt;
         }
       }
+      return null;
     }
 
-    return null;
+    try {
+      final row = await _supabase!
+          .from(_attemptsTable)
+          .select()
+          .eq('id', attemptId)
+          .maybeSingle();
+      if (row == null) return null;
+      return _attemptFromRow(row);
+    } catch (_) {
+      return null;
+    }
   }
 
-  /// Save an answer during the quiz
   Future<QuizAttemptModel> saveAnswer({
     required String attemptId,
     required String questionId,
@@ -654,8 +404,6 @@ List<int> reverseList(List<int> numbers) {
     String? textAnswer,
     String? codeAnswer,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-
     final attempt = await getAttempt(attemptId);
     if (attempt == null) {
       throw Exception('Attempt not found');
@@ -671,20 +419,27 @@ List<int> reverseList(List<int> numbers) {
 
     final updatedAnswers = Map<String, UserAnswerModel>.from(attempt.answers);
     updatedAnswers[questionId] = answer;
-
     final updatedAttempt = attempt.copyWith(answers: updatedAnswers);
 
     if (EnvironmentConfig.isDemoMode) {
       _updateAttempt(updatedAttempt);
+      return updatedAttempt;
     }
+
+    await _supabase!
+        .from(_attemptsTable)
+        .update({
+          'answers': updatedAttempt.answers.map(
+            (k, v) => MapEntry(k, v.toMap()),
+          ),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', attemptId);
 
     return updatedAttempt;
   }
 
-  /// Submit and grade the quiz
   Future<QuizAttemptModel> submitAttempt(String attemptId) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
     var attempt = await getAttempt(attemptId);
     if (attempt == null) {
       throw Exception('Attempt not found');
@@ -696,15 +451,12 @@ List<int> reverseList(List<int> numbers) {
     }
 
     final questions = await getQuestions(attempt.quizId);
-
-    // Grade each answer
     int totalScore = 0;
     final gradedAnswers = <String, UserAnswerModel>{};
 
     for (final question in questions) {
       final userAnswer = attempt.answers[question.id];
       if (userAnswer == null) {
-        // No answer provided
         gradedAnswers[question.id] = UserAnswerModel(
           questionId: question.id,
           isCorrect: false,
@@ -740,12 +492,29 @@ List<int> reverseList(List<int> numbers) {
 
     if (EnvironmentConfig.isDemoMode) {
       _updateAttempt(gradedAttempt);
+      return gradedAttempt;
     }
+
+    await _supabase!
+        .from(_attemptsTable)
+        .update({
+          'status': gradedAttempt.status.name,
+          'submitted_at': gradedAttempt.submittedAt?.toIso8601String(),
+          'graded_at': gradedAttempt.gradedAt?.toIso8601String(),
+          'score': gradedAttempt.score,
+          'percentage': gradedAttempt.percentage,
+          'passed': gradedAttempt.passed,
+          'time_spent_seconds': gradedAttempt.timeSpentSeconds,
+          'answers': gradedAttempt.answers.map(
+            (k, v) => MapEntry(k, v.toMap()),
+          ),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', attemptId);
 
     return gradedAttempt;
   }
 
-  /// Grade a single question
   UserAnswerModel _gradeQuestion(
     QuestionModel question,
     UserAnswerModel answer,
@@ -763,7 +532,6 @@ List<int> reverseList(List<int> numbers) {
             ? 'Correct!'
             : 'Incorrect. ${question.explanation ?? ''}';
         break;
-
       case QuestionType.multipleSelect:
         final selectedSet = answer.selectedAnswers.toSet();
         final correctSet = question.correctAnswers.toSet();
@@ -774,7 +542,6 @@ List<int> reverseList(List<int> numbers) {
             ? 'Correct!'
             : 'Incorrect. You needed to select: ${question.correctAnswers.length} options. ${question.explanation ?? ''}';
         break;
-
       case QuestionType.shortAnswer:
         final userText = answer.textAnswer?.trim().toLowerCase() ?? '';
         isCorrect = question.correctAnswers.any(
@@ -784,9 +551,7 @@ List<int> reverseList(List<int> numbers) {
             ? 'Correct!'
             : 'Incorrect. Expected: ${question.correctAnswers.join(' or ')}';
         break;
-
       case QuestionType.coding:
-        // Simplified grading for demo - check if answer contains key parts
         final userCode = answer.codeAnswer?.trim() ?? '';
         isCorrect = question.correctAnswers.any(
           (a) => userCode.contains(a.trim()),
@@ -815,28 +580,19 @@ List<int> reverseList(List<int> numbers) {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Statistics
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Get user's best score for a quiz
   Future<QuizAttemptModel?> getBestAttempt({
     required String quizId,
     required String userId,
   }) async {
     final attempts = await getAttempts(quizId: quizId, userId: userId);
-    if (attempts.isEmpty) return null;
-
     final gradedAttempts = attempts
         .where((a) => a.status == AttemptStatus.graded)
         .toList();
     if (gradedAttempts.isEmpty) return null;
-
     gradedAttempts.sort((a, b) => b.percentage.compareTo(a.percentage));
     return gradedAttempts.first;
   }
 
-  /// Check if user has passed a quiz
   Future<bool> hasPassedQuiz({
     required String quizId,
     required String userId,
@@ -845,37 +601,63 @@ List<int> reverseList(List<int> numbers) {
     return attempts.any((a) => a.passed);
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Quiz CRUD Operations
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Create a new quiz
   Future<void> createQuiz(QuizModel quiz) async {
     if (EnvironmentConfig.isDemoMode) {
       _quizzes[quiz.id] = quiz;
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.quizzes)
-        .doc(quiz.id)
-        .set(quiz.toMap());
+    await _supabase!.from(_quizzesTable).upsert({
+      'id': quiz.id,
+      'course_id': quiz.courseId,
+      'lesson_id': quiz.lessonId,
+      'title': quiz.title,
+      'description': quiz.description,
+      'time_limit_minutes': quiz.timeLimitMinutes,
+      'passing_score': quiz.passingScore,
+      'total_points': quiz.totalPoints,
+      'question_count': quiz.questionCount,
+      'shuffle_questions': quiz.shuffleQuestions,
+      'shuffle_answers': quiz.shuffleAnswers,
+      'show_correct_answers': quiz.showCorrectAnswers,
+      'allow_retakes': quiz.allowRetakes,
+      'max_attempts': quiz.maxAttempts,
+      'is_published': quiz.isPublished,
+      'created_at': quiz.createdAt.toIso8601String(),
+      'updated_at': quiz.updatedAt?.toIso8601String(),
+    });
   }
 
-  /// Update an existing quiz
   Future<void> updateQuiz(QuizModel quiz) async {
     if (EnvironmentConfig.isDemoMode) {
       _quizzes[quiz.id] = quiz;
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.quizzes)
-        .doc(quiz.id)
-        .update(quiz.toMap());
+    await _supabase!
+        .from(_quizzesTable)
+        .update({
+          'course_id': quiz.courseId,
+          'lesson_id': quiz.lessonId,
+          'title': quiz.title,
+          'description': quiz.description,
+          'time_limit_minutes': quiz.timeLimitMinutes,
+          'passing_score': quiz.passingScore,
+          'total_points': quiz.totalPoints,
+          'question_count': quiz.questionCount,
+          'shuffle_questions': quiz.shuffleQuestions,
+          'shuffle_answers': quiz.shuffleAnswers,
+          'show_correct_answers': quiz.showCorrectAnswers,
+          'allow_retakes': quiz.allowRetakes,
+          'max_attempts': quiz.maxAttempts,
+          'is_published': quiz.isPublished,
+          'updated_at':
+              quiz.updatedAt?.toIso8601String() ??
+              DateTime.now().toIso8601String(),
+        })
+        .eq('id', quiz.id);
   }
 
-  /// Delete a quiz
   Future<void> deleteQuiz(String quizId) async {
     if (EnvironmentConfig.isDemoMode) {
       _quizzes.remove(quizId);
@@ -883,21 +665,11 @@ List<int> reverseList(List<int> numbers) {
       return;
     }
 
-    // Delete all questions first
-    final questionsSnapshot = await _firestore!
-        .collection(FirestorePaths.questions)
-        .where('quizId', isEqualTo: quizId)
-        .get();
-
-    final batch = _firestore.batch();
-    for (final doc in questionsSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    batch.delete(_firestore.collection(FirestorePaths.quizzes).doc(quizId));
-    await batch.commit();
+    await _supabase!.from(_questionsTable).delete().eq('quiz_id', quizId);
+    await _supabase!.from(_attemptsTable).delete().eq('quiz_id', quizId);
+    await _supabase!.from(_quizzesTable).delete().eq('id', quizId);
   }
 
-  /// Save a question (create or update)
   Future<void> saveQuestion(QuestionModel question) async {
     if (EnvironmentConfig.isDemoMode) {
       final questions = _questionsByQuiz[question.quizId] ?? [];
@@ -911,13 +683,23 @@ List<int> reverseList(List<int> numbers) {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.questions)
-        .doc(question.id)
-        .set(question.toMap());
+    await _supabase!.from(_questionsTable).upsert({
+      'id': question.id,
+      'quiz_id': question.quizId,
+      'question_type': question.type.name,
+      'prompt': question.questionText,
+      'question_code': question.questionCode,
+      'code_language': question.codeLanguage,
+      'options': question.options.map((e) => e.toMap()).toList(),
+      'correct_answer': question.correctAnswers,
+      'explanation': question.explanation,
+      'points': question.points,
+      'sort_order': question.order,
+      'hint': question.hint,
+      'test_cases': question.testCases?.map((e) => e.toMap()).toList(),
+    });
   }
 
-  /// Delete a question
   Future<void> deleteQuestion(String quizId, String questionId) async {
     if (EnvironmentConfig.isDemoMode) {
       final questions = _questionsByQuiz[quizId] ?? [];
@@ -925,9 +707,6 @@ List<int> reverseList(List<int> numbers) {
       return;
     }
 
-    await _firestore!
-        .collection(FirestorePaths.questions)
-        .doc(questionId)
-        .delete();
+    await _supabase!.from(_questionsTable).delete().eq('id', questionId);
   }
 }
