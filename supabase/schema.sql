@@ -527,11 +527,26 @@ create table if not exists public.todos (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists todos_updated_at on public.todos;
 create trigger todos_updated_at
 before update on public.todos
 for each row execute function public.set_updated_at();
 
 alter table public.todos enable row level security;
+
+-- Drop all existing policies on public tables to avoid duplicate policy errors when re-running
+do $$
+declare
+  r record;
+begin
+  for r in (
+    select policyname, tablename, schemaname
+    from pg_policies
+    where schemaname = 'public'
+  ) loop
+    execute format('drop policy if exists %I on %I.%I', r.policyname, r.schemaname, r.tablename);
+  end loop;
+end $$;
 
 create policy "todos read own" on public.todos
   for select using (user_id = auth.uid());
