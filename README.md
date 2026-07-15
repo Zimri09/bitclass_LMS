@@ -1,23 +1,27 @@
- # BitClass
+# BitClass
 
 A dark-themed, developer-focused Learning Management System (LMS) for Computer Science students and instructors.
 
 ## Features
 
 - 🔐 **Authentication** - Email/password auth with role-based access (Student/Instructor)
-- 📚 **Course Management** - Browse, create, and manage programming courses
+- 📚 **Course Management** - Browse, create, edit, and manage programming courses
 - 📖 **Lessons** - Markdown-based content with syntax-highlighted code blocks
-- ✏️ **Assignments** - Code-based submissions with built-in editor
+- ✏️ **Assignments** - Code-based submissions with built-in editor and instructor grading
 - 📝 **Quizzes** - Multiple choice with code snippet support
 - 💬 **Discussions** - Channel-based forums per course
-- � **Notifications** - Push notification settings and notification list- 📁 **File Upload** - Course materials upload with filtering and search- �📊 **Progress Tracking** - Visual progress bars and grade overview
+- 🔔 **Notifications** - Push notification settings and notification list
+- 📁 **File Upload** - Course materials upload with filtering and search
+- 📊 **Grades** - Grade overview across assignments and quizzes
+- ✅ **Todos** - Personal task list for students and instructors
+- ⚙️ **Settings** - App preferences and account management
 - 🌙 **Dark Theme** - Code-editor inspired UI with neon accents
 
 ## Tech Stack
 
 - **Flutter** - Cross-platform UI framework
-- **Firebase** - Authentication, Firestore, Storage
-- **Bloc** - State management
+- **Supabase** - Authentication, PostgreSQL database, and Storage
+- **Bloc / Cubit** - State management
 - **GoRouter** - Declarative routing
 - **Hive** - Local caching
 
@@ -26,8 +30,7 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
 ### Prerequisites
 
 - Flutter SDK 3.10+
-- Firebase CLI
-- A Firebase project
+- A Supabase project (optional — demo mode works without a backend)
 
 ### Setup
 
@@ -36,38 +39,15 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
    flutter pub get
    ```
 
-2. **Configure Firebase:**
-   ```bash
-   # Install FlutterFire CLI
-   dart pub global activate flutterfire_cli
-   
-   # Configure Firebase for your project
-   flutterfire configure
-   ```
+2. **Choose an environment** in `lib/core/config/environment.dart`:
+   - `Environment.demo` — runs with mock data, no backend required
+   - `Environment.development` — connects to your Supabase project
+   - `Environment.production` — production Supabase credentials
 
-3. **Set up Firestore Security Rules:**
-   ```javascript
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /users/{uid} {
-         allow read, write: if request.auth.uid == uid;
-       }
-       match /courses/{courseId} {
-         allow read: if request.auth != null;
-         allow create: if request.auth != null && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
-         allow update, delete: if resource.data.instructorId == request.auth.uid;
-         
-         match /enrollments/{enrollmentId} {
-           allow read: if request.auth != null;
-           allow create: if request.auth.uid == request.resource.data.userId;
-           allow update: if request.auth.uid == resource.data.userId;
-         }
-       }
-     }
-   }
-   ```
+3. **Configure Supabase** (for development/production):
+   - Create a project at [supabase.com](https://supabase.com)
+   - Run the schema in `supabase/schema.sql` via the Supabase SQL editor
+   - Update `supabaseUrl`, `supabaseAnonKey`, and `storageBucket` in `environment.dart`
 
 4. **Run the app:**
    ```bash
@@ -80,20 +60,25 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
 lib/
 ├── core/
 │   ├── bloc/           # Bloc observer
-│   ├── constants/      # App constants, Firebase paths
+│   ├── config/         # Environment and backend configuration
+│   ├── constants/      # App constants, database paths
 │   ├── router/         # GoRouter configuration
-│   └── theme/          # Dark theme, colors, typography
+│   ├── theme/          # Dark theme, colors, typography
+│   └── utils/          # Seed data and helpers
 ├── features/
 │   ├── assignments/    # Assignment submission with code editor
-│   ├── auth/           # Authentication (login, register)
+│   ├── auth/           # Authentication (login, register, forgot password)
 │   ├── courses/        # Course catalog, detail, creation
 │   ├── dashboard/      # Main dashboard
 │   ├── discussions/    # Discussion forums with channels
 │   ├── files/          # File upload and course materials
+│   ├── grades/         # Grade tracking and overview
 │   ├── lessons/        # Lesson content with Markdown
 │   ├── notifications/  # Push notification management
+│   ├── profile/        # User profile
 │   ├── quizzes/        # Quiz taking system
-│   └── profile/        # User profile
+│   ├── settings/       # App settings
+│   └── todos/          # Personal task list
 ├── shared/
 │   └── widgets/        # Reusable components
 └── main.dart           # Entry point
@@ -105,37 +90,50 @@ lib/
 |--------|-------|-------------|
 | Login | `/login` | Sign in with email/password |
 | Register | `/register` | Create account with role selection |
+| Forgot Password | `/forgot-password` | Reset password via email |
 | Dashboard | `/dashboard` | Overview, quick actions, activity |
+| Todos | `/todos` | Personal task list |
 | Course Catalog | `/courses` | Browse all published courses |
-| Course Detail | `/courses/:id` | Course info, enrollment, content |
+| Course Detail | `/courses/:courseId` | Course info, enrollment, content |
+| Create Course | `/courses/create` | Create a new course (instructor) |
+| Edit Course | `/courses/:courseId/edit` | Edit course details (instructor) |
 | My Courses | `/my-courses` | Instructor's created courses |
 | Enrolled Courses | `/enrolled-courses` | Student's enrolled courses |
-| Lesson | `/courses/:id/lessons/:lessonId` | Lesson content with Markdown |
-| Quiz | `/courses/:id/quizzes/:quizId` | Take a quiz |
-| Assignments | `/courses/:id/assignments` | List of course assignments |
-| Assignment | `/courses/:id/assignments/:assignmentId` | Submit code for assignment |
-| Discussions | `/courses/:id/discussions` | Discussion channels for course |
-| Channel | `/courses/:id/discussions/:channelId` | Thread list in channel |
-| Thread | `/courses/:id/discussions/:channelId/threads/:threadId` | Thread with replies |
+| Enrolled Students | `/courses/:courseId/students` | View enrolled students (instructor) |
+| Lesson | `/courses/:courseId/lessons/:lessonId` | Lesson content with Markdown |
+| Create Lesson | `/courses/:courseId/lessons/create` | Create a new lesson (instructor) |
+| Edit Lesson | `/courses/:courseId/lessons/:lessonId/edit` | Edit lesson content (instructor) |
+| Quiz | `/courses/:courseId/quizzes/:quizId` | Take a quiz |
+| Create Quiz | `/courses/:courseId/quizzes/create` | Create a new quiz (instructor) |
+| Assignments | `/courses/:courseId/assignments` | List of course assignments |
+| Assignment | `/courses/:courseId/assignments/:assignmentId` | View and submit assignment |
+| Create Assignment | `/courses/:courseId/assignments/create` | Create assignment (instructor) |
+| Grade Assignment | `/courses/:courseId/assignments/:assignmentId/grade` | Grade student submissions (instructor) |
+| Discussions | `/courses/:courseId/discussions` | Discussion channels for course |
+| Channel | `/courses/:courseId/discussions/:channelId` | Thread list in channel |
+| Thread | `/courses/:courseId/discussions/:channelId/threads/:threadId` | Thread with replies |
 | Notifications | `/notifications` | View all notifications |
 | Notification Settings | `/notifications/settings` | Configure notification preferences |
-| Course Files | `/courses/:id/files` | Browse and download course materials |
-| Upload File | `/courses/:id/files/upload` | Upload new course materials |
+| Course Files | `/courses/:courseId/files` | Browse and download course materials |
+| Upload File | `/courses/:courseId/files/upload` | Upload new course materials |
+| Grades | `/grades` | Grade overview across courses |
+| Settings | `/settings` | App preferences and account settings |
 | Profile | `/profile` | View and edit profile |
 
-## Next Steps
+## Status
 
-Phase 1 foundation is complete. Lessons, Quizzes, Assignments, and Discussions are now fully implemented.
+All planned features have been implemented:
 
-### Completed
 - [x] Lesson content pages with Markdown rendering
 - [x] Quiz creation and taking system
 - [x] Assignment submission with code editor
 - [x] Discussion forums with channels
 - [x] Push notification system with settings
 - [x] File upload for course materials
-
-All planned features have been implemented! 🎉
+- [x] Grade tracking and overview
+- [x] Personal todos
+- [x] App settings
+- [x] Supabase backend integration with demo mode fallback
 
 ## License
 
