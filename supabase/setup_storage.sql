@@ -35,6 +35,7 @@ create index if not exists files_lesson_idx    on public.files (lesson_id);
 create index if not exists files_uploader_idx  on public.files (uploader_id);
 create index if not exists files_created_idx   on public.files (created_at desc);
 
+drop trigger if exists files_updated_at on public.files;
 create trigger files_updated_at
   before update on public.files
   for each row execute function public.set_updated_at();

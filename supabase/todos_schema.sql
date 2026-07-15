@@ -11,6 +11,7 @@ create table if not exists public.todos (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists todos_updated_at on public.todos;
 create trigger todos_updated_at
 before update on public.todos
 for each row execute function public.set_updated_at();
@@ -19,11 +20,23 @@ for each row execute function public.set_updated_at();
 alter table public.todos enable row level security;
 
 -- Users can read their own todos
+drop policy if exists "todos read own" on public.todos;
 create policy "todos read own" on public.todos
   for select using (user_id = auth.uid());
 
 -- Users can update their own todos
+drop policy if exists "todos update own" on public.todos;
 create policy "todos update own" on public.todos
   for update using (user_id = auth.uid())
   with check (user_id = auth.uid());
+
+-- Users can insert their own todos (adding this for completeness if needed)
+drop policy if exists "todos insert own" on public.todos;
+create policy "todos insert own" on public.todos
+  for insert with check (user_id = auth.uid());
+
+-- Users can delete their own todos
+drop policy if exists "todos delete own" on public.todos;
+create policy "todos delete own" on public.todos
+  for delete using (user_id = auth.uid());
 

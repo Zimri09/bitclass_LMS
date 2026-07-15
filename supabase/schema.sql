@@ -91,6 +91,7 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists profiles_updated_at on public.profiles;
 create trigger profiles_updated_at
 before update on public.profiles
 for each row execute function public.set_updated_at();
@@ -139,6 +140,7 @@ create table if not exists public.courses (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists courses_updated_at on public.courses;
 create trigger courses_updated_at
 before update on public.courses
 for each row execute function public.set_updated_at();
@@ -156,6 +158,7 @@ create table if not exists public.modules (
 
 create index if not exists modules_course_order_idx on public.modules (course_id, sort_order);
 
+drop trigger if exists modules_updated_at on public.modules;
 create trigger modules_updated_at
 before update on public.modules
 for each row execute function public.set_updated_at();
@@ -178,6 +181,7 @@ create table if not exists public.lessons (
 
 create index if not exists lessons_course_module_order_idx on public.lessons (course_id, module_id, sort_order);
 
+drop trigger if exists lessons_updated_at on public.lessons;
 create trigger lessons_updated_at
 before update on public.lessons
 for each row execute function public.set_updated_at();
@@ -229,6 +233,7 @@ create table if not exists public.assignments (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists assignments_updated_at on public.assignments;
 create trigger assignments_updated_at
 before update on public.assignments
 for each row execute function public.set_updated_at();
@@ -252,6 +257,7 @@ create table if not exists public.submissions (
   unique (assignment_id, user_id)
 );
 
+drop trigger if exists submissions_updated_at on public.submissions;
 create trigger submissions_updated_at
 before update on public.submissions
 for each row execute function public.set_updated_at();
@@ -276,6 +282,7 @@ create table if not exists public.quizzes (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists quizzes_updated_at on public.quizzes;
 create trigger quizzes_updated_at
 before update on public.quizzes
 for each row execute function public.set_updated_at();
@@ -346,6 +353,7 @@ create table if not exists public.discussion_channels (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists discussion_channels_updated_at on public.discussion_channels;
 create trigger discussion_channels_updated_at
 before update on public.discussion_channels
 for each row execute function public.set_updated_at();
@@ -370,6 +378,7 @@ create table if not exists public.threads (
   last_reply_at timestamptz
 );
 
+drop trigger if exists threads_updated_at on public.threads;
 create trigger threads_updated_at
 before update on public.threads
 for each row execute function public.set_updated_at();
@@ -400,19 +409,20 @@ create table if not exists public.replies (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists replies_updated_at on public.replies;
 create trigger replies_updated_at
 before update on public.replies
 for each row execute function public.set_updated_at();
 
 create table if not exists public.files (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   course_id uuid not null references public.courses(id) on delete cascade,
   lesson_id uuid references public.lessons(id) on delete set null,
   uploader_id uuid not null references public.profiles(id) on delete cascade,
   uploader_name text not null,
   name text not null,
   description text not null default '',
-  bucket text not null,
+  bucket text not null default 'bitclass_storage',
   storage_path text not null,
   public_url text not null,
   thumbnail_url text,
@@ -424,6 +434,7 @@ create table if not exists public.files (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists files_updated_at on public.files;
 create trigger files_updated_at
 before update on public.files
 for each row execute function public.set_updated_at();
@@ -464,6 +475,7 @@ create table if not exists public.device_tokens (
   created_at timestamptz not null default timezone('utc', now())
 );
 
+drop trigger if exists notification_settings_updated_at on public.notification_settings;
 create trigger notification_settings_updated_at
 before update on public.notification_settings
 for each row execute function public.set_updated_at();

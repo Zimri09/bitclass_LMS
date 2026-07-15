@@ -203,6 +203,14 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                 ),
               );
               context.pop();
+            } else if (state.progress.status == UploadStatus.failed) {
+              setState(() => _isUploading = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.progress.errorMessage ?? 'Upload failed'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
             }
           } else if (state is FileError) {
             setState(() => _isUploading = false);

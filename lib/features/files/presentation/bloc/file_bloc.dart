@@ -90,6 +90,12 @@ class FileBloc extends Bloc<FileEvent, FileState> {
             // Reload files after upload
             add(LoadCourseFiles(courseId: event.courseId));
           }
+          if (progress.status == UploadStatus.failed) {
+            return FileError(
+              message: progress.errorMessage ?? 'Upload failed',
+              existingFiles: _currentFiles,
+            );
+          }
           return FileUploading(
             progress: progress,
             existingFiles: _currentFiles,
