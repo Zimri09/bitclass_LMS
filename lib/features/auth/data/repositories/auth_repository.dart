@@ -5,6 +5,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/environment.dart';
 import '../models/user_model.dart';
 
+/// Thrown when sign-up succeeds but the user must confirm their email first.
+class EmailConfirmationRequiredException implements Exception {
+  final String email;
+
+  const EmailConfirmationRequiredException(this.email);
+
+  @override
+  String toString() => 'Please confirm your email before signing in.';
+}
+
 /// Repository handling authentication and user profile operations
 class AuthRepository {
   static const String _profilesTable = 'profiles';
@@ -35,22 +45,26 @@ class AuthRepository {
   /// Get demo user (for demo mode)
   UserModel? get demoUser => _demoUser;
 
-  /// Get current user's profile from Firestore
+  /// Get current user's profile
   Future<UserModel?> getCurrentUserProfile() async {
     if (EnvironmentConfig.isDemoMode) return _demoUser;
 
     final user = currentUser;
     if (user == null) return null;
 
-    final row = await _supabase!
-        .from(_profilesTable)
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    try {
+      final row = await _supabase!
+          .from(_profilesTable)
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
 
-    if (row == null) return null;
+      if (row == null) return null;
 
-    return UserModel.fromMap(_rowToUserMap(row), user.id);
+      return UserModel.fromMap(_rowToUserMap(row), user.id);
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
+    }
   }
 
   /// Sign in with email and password
@@ -58,7 +72,6 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
-    // Demo mode: simulate login
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
       final normalizedEmail = email.trim().toLowerCase();
@@ -70,13 +83,13 @@ class AuthRepository {
         role: isInstructor ? 'instructor' : 'student',
         createdAt: DateTime.now(),
       );
-      _demoAuthController.add(null); // Trigger auth state change
+      _demoAuthController.add(null);
       return _demoUser!;
     }
 
     try {
       final response = await _supabase!.auth.signInWithPassword(
-        email: email,
+        email: email.trim(),
         password: password,
       );
 
@@ -85,16 +98,15 @@ class AuthRepository {
         throw Exception('Sign in failed: No user returned');
       }
 
-      var profile = await getCurrentUserProfile();
-      profile ??= await _createOrSyncProfileFromAuth(
+      return await _resolveProfileForUser(
         user,
         defaultRole: 'student',
         displayName: user.userMetadata?['display_name'] as String?,
       );
-
-      return profile;
     } on AuthException catch (e) {
       throw _handleAuthException(e.message);
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
     }
   }
 
@@ -105,27 +117,28 @@ class AuthRepository {
     required String role,
     String? displayName,
   }) async {
-    // Demo mode: simulate registration
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
       _demoUser = UserModel(
         id: 'demo-user-${DateTime.now().millisecondsSinceEpoch}',
-        email: email,
+        email: email.trim(),
         displayName: displayName ?? email.split('@').first,
         role: role,
         createdAt: DateTime.now(),
       );
-      _demoAuthController.add(null); // Trigger auth state change
+      _demoAuthController.add(null);
       return _demoUser!;
     }
 
+    final normalizedEmail = email.trim();
+
     try {
       final response = await _supabase!.auth.signUp(
-        email: email,
+        email: normalizedEmail,
         password: password,
         data: <String, dynamic>{
           'role': role,
-          'display_name': displayName ?? email.split('@').first,
+          'display_name': displayName ?? normalizedEmail.split('@').first,
         },
       );
 
@@ -134,15 +147,24 @@ class AuthRepository {
         throw Exception('Registration failed: No user returned');
       }
 
-      final profile = await _createOrSyncProfileFromAuth(
+      // Email confirmation enabled: no session yet, profile is created by DB trigger.
+      if (response.session == null) {
+        throw EmailConfirmationRequiredException(
+          user.email ?? normalizedEmail,
+        );
+      }
+
+      return await _resolveProfileForUser(
         user,
         defaultRole: role,
         displayName: displayName,
       );
-
-      return profile;
+    } on EmailConfirmationRequiredException {
+      rethrow;
     } on AuthException catch (e) {
       throw _handleAuthException(e.message);
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
     }
   }
 
@@ -160,10 +182,10 @@ class AuthRepository {
   Future<void> sendPasswordResetEmail(String email) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
-      return; // Simulate success
+      return;
     }
     try {
-      await _supabase!.auth.resetPasswordForEmail(email);
+      await _supabase!.auth.resetPasswordForEmail(email.trim());
     } on AuthException catch (e) {
       throw _handleAuthException(e.message);
     }
@@ -175,7 +197,6 @@ class AuthRepository {
     String? bio,
     String? avatarUrl,
   }) async {
-    // Demo mode: update local demo user
     if (EnvironmentConfig.isDemoMode) {
       if (_demoUser == null) {
         throw Exception('No authenticated user');
@@ -202,14 +223,18 @@ class AuthRepository {
     if (bio != null) updates['bio'] = bio;
     if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
 
-    await _supabase!.from(_profilesTable).update(updates).eq('id', user.id);
+    try {
+      await _supabase!.from(_profilesTable).update(updates).eq('id', user.id);
 
-    final profile = await getCurrentUserProfile();
-    if (profile == null) {
-      throw Exception('Failed to fetch updated profile');
+      final profile = await getCurrentUserProfile();
+      if (profile == null) {
+        throw Exception('Failed to fetch updated profile');
+      }
+
+      return profile;
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
     }
-
-    return profile;
   }
 
   /// Delete user account
@@ -233,6 +258,26 @@ class AuthRepository {
     }
   }
 
+  Future<UserModel> _resolveProfileForUser(
+    User user, {
+    required String defaultRole,
+    String? displayName,
+  }) async {
+    var profile = await getCurrentUserProfile();
+    if (profile != null) return profile;
+
+    // Brief pause so the handle_new_user trigger can finish on fresh sign-ups.
+    await Future.delayed(const Duration(milliseconds: 300));
+    profile = await getCurrentUserProfile();
+    if (profile != null) return profile;
+
+    return _createOrSyncProfileFromAuth(
+      user,
+      defaultRole: defaultRole,
+      displayName: displayName,
+    );
+  }
+
   Future<UserModel> _createOrSyncProfileFromAuth(
     User user, {
     required String defaultRole,
@@ -252,17 +297,21 @@ class AuthRepository {
       updatedAt: DateTime.now(),
     );
 
-    await _supabase!.from(_profilesTable).upsert({
-      'id': profile.id,
-      'email': profile.email,
-      'display_name': profile.displayName,
-      'avatar_url': profile.avatarUrl,
-      'bio': profile.bio,
-      'role': profile.role,
-      'updated_at': profile.updatedAt?.toIso8601String(),
-    }, onConflict: 'id');
+    try {
+      await _supabase!.from(_profilesTable).upsert({
+        'id': profile.id,
+        'email': profile.email,
+        'display_name': profile.displayName,
+        'avatar_url': profile.avatarUrl,
+        'bio': profile.bio,
+        'role': profile.role,
+        'updated_at': profile.updatedAt?.toIso8601String(),
+      }, onConflict: 'id');
 
-    return (await getCurrentUserProfile()) ?? profile;
+      return (await getCurrentUserProfile()) ?? profile;
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
+    }
   }
 
   Map<String, dynamic> _rowToUserMap(Map<String, dynamic> row) {
@@ -278,11 +327,13 @@ class AuthRepository {
     };
   }
 
-  /// Handle Supabase Auth exceptions
   Exception _handleAuthException(String? message) {
     final text = message?.toLowerCase() ?? '';
     if (text.contains('invalid login credentials')) {
       return Exception('Invalid email or password');
+    }
+    if (text.contains('email not confirmed')) {
+      return Exception('Please confirm your email before signing in');
     }
     if (text.contains('email rate limit exceeded')) {
       return Exception('Too many attempts. Please try again later');
@@ -297,5 +348,15 @@ class AuthRepository {
       return Exception('Invalid email address');
     }
     return Exception(message ?? 'Authentication failed');
+  }
+
+  Exception _handlePostgrestException(PostgrestException e) {
+    final text = e.message.toLowerCase();
+    if (text.contains('row-level security') || e.code == '42501') {
+      return Exception(
+        'Could not access your profile. Please try signing in again.',
+      );
+    }
+    return Exception(e.message);
   }
 }

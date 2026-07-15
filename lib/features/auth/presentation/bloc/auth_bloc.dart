@@ -104,6 +104,15 @@ class AuthPasswordResetSent extends AuthState {
   List<Object?> get props => [email];
 }
 
+class AuthEmailConfirmationPending extends AuthState {
+  final String email;
+
+  const AuthEmailConfirmationPending(this.email);
+
+  @override
+  List<Object?> get props => [email];
+}
+
 // Bloc
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
@@ -119,9 +128,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthForgotPasswordRequested>(_onForgotPasswordRequested);
     on<AuthUserUpdated>(_onUserUpdated);
 
-    // Listen to auth state changes
+    // Keep auth state in sync with Supabase session changes.
     _authStateSubscription = _authRepository.authStateChanges.listen((user) {
-      if (user == null) {
+      if (user != null) {
+        add(AuthCheckRequested());
+      } else if (state is AuthAuthenticated) {
         add(AuthCheckRequested());
       }
     });
@@ -187,6 +198,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         displayName: event.displayName,
       );
       emit(AuthAuthenticated(user));
+    } on EmailConfirmationRequiredException catch (e) {
+      emit(AuthEmailConfirmationPending(e.email));
     } catch (e) {
       emit(AuthError(e.toString().replaceFirst('Exception: ', '')));
     }

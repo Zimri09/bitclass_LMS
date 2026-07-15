@@ -62,6 +62,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 backgroundColor: AppColors.error,
               ),
             );
+          } else if (state is AuthEmailConfirmationPending) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Account created! Check ${state.email} to confirm, then sign in.',
+                ),
+                backgroundColor: AppColors.primary,
+                duration: const Duration(seconds: 6),
+              ),
+            );
+            context.go(AppRoutes.login);
           } else if (state is AuthAuthenticated) {
             context.go(AppRoutes.dashboard);
           }

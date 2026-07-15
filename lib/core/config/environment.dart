@@ -73,7 +73,7 @@ class EnvironmentConfig {
       case Environment.demo:
         return '';
       case Environment.development:
-        return 'sb_publishable_mBj1Da-qQw21P1ifD5PULQ_bJvyXqje';
+        return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzcnZlcnB5eWJyd3Bvb2NidnF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NzIxODUsImV4cCI6MjA5OTA0ODE4NX0.cJkIjJyDpm8pouZI83WCF-bDggKSAqGvnHAmht3wO5E';
       case Environment.production:
         return 'YOUR_SUPABASE_ANON_KEY';
     }

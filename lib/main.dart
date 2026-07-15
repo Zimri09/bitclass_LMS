@@ -46,7 +46,7 @@ Future<void> main() async {
     try {
       await Supabase.initialize(
         url: EnvironmentConfig.supabaseUrl,
-        anonKey: EnvironmentConfig.supabaseAnonKey,
+        publishableKey: EnvironmentConfig.supabaseAnonKey,
       );
       if (kDebugMode) {
         log('✓ Supabase initialized successfully', name: 'Main');

@@ -59,17 +59,32 @@ class FileBloc extends Bloc<FileEvent, FileState> {
 
   Future<void> _onUploadFile(UploadFile event, Emitter<FileState> emit) async {
     try {
+      // Use real upload when actual file bytes are provided; otherwise use the
+      // legacy demo-only upload that generates fake data.
+      final stream = event.fileData != null
+          ? fileRepository.uploadFileWithData(
+              courseId: event.courseId,
+              lessonId: event.lessonId,
+              fileName: event.fileName,
+              mimeType: event.mimeType,
+              fileData: event.fileData!,
+              description: event.description,
+              uploaderId: event.uploaderId,
+              uploaderName: event.uploaderName,
+            )
+          : fileRepository.uploadFile(
+              courseId: event.courseId,
+              lessonId: event.lessonId,
+              fileName: event.fileName,
+              mimeType: event.mimeType,
+              fileSize: event.fileSize,
+              description: event.description,
+              uploaderId: event.uploaderId,
+              uploaderName: event.uploaderName,
+            );
+
       await emit.forEach<UploadProgress>(
-        fileRepository.uploadFile(
-          courseId: event.courseId,
-          lessonId: event.lessonId,
-          fileName: event.fileName,
-          mimeType: event.mimeType,
-          fileSize: event.fileSize,
-          description: event.description,
-          uploaderId: event.uploaderId,
-          uploaderName: event.uploaderName,
-        ),
+        stream,
         onData: (progress) {
           if (progress.status == UploadStatus.completed) {
             // Reload files after upload

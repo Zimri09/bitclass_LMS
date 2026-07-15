@@ -95,6 +95,35 @@ create trigger profiles_updated_at
 before update on public.profiles
 for each row execute function public.set_updated_at();
 
+-- Auto-create a profile row when a new auth user signs up.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, display_name, role)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
+    coalesce((new.raw_user_meta_data->>'role')::user_role, 'student'::user_role)
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    display_name = coalesce(excluded.display_name, public.profiles.display_name),
+    role = coalesce(excluded.role, public.profiles.role),
+    updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
 create table if not exists public.courses (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -439,6 +468,21 @@ create trigger notification_settings_updated_at
 before update on public.notification_settings
 for each row execute function public.set_updated_at();
 
+-- Helper function: get current user's role without hitting profiles RLS
+create or replace function public.current_user_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select coalesce(
+    (select role::text from public.profiles where id = auth.uid()),
+    (select raw_user_meta_data->>'role' from auth.users where id = auth.uid()),
+    'student'
+  );
+$$;
+
 alter table public.profiles enable row level security;
 alter table public.courses enable row level security;
 alter table public.modules enable row level security;
@@ -486,7 +530,7 @@ create policy "todos update own" on public.todos
 
 
 create policy "profiles read own" on public.profiles
-  for select using (auth.uid() = id or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('instructor', 'admin')));
+  for select using (auth.uid() = id or public.current_user_role() in ('instructor', 'admin'));
 create policy "profiles write own" on public.profiles
   for insert with check (auth.uid() = id);
 create policy "profiles update own" on public.profiles

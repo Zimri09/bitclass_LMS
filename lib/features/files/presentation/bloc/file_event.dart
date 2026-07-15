@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 
 import '../../data/models/models.dart';
@@ -41,6 +43,8 @@ class UploadFile extends FileEvent {
   final String description;
   final String uploaderId;
   final String uploaderName;
+  /// Actual file bytes; when non-null the real Supabase upload is used.
+  final Uint8List? fileData;
 
   const UploadFile({
     required this.courseId,
@@ -51,6 +55,7 @@ class UploadFile extends FileEvent {
     this.description = '',
     required this.uploaderId,
     required this.uploaderName,
+    this.fileData,
   });
 
   @override
