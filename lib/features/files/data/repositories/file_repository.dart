@@ -11,7 +11,7 @@ import '../models/models.dart';
 /// Repository handling file upload operations.
 class FileRepository {
   static const String _filesTable = 'files';
-  static const String _storageBucket = 'materials';
+  static const String _storageBucket = 'bitclass_storage';
 
   final SupabaseClient? _supabase;
 
