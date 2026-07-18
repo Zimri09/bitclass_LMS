@@ -21,7 +21,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _displayNameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String _selectedRole = 'student';
@@ -31,7 +32,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _displayNameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     super.dispose();
   }
 
@@ -42,8 +44,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text,
           role: _selectedRole,
-          displayName: _displayNameController.text.trim().isNotEmpty
-              ? _displayNameController.text.trim()
+          firstName: _firstNameController.text.trim().isNotEmpty
+              ? _firstNameController.text.trim()
+              : null,
+          lastName: _lastNameController.text.trim().isNotEmpty
+              ? _lastNameController.text.trim()
               : null,
         ),
       );
@@ -166,15 +171,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Display name field
+            // First Name field
             TextFormField(
-              controller: _displayNameController,
+              controller: _firstNameController,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
-                labelText: 'Display Name (optional)',
-                hintText: 'How should we call you?',
-                prefixIcon: Icon(Icons.badge_outlined),
+                labelText: 'First Name (optional)',
+                hintText: 'Your first name',
+                prefixIcon: Icon(Icons.person_outlined),
               ),
+              validator: (value) {
+                if (value != null && value.length > 50) {
+                  return 'First name is too long';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Last Name field
+            TextFormField(
+              controller: _lastNameController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Last Name (optional)',
+                hintText: 'Your last name',
+                prefixIcon: Icon(Icons.person_outlined),
+              ),
+              validator: (value) {
+                if (value != null && value.length > 50) {
+                  return 'Last name is too long';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 16),
 

@@ -231,20 +231,18 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
     IconData icon,
     Color color,
   ) {
-    return Expanded(
-      child: GlowCard(
-        glowColor: color,
-        glowIntensity: 0.1,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(value, style: AppTextStyles.h3),
-            Text(label, style: AppTextStyles.caption),
-          ],
-        ),
+    return GlowCard(
+      glowColor: color,
+      glowIntensity: 0.1,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(value, style: AppTextStyles.h3),
+          Text(label, style: AppTextStyles.caption),
+        ],
       ),
     );
   }
