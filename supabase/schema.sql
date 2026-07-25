@@ -207,12 +207,15 @@ create table if not exists public.lesson_progress (
   id uuid primary key default gen_random_uuid(),
   enrollment_id uuid not null references public.enrollments(id) on delete cascade,
   lesson_id uuid not null references public.lessons(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   is_completed boolean not null default false,
   completed_at timestamptz,
-  last_position numeric(10,2) not null default 0,
-  time_spent_seconds integer not null default 0,
+  last_accessed_at timestamptz,
+  saved_state jsonb,
   unique (enrollment_id, lesson_id)
 );
+
+create index if not exists lesson_progress_user_idx on public.lesson_progress (user_id);
 
 create table if not exists public.assignments (
   id uuid primary key default gen_random_uuid(),
@@ -571,21 +574,39 @@ create policy "courses manage instructors" on public.courses
 
 create policy "modules access course members" on public.modules
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+create policy "modules manage instructors" on public.modules
+  for all using (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+  with check (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
 
 create policy "lessons access course members" on public.lessons
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+create policy "lessons manage instructors" on public.lessons
+  for all using (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+  with check (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
 
 create policy "enrollments read own or instructors" on public.enrollments
   for select using (user_id = auth.uid() or exists (select 1 from public.courses c where c.id = course_id and c.instructor_id = auth.uid()) or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+create policy "enrollments manage own" on public.enrollments
+  for all using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 create policy "lesson progress read own" on public.lesson_progress
-  for select using (exists (select 1 from public.enrollments e where e.id = enrollment_id and e.user_id = auth.uid()) or exists (select 1 from public.courses c join public.enrollments e on e.course_id = c.id where e.id = enrollment_id and c.instructor_id = auth.uid()));
+  for select using (user_id = auth.uid() or exists (select 1 from public.courses c join public.enrollments e on e.course_id = c.id where e.id = enrollment_id and c.instructor_id = auth.uid()));
+create policy "lesson progress manage own" on public.lesson_progress
+  for all using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 create policy "assignments read course members" on public.assignments
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+create policy "assignments manage instructors" on public.assignments
+  for all using (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+  with check (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
 
 create policy "submissions read own or course instructors" on public.submissions
   for select using (user_id = auth.uid() or exists (select 1 from public.courses c where c.id = course_id and c.instructor_id = auth.uid()) or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+create policy "submissions manage own" on public.submissions
+  for all using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 create policy "quizzes read course members" on public.quizzes
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));

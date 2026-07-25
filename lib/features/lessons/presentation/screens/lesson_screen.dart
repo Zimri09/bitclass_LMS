@@ -36,12 +36,12 @@ class _LessonScreenState extends State<LessonScreen> {
         authState.user.role == 'instructor';
   }
 
-  String get _currentUserId {
+  String? get _currentUserId {
     final authState = context.read<AuthBloc>().state;
     if (authState is AuthAuthenticated) {
       return authState.user.id;
     }
-    return 'demo_user';
+    return null;
   }
 
   @override
@@ -521,13 +521,19 @@ class _LessonScreenState extends State<LessonScreen> {
     if (_isInstructor) {
       return;
     }
+    
+    final userId = _currentUserId;
+    if (userId == null) {
+      return; // Cannot mark complete if not logged in
+    }
 
     _lessonBloc.add(
       MarkLessonComplete(
         courseId: widget.courseId,
         lessonId: widget.lessonId,
-        enrollmentId: 'demo_enrollment', // In production, get from enrollment
-        userId: _currentUserId,
+        // TODO: In production, fetch the actual enrollment ID. For testing we pass an empty UUID.
+        enrollmentId: '00000000-0000-0000-0000-000000000000', 
+        userId: userId,
       ),
     );
   }

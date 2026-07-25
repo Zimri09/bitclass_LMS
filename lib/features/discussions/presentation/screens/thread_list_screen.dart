@@ -57,7 +57,7 @@ class ThreadListView extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          context.push('/courses/$courseId/discussions/$channelId/new');
+          context.push('/courses/$courseId/discussions/$channelId/threads/create');
         },
         backgroundColor: AppColors.primary,
         child: Icon(Icons.add, color: AppColors.background),

@@ -88,19 +88,6 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
               ],
             ),
 
-            // Stats summary
-            if (_enrolledCourses != null && _enrolledCourses!.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                    16,
-                    MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                    0,
-                  ),
-                  child: _buildStatsSummary(),
-                ),
-              ),
 
             // Content
             if (_isLoading)
@@ -145,107 +132,6 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
     );
   }
 
-  Widget _buildStatsSummary() {
-    final total = _enrolledCourses!.length;
-    final completed = _enrolledCourses!
-        .where((c) => c.enrollment.isCompleted)
-        .length;
-    final inProgress = total - completed;
-    final avgProgress = _enrolledCourses!.isEmpty
-        ? 0.0
-        : _enrolledCourses!
-                  .map((c) => c.enrollment.progress)
-                  .reduce((a, b) => a + b) /
-              total;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stats = [
-          _buildStatCard(
-            'Enrolled',
-            '$total',
-            Icons.bookmark,
-            AppColors.primary,
-          ),
-          _buildStatCard(
-            'In Progress',
-            '$inProgress',
-            Icons.play_circle,
-            AppColors.info,
-          ),
-          _buildStatCard(
-            'Completed',
-            '$completed',
-            Icons.check_circle,
-            AppColors.success,
-          ),
-          _buildStatCard(
-            'Avg Progress',
-            '${(avgProgress * 100).toInt()}%',
-            Icons.trending_up,
-            AppColors.secondary,
-          ),
-        ];
-
-        if (constraints.maxWidth < 400) {
-          // 2x2 grid on narrow screens
-          return Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: stats[0]),
-                  const SizedBox(width: 8),
-                  Expanded(child: stats[1]),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: stats[2]),
-                  const SizedBox(width: 8),
-                  Expanded(child: stats[3]),
-                ],
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            Expanded(child: stats[0]),
-            const SizedBox(width: 12),
-            Expanded(child: stats[1]),
-            const SizedBox(width: 12),
-            Expanded(child: stats[2]),
-            const SizedBox(width: 12),
-            Expanded(child: stats[3]),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStatCard(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return GlowCard(
-      glowColor: color,
-      glowIntensity: 0.1,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(value, style: AppTextStyles.h3),
-          Text(label, style: AppTextStyles.caption),
-        ],
-      ),
-    );
-  }
 }
 
 class _EnrolledCourseData {
@@ -263,11 +149,9 @@ class _EnrolledCourseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final course = data.course;
-    final enrollment = data.enrollment;
-    final isCompleted = enrollment.isCompleted;
 
     return GlowCard(
-      glowColor: isCompleted ? AppColors.success : AppColors.primary,
+      glowColor: AppColors.primary,
       glowIntensity: 0.1,
       onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
       child: Column(
@@ -308,36 +192,6 @@ class _EnrolledCourseCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (isCompleted) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.success.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.check,
-                                  size: 12,
-                                  color: AppColors.success,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Completed',
-                                  style: AppTextStyles.caption.copyWith(
-                                    color: AppColors.success,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -348,7 +202,7 @@ class _EnrolledCourseCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(course.instructorName, style: AppTextStyles.bodySmall),
+                    Text('Instructor: ${course.instructorName}', style: AppTextStyles.bodySmall),
                   ],
                 ),
               ),
@@ -359,45 +213,8 @@ class _EnrolledCourseCard extends StatelessWidget {
                   context.go(AppRoutes.courseDetailPath(course.id));
                 },
                 icon: Icon(
-                  isCompleted ? Icons.replay : Icons.play_arrow,
-                  color: isCompleted ? AppColors.success : AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Progress bar
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${enrollment.completedLessons} of ${enrollment.totalLessons} lessons',
-                    style: AppTextStyles.caption,
-                  ),
-                  Text(
-                    '${enrollment.progressPercent}%',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: isCompleted
-                          ? AppColors.success
-                          : AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: enrollment.progress,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    isCompleted ? AppColors.success : AppColors.primary,
-                  ),
-                  minHeight: 6,
+                  Icons.play_arrow,
+                  color: AppColors.primary,
                 ),
               ),
             ],

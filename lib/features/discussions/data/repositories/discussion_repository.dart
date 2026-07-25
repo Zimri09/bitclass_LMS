@@ -95,51 +95,359 @@ class DiscussionRepository {
       ReplyModel.fromMap(_rowToReplyMap(row));
 
   void _initDemoData() {
-    _channels['channel-general'] = ChannelModel(
-      id: 'channel-general',
+    // ── Course 1: Introduction to Flutter ──────────────────────────────
+    _channels['channel-c1-general'] = ChannelModel(
+      id: 'channel-c1-general',
       courseId: 'course-1',
       name: 'General',
-      description: 'General discussion about the course',
+      description: 'General discussion about the Flutter course',
       icon: '💬',
       isDefault: true,
       threadCount: 3,
       lastActivityAt: DateTime.now().subtract(const Duration(hours: 2)),
       createdAt: DateTime.now().subtract(const Duration(days: 30)),
-      createdBy: 'instructor-1',
+      createdBy: 'demo-instructor-1',
     );
 
-    _threadsByChannel['channel-general'] = [
+    _channels['channel-c1-help'] = ChannelModel(
+      id: 'channel-c1-help',
+      courseId: 'course-1',
+      name: 'Q&A / Help',
+      description: 'Ask questions and get help from peers and instructors',
+      icon: 'help',
+      threadCount: 1,
+      lastActivityAt: DateTime.now().subtract(const Duration(hours: 6)),
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+      createdBy: 'demo-instructor-1',
+    );
+
+    _threadsByChannel['channel-c1-general'] = [
       ThreadModel(
         id: 'thread-1',
-        channelId: 'channel-general',
+        channelId: 'channel-c1-general',
         courseId: 'course-1',
         title: 'Welcome to the Flutter Development Course!',
-        content: 'Hello world',
-        authorId: 'instructor-1',
-        authorName: 'Dr. Sarah Chen',
+        content:
+            'Welcome everyone! 🎉\n\nI\'m John Doe, your instructor for this course. '
+            'Feel free to use this channel to introduce yourself, share your learning goals, '
+            'and connect with fellow students.\n\n'
+            'Don\'t hesitate to ask questions — there are no silly questions here!',
+        authorId: 'demo-instructor-1',
+        authorName: 'John Doe',
         isPinned: true,
-        replyCount: 12,
-        likeCount: 24,
-        likedBy: ['demo_user', 'student-1'],
+        replyCount: 3,
+        likeCount: 8,
+        likedBy: ['student-1', 'student-2'],
         createdAt: DateTime.now().subtract(const Duration(days: 28)),
         lastReplyAt: DateTime.now().subtract(const Duration(hours: 5)),
       ),
+      ThreadModel(
+        id: 'thread-2',
+        channelId: 'channel-c1-general',
+        courseId: 'course-1',
+        title: 'Hot Reload vs Hot Restart — what\'s the difference?',
+        content:
+            'I keep seeing both options in VS Code when running my Flutter app. '
+            'Can someone explain when to use Hot Reload versus Hot Restart? '
+            'They seem to do the same thing sometimes but other times Hot Reload doesn\'t pick up my changes.',
+        authorId: 'student-1',
+        authorName: 'Alice Johnson',
+        replyCount: 2,
+        likeCount: 5,
+        likedBy: ['student-2', 'demo-instructor-1'],
+        createdAt: DateTime.now().subtract(const Duration(days: 10)),
+        lastReplyAt: DateTime.now().subtract(const Duration(days: 9)),
+      ),
+      ThreadModel(
+        id: 'thread-3',
+        channelId: 'channel-c1-general',
+        courseId: 'course-1',
+        title: 'Study group for Lesson 4?',
+        content:
+            'Hey everyone! Would anyone be interested in doing a study group session for Lesson 4 (State Management)? '
+            'I think it would be helpful to work through the exercises together. '
+            'We could do it over Discord or Google Meet this weekend.',
+        authorId: 'student-2',
+        authorName: 'Bob Williams',
+        replyCount: 1,
+        likeCount: 3,
+        likedBy: ['student-1'],
+        createdAt: DateTime.now().subtract(const Duration(days: 3)),
+        lastReplyAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
     ];
 
+    _threadsByChannel['channel-c1-help'] = [
+      ThreadModel(
+        id: 'thread-4',
+        channelId: 'channel-c1-help',
+        courseId: 'course-1',
+        title: 'Getting error: "RenderFlex overflowed" — how to fix?',
+        content:
+            'I\'m working on the Lesson 3 exercise and I keep getting this yellow/black striped pattern '
+            'at the bottom of my Column. The error says:\n\n'
+            '`A RenderFlex overflowed by 42 pixels on the bottom.`\n\n'
+            'I tried wrapping things in a Container but it didn\'t help. Any ideas?',
+        authorId: 'student-3',
+        authorName: 'Charlie Davis',
+        isResolved: true,
+        replyCount: 2,
+        likeCount: 6,
+        likedBy: ['student-1', 'student-2'],
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        lastReplyAt: DateTime.now().subtract(const Duration(days: 4)),
+      ),
+    ];
+
+    // Replies for thread-1
     _repliesByThread['thread-1'] = [
       ReplyModel(
         id: 'reply-1-1',
         threadId: 'thread-1',
-        channelId: 'channel-general',
+        channelId: 'channel-c1-general',
         courseId: 'course-1',
-        content: 'Hi everyone!',
+        content:
+            'Hi everyone! I\'m Alice, a CS student. Really excited to learn Flutter — '
+            'I\'ve been wanting to build a mobile app for a while now!',
         authorId: 'student-1',
-        authorName: 'Alex Johnson',
-        likeCount: 5,
-        likedBy: ['instructor-1'],
+        authorName: 'Alice Johnson',
+        likeCount: 3,
+        likedBy: ['demo-instructor-1'],
         createdAt: DateTime.now().subtract(const Duration(days: 27)),
       ),
+      ReplyModel(
+        id: 'reply-1-2',
+        threadId: 'thread-1',
+        channelId: 'channel-c1-general',
+        courseId: 'course-1',
+        content:
+            'Hey! Bob here. I come from a web development background so this is all new to me. '
+            'Looking forward to learning with everyone!',
+        authorId: 'student-2',
+        authorName: 'Bob Williams',
+        likeCount: 2,
+        createdAt: DateTime.now().subtract(const Duration(days: 26)),
+      ),
+      ReplyModel(
+        id: 'reply-1-3',
+        threadId: 'thread-1',
+        channelId: 'channel-c1-general',
+        courseId: 'course-1',
+        content:
+            'Great to see so many enthusiastic students! Remember, you can always reach out '
+            'in the Q&A channel if you get stuck on any lesson. Happy coding! 🚀',
+        authorId: 'demo-instructor-1',
+        authorName: 'John Doe',
+        isInstructorAnswer: true,
+        likeCount: 4,
+        likedBy: ['student-1', 'student-2'],
+        createdAt: DateTime.now().subtract(const Duration(days: 25)),
+      ),
     ];
+
+    // Replies for thread-2
+    _repliesByThread['thread-2'] = [
+      ReplyModel(
+        id: 'reply-2-1',
+        threadId: 'thread-2',
+        channelId: 'channel-c1-general',
+        courseId: 'course-1',
+        content:
+            'Great question! **Hot Reload** preserves the state of your app and only updates '
+            'the widget tree. **Hot Restart** completely restarts the app, losing all state.\n\n'
+            'Use Hot Reload for UI tweaks, and Hot Restart when you change things like '
+            'initialization logic or static fields.',
+        authorId: 'demo-instructor-1',
+        authorName: 'John Doe',
+        isInstructorAnswer: true,
+        likeCount: 7,
+        likedBy: ['student-1', 'student-2', 'student-3'],
+        createdAt: DateTime.now().subtract(const Duration(days: 9, hours: 12)),
+      ),
+      ReplyModel(
+        id: 'reply-2-2',
+        threadId: 'thread-2',
+        channelId: 'channel-c1-general',
+        courseId: 'course-1',
+        content:
+            'Thanks for the explanation! That makes sense now. I was changing a const '
+            'value and wondering why Hot Reload didn\'t update it.',
+        authorId: 'student-1',
+        authorName: 'Alice Johnson',
+        likeCount: 1,
+        createdAt: DateTime.now().subtract(const Duration(days: 9)),
+      ),
+    ];
+
+    // Replies for thread-3
+    _repliesByThread['thread-3'] = [
+      ReplyModel(
+        id: 'reply-3-1',
+        threadId: 'thread-3',
+        channelId: 'channel-c1-general',
+        courseId: 'course-1',
+        content: 'I\'m in! Saturday afternoon works for me. Let\'s do it on Discord?',
+        authorId: 'student-1',
+        authorName: 'Alice Johnson',
+        likeCount: 1,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
+    ];
+
+    // Replies for thread-4 (resolved Q&A)
+    _repliesByThread['thread-4'] = [
+      ReplyModel(
+        id: 'reply-4-1',
+        threadId: 'thread-4',
+        channelId: 'channel-c1-help',
+        courseId: 'course-1',
+        content:
+            'Wrap your Column in a `SingleChildScrollView` to make it scrollable, or use '
+            '`Expanded` / `Flexible` widgets to constrain the children. The overflow happens '
+            'when the content is taller than the available space.',
+        authorId: 'demo-instructor-1',
+        authorName: 'John Doe',
+        isInstructorAnswer: true,
+        isAcceptedAnswer: true,
+        likeCount: 5,
+        likedBy: ['student-3', 'student-1'],
+        createdAt: DateTime.now().subtract(const Duration(days: 4, hours: 6)),
+      ),
+      ReplyModel(
+        id: 'reply-4-2',
+        threadId: 'thread-4',
+        channelId: 'channel-c1-help',
+        courseId: 'course-1',
+        content: 'The SingleChildScrollView worked perfectly! Thank you so much! 🙏',
+        authorId: 'student-3',
+        authorName: 'Charlie Davis',
+        likeCount: 1,
+        createdAt: DateTime.now().subtract(const Duration(days: 4)),
+      ),
+    ];
+
+    // ── Course 2: Advanced Dart Programming ────────────────────────────
+    _channels['channel-c2-general'] = ChannelModel(
+      id: 'channel-c2-general',
+      courseId: 'course-2',
+      name: 'General',
+      description: 'General discussion about Dart programming',
+      icon: '💬',
+      isDefault: true,
+      threadCount: 1,
+      lastActivityAt: DateTime.now().subtract(const Duration(days: 1)),
+      createdAt: DateTime.now().subtract(const Duration(days: 25)),
+      createdBy: 'demo-instructor-1',
+    );
+
+    _threadsByChannel['channel-c2-general'] = [
+      ThreadModel(
+        id: 'thread-5',
+        channelId: 'channel-c2-general',
+        courseId: 'course-2',
+        title: 'Tips for understanding Dart generics?',
+        content:
+            'I\'m having a hard time wrapping my head around generics in Dart. '
+            'The syntax like `List<T>` and `Map<K, V>` makes sense for collections, '
+            'but writing my own generic classes feels confusing.\n\n'
+            'Any tips or resources that helped you understand this concept?',
+        authorId: 'student-1',
+        authorName: 'Alice Johnson',
+        replyCount: 1,
+        likeCount: 4,
+        likedBy: ['student-2'],
+        createdAt: DateTime.now().subtract(const Duration(days: 4)),
+        lastReplyAt: DateTime.now().subtract(const Duration(days: 3)),
+      ),
+    ];
+
+    _repliesByThread['thread-5'] = [
+      ReplyModel(
+        id: 'reply-5-1',
+        threadId: 'thread-5',
+        channelId: 'channel-c2-general',
+        courseId: 'course-2',
+        content:
+            'Think of generics as "placeholders for types". When you write `class Box<T>`, '
+            'you\'re saying "Box can hold any type, and we\'ll decide which type when we create it."\n\n'
+            'Start simple: create a `Pair<A, B>` class that holds two values of different types. '
+            'That exercise really helped me!',
+        authorId: 'demo-instructor-1',
+        authorName: 'John Doe',
+        isInstructorAnswer: true,
+        likeCount: 3,
+        likedBy: ['student-1'],
+        createdAt: DateTime.now().subtract(const Duration(days: 3)),
+      ),
+    ];
+
+    // ── Course 3: Data Structures & Algorithms ─────────────────────────
+    _channels['channel-c3-general'] = ChannelModel(
+      id: 'channel-c3-general',
+      courseId: 'course-3',
+      name: 'General',
+      description: 'Discussion about data structures and algorithms',
+      icon: '💬',
+      isDefault: true,
+      threadCount: 1,
+      lastActivityAt: DateTime.now().subtract(const Duration(days: 2)),
+      createdAt: DateTime.now().subtract(const Duration(days: 60)),
+      createdBy: 'demo-instructor-2',
+    );
+
+    _channels['channel-c3-code'] = ChannelModel(
+      id: 'channel-c3-code',
+      courseId: 'course-3',
+      name: 'Code Reviews',
+      description: 'Share your solutions and get feedback',
+      icon: 'code',
+      threadCount: 0,
+      lastActivityAt: null,
+      createdAt: DateTime.now().subtract(const Duration(days: 60)),
+      createdBy: 'demo-instructor-2',
+    );
+
+    _threadsByChannel['channel-c3-general'] = [
+      ThreadModel(
+        id: 'thread-6',
+        channelId: 'channel-c3-general',
+        courseId: 'course-3',
+        title: 'When should I use a HashMap vs a TreeMap?',
+        content:
+            'Both seem to do the same thing (store key-value pairs), but the course mentions '
+            'they have different time complexities. When would you choose one over the other '
+            'in a real project?',
+        authorId: 'student-2',
+        authorName: 'Bob Williams',
+        replyCount: 1,
+        likeCount: 3,
+        likedBy: ['student-1'],
+        createdAt: DateTime.now().subtract(const Duration(days: 6)),
+        lastReplyAt: DateTime.now().subtract(const Duration(days: 5)),
+      ),
+    ];
+
+    _repliesByThread['thread-6'] = [
+      ReplyModel(
+        id: 'reply-6-1',
+        threadId: 'thread-6',
+        channelId: 'channel-c3-general',
+        courseId: 'course-3',
+        content:
+            'HashMap gives O(1) average lookup/insert, TreeMap gives O(log n) but keeps keys sorted.\n\n'
+            '• Use HashMap/Map when you just need fast lookups.\n'
+            '• Use a sorted structure (like SplayTreeMap in Dart) when you need keys in order.\n\n'
+            'In practice, HashMap (which is what Dart\'s `Map` uses by default) covers 95% of use cases.',
+        authorId: 'demo-instructor-2',
+        authorName: 'Jane Smith',
+        isInstructorAnswer: true,
+        likeCount: 4,
+        likedBy: ['student-2', 'student-1'],
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+      ),
+    ];
+
+    _threadsByChannel['channel-c3-code'] = [];
   }
 
   Future<List<ChannelModel>> getChannelsForCourse(String courseId) async {

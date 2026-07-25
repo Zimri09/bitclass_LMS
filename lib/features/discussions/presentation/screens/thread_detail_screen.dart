@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/data/models/user_model.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/discussion_repository.dart';
 import '../bloc/discussion_bloc.dart';
@@ -34,6 +36,13 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
     _replyController.dispose();
     _replyFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Get the current authenticated user, or null
+  UserModel? _currentUser(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) return authState.user;
+    return null;
   }
 
   @override
@@ -121,26 +130,28 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
     }
 
     if (state is ThreadDetailLoaded) {
+      final user = _currentUser(context);
       return Column(
         children: [
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildThreadPost(context, state.thread),
+                _buildThreadPost(context, state.thread, user),
                 const SizedBox(height: 24),
                 if (state.replies.isNotEmpty) ...[
                   _buildRepliesHeader(state.replies.length),
                   const SizedBox(height: 12),
                   ...state.replies.map(
-                    (reply) => _buildReplyCard(context, reply, state.thread),
+                    (reply) =>
+                        _buildReplyCard(context, reply, state.thread, user),
                   ),
                 ],
               ],
             ),
           ),
           if (!state.thread.isLocked)
-            _buildReplyInput(context, state.isSubmittingReply),
+            _buildReplyInput(context, state.isSubmittingReply, user),
         ],
       );
     }
@@ -148,7 +159,13 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildThreadPost(BuildContext context, ThreadModel thread) {
+  Widget _buildThreadPost(
+    BuildContext context,
+    ThreadModel thread,
+    UserModel? user,
+  ) {
+    final userId = user?.id ?? '';
+
     return Card(
       color: AppColors.surface,
       child: Padding(
@@ -257,21 +274,23 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
             Row(
               children: [
                 _buildActionButton(
-                  icon: thread.likedBy.contains('demo-user')
+                  icon: thread.isLikedBy(userId)
                       ? Icons.thumb_up
                       : Icons.thumb_up_outlined,
                   label: '${thread.likeCount}',
-                  color: thread.likedBy.contains('demo-user')
+                  color: thread.isLikedBy(userId)
                       ? AppColors.primary
                       : AppColors.textSecondary,
-                  onTap: () {
-                    context.read<DiscussionBloc>().add(
-                      ToggleThreadLike(
-                        threadId: thread.id,
-                        userId: 'demo-user',
-                      ),
-                    );
-                  },
+                  onTap: userId.isEmpty
+                      ? () {}
+                      : () {
+                          context.read<DiscussionBloc>().add(
+                            ToggleThreadLike(
+                              threadId: thread.id,
+                              userId: userId,
+                            ),
+                          );
+                        },
                 ),
                 const SizedBox(width: 24),
                 _buildActionButton(
@@ -361,7 +380,9 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
     BuildContext context,
     ReplyModel reply,
     ThreadModel thread,
+    UserModel? user,
   ) {
+    final userId = user?.id ?? '';
     final isAccepted = reply.isAcceptedAnswer;
     final isInstructor = reply.isInstructorAnswer;
 
@@ -423,7 +444,8 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.warning.withValues(alpha: 0.2),
+                                color:
+                                    AppColors.warning.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -495,15 +517,17 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
             Row(
               children: [
                 InkWell(
-                  onTap: () {
-                    context.read<DiscussionBloc>().add(
-                      ToggleReplyLike(
-                        replyId: reply.id,
-                        threadId: thread.id,
-                        userId: 'demo-user',
-                      ),
-                    );
-                  },
+                  onTap: userId.isEmpty
+                      ? null
+                      : () {
+                          context.read<DiscussionBloc>().add(
+                            ToggleReplyLike(
+                              replyId: reply.id,
+                              threadId: thread.id,
+                              userId: userId,
+                            ),
+                          );
+                        },
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -514,10 +538,10 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          reply.likedBy.contains('demo-user')
+                          reply.isLikedBy(userId)
                               ? Icons.thumb_up
                               : Icons.thumb_up_outlined,
-                          color: reply.likedBy.contains('demo-user')
+                          color: reply.isLikedBy(userId)
                               ? AppColors.primary
                               : AppColors.textSecondary,
                           size: 16,
@@ -526,7 +550,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                         Text(
                           '${reply.likeCount}',
                           style: TextStyle(
-                            color: reply.likedBy.contains('demo-user')
+                            color: reply.isLikedBy(userId)
                                 ? AppColors.primary
                                 : AppColors.textSecondary,
                             fontSize: 12,
@@ -537,9 +561,11 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                   ),
                 ),
                 const Spacer(),
+                // Only show accept button if the current user is the thread author
                 if (!isAccepted &&
                     !thread.isLocked &&
-                    thread.authorId == 'demo-user')
+                    userId.isNotEmpty &&
+                    thread.authorId == userId)
                   TextButton.icon(
                     onPressed: () {
                       context.read<DiscussionBloc>().add(
@@ -564,7 +590,11 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
     );
   }
 
-  Widget _buildReplyInput(BuildContext context, bool isSubmitting) {
+  Widget _buildReplyInput(
+    BuildContext context,
+    bool isSubmitting,
+    UserModel? user,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -618,14 +648,26 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                     ? null
                     : () {
                         if (_replyController.text.trim().isEmpty) return;
+
+                        if (user == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  const Text('You must be logged in to reply'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                          return;
+                        }
+
                         context.read<DiscussionBloc>().add(
                           CreateReply(
                             threadId: widget.threadId,
                             channelId: widget.channelId,
                             courseId: widget.courseId,
                             content: _replyController.text.trim(),
-                            authorId: 'demo-user',
-                            authorName: 'Demo User',
+                            authorId: user.id,
+                            authorName: user.displayNameOrEmail,
                           ),
                         );
                       },

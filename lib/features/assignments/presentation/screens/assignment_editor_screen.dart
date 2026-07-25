@@ -345,45 +345,51 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
                 const SizedBox(height: 16),
 
                 // Due date
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Due Date'),
-                  subtitle: _dueDate != null
-                      ? Text(
-                          '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year} '
-                          '${_dueTime?.format(context) ?? '23:59'}',
-                        )
-                      : const Text('No due date set'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.calendar_today),
-                        onPressed: _selectDueDate,
-                      ),
-                      if (_dueDate != null)
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Due Date'),
+                    subtitle: _dueDate != null
+                        ? Text(
+                            '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year} '
+                            '${_dueTime?.format(context) ?? '23:59'}',
+                          )
+                        : const Text('No due date set'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         IconButton(
-                          icon: Icon(Icons.clear),
-                          onPressed: () {
-                            setState(() {
-                              _dueDate = null;
-                              _dueTime = null;
-                            });
-                          },
+                          icon: Icon(Icons.calendar_today),
+                          onPressed: _selectDueDate,
                         ),
-                    ],
+                        if (_dueDate != null)
+                          IconButton(
+                            icon: Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                _dueDate = null;
+                                _dueTime = null;
+                              });
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 Divider(),
 
                 // Late submission settings
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Allow Late Submission'),
-                  value: _allowLateSubmission,
-                  onChanged: (value) =>
-                      setState(() => _allowLateSubmission = value),
-                  activeThumbColor: AppColors.primary,
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Allow Late Submission'),
+                    value: _allowLateSubmission,
+                    onChanged: (value) =>
+                        setState(() => _allowLateSubmission = value),
+                    activeThumbColor: AppColors.primary,
+                  ),
                 ),
                 if (_allowLateSubmission)
                   Padding(
@@ -400,13 +406,16 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen>
                 Divider(),
 
                 // Published
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Published'),
-                  subtitle: const Text('Make visible to students'),
-                  value: _isPublished,
-                  onChanged: (value) => setState(() => _isPublished = value),
-                  activeThumbColor: AppColors.success,
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Published'),
+                    subtitle: const Text('Make visible to students'),
+                    value: _isPublished,
+                    onChanged: (value) => setState(() => _isPublished = value),
+                    activeThumbColor: AppColors.success,
+                  ),
                 ),
               ],
             ),
