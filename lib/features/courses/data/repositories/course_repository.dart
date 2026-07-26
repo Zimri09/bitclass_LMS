@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:math' hide log;
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,6 +16,17 @@ class CourseRepository {
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoStudentName = 'Demo Student';
   static const String _demoStudentEmail = 'student@demo.com';
+  static final Random _random = Random();
+
+  /// Generate a unique 6-character alphanumeric course code
+  String _generateCourseCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    String code;
+    do {
+      code = List.generate(6, (_) => chars[_random.nextInt(chars.length)]).join();
+    } while (_demoCourses.any((c) => c.courseCode == code));
+    return code;
+  }
 
   // Demo mode storage
   final List<CourseModel> _demoCourses = [];
@@ -46,6 +58,7 @@ class CourseRepository {
         lessonCount: 8,
         isPublished: true,
         createdAt: now.subtract(const Duration(days: 30)),
+        courseCode: 'FLT101',
       ),
       CourseModel(
         id: 'course-2',
@@ -60,6 +73,7 @@ class CourseRepository {
         lessonCount: 5,
         isPublished: true,
         createdAt: now.subtract(const Duration(days: 25)),
+        courseCode: 'DAR202',
       ),
       CourseModel(
         id: 'course-3',
@@ -74,6 +88,7 @@ class CourseRepository {
         lessonCount: 4,
         isPublished: true,
         createdAt: now.subtract(const Duration(days: 60)),
+        courseCode: 'DSA303',
       ),
     ]);
 
@@ -246,7 +261,35 @@ class CourseRepository {
       'isPublished': row['is_published'],
       'createdAt': row['created_at']?.toString(),
       'updatedAt': row['updated_at']?.toString(),
+      'courseCode': row['course_code'] as String? ?? '',
     }, id);
+  }
+
+  /// Find a course by its join code (case-insensitive)
+  Future<CourseModel?> getCourseByCode(String code) async {
+    final upperCode = code.trim().toUpperCase();
+    if (EnvironmentConfig.isDemoMode) {
+      try {
+        return _demoCourses.firstWhere(
+          (c) => c.courseCode.toUpperCase() == upperCode,
+        );
+      } catch (_) {
+        return null;
+      }
+    }
+
+    try {
+      final row = await _supabase!
+          .from(_coursesTable)
+          .select()
+          .eq('course_code', upperCode)
+          .maybeSingle();
+      if (row == null) return null;
+      return _courseFromRow(row, row['id'] as String);
+    } catch (e) {
+      if (kDebugMode) log('Error fetching course by code: $e', name: 'CourseRepository');
+      return null;
+    }
   }
 
   EnrollmentModel _enrollmentFromRow(Map<String, dynamic> row, String id) {
@@ -399,6 +442,7 @@ class CourseRepository {
     final now = DateTime.now();
 
     if (EnvironmentConfig.isDemoMode) {
+      final code = _generateCourseCode();
       final course = CourseModel(
         id: 'course-${DateTime.now().millisecondsSinceEpoch}',
         title: title,
@@ -411,10 +455,25 @@ class CourseRepository {
         lessonCount: 0,
         isPublished: false,
         createdAt: now,
+        courseCode: code,
       );
       _demoCourses.add(course);
       _syncDemoCourseToStudent(course);
       return course;
+    }
+
+    // Generate a unique code for the Supabase-backed course
+    String supabaseCode;
+    while (true) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      supabaseCode = List.generate(6, (_) => chars[_random.nextInt(chars.length)]).join();
+      // Verify uniqueness in DB
+      final existing = await _supabase!
+          .from(_coursesTable)
+          .select('id')
+          .eq('course_code', supabaseCode)
+          .maybeSingle();
+      if (existing == null) break;
     }
 
     final row = await _supabase!
@@ -430,6 +489,7 @@ class CourseRepository {
           'lesson_count': 0,
           'is_published': false,
           'created_at': now.toIso8601String(),
+          'course_code': supabaseCode,
         })
         .select()
         .single();
