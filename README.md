@@ -47,6 +47,8 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
 3. **Configure Supabase** (for development/production):
    - Create a project at [supabase.com](https://supabase.com)
    - Run the schema in `supabase/schema.sql` via the Supabase SQL editor
+   - Run `supabase/setup_storage.sql` after the schema to create the
+     `bitclass_storage` bucket and its upload permissions
    - Update `supabaseUrl`, `supabaseAnonKey`, and `storageBucket` in `environment.dart`
 
 4. **Run the app:**

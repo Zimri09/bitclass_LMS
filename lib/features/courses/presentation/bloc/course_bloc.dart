@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -41,6 +42,9 @@ class CreateCourse extends CourseEvent {
   final String instructorId;
   final String instructorName;
   final String? thumbnailUrl;
+  final Uint8List? thumbnailBytes;
+  final String? thumbnailExtension;
+  final String? thumbnailMimeType;
 
   const CreateCourse({
     required this.title,
@@ -49,6 +53,9 @@ class CreateCourse extends CourseEvent {
     required this.instructorId,
     required this.instructorName,
     this.thumbnailUrl,
+    this.thumbnailBytes,
+    this.thumbnailExtension,
+    this.thumbnailMimeType,
   });
 
   @override
@@ -58,6 +65,9 @@ class CreateCourse extends CourseEvent {
     category,
     instructorId,
     thumbnailUrl,
+    thumbnailBytes,
+    thumbnailExtension,
+    thumbnailMimeType,
   ];
 }
 
@@ -269,6 +279,9 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
         instructorId: event.instructorId,
         instructorName: event.instructorName,
         thumbnailUrl: event.thumbnailUrl,
+        thumbnailBytes: event.thumbnailBytes,
+        thumbnailExtension: event.thumbnailExtension,
+        thumbnailMimeType: event.thumbnailMimeType,
       );
 
       emit(CourseCreated(course));

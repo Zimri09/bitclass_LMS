@@ -57,6 +57,12 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               ),
             );
             _loadCourse();
+          } else if (state is CourseUpdated) {
+            // Course was just edited (e.g. via the Edit Course screen, which
+            // is pushed on top of this screen and shares this CourseBloc).
+            // Without this, the state stays on CourseUpdated forever and the
+            // builder below falls through to its default loading indicator.
+            _loadCourse();
           } else if (state is CourseError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -634,10 +640,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               color: AppColors.warning.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              Icons.assignment_outlined,
-              color: AppColors.warning,
-            ),
+            child: Icon(Icons.assignment_outlined, color: AppColors.warning),
           ),
           const SizedBox(width: 16),
           Expanded(

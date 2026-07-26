@@ -636,6 +636,9 @@ create policy "replies manage authors and instructors" on public.replies
 
 create policy "files read course members" on public.files
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+create policy "files manage course instructors" on public.files
+  for all using (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+  with check (exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
 
 create policy "notifications read own" on public.notifications
   for select using (user_id = auth.uid());

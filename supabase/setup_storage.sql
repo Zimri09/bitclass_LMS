@@ -49,7 +49,7 @@ values (
   'bitclass_storage',
   'bitclass_storage',
   true,
-  104857600,   -- 100 MB
+  52428800,    -- 50 MB (the maximum bucket limit available on Supabase Free)
   array[
     'application/pdf',
     'application/msword',
@@ -88,11 +88,25 @@ create policy "bitclass_storage: public read"
   on storage.objects for select
   using ( bucket_id = 'bitclass_storage' );
 
--- Any authenticated user can upload
+-- Course instructors and admins can upload to their own course folder.
+-- The application stores files as <course-id>/<file-id>-<file-name>.
 create policy "bitclass_storage: authenticated upload"
   on storage.objects for insert
   to authenticated
-  with check ( bucket_id = 'bitclass_storage' );
+  with check (
+    bucket_id = 'bitclass_storage'
+    and (
+      exists (
+        select 1 from public.courses c
+        where c.id::text = (storage.foldername(name))[1]
+          and c.instructor_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.profiles p
+        where p.id = auth.uid() and p.role = 'admin'
+      )
+    )
+  );
 
 -- Only uploader or admin can delete
 create policy "bitclass_storage: owner delete"
@@ -101,7 +115,7 @@ create policy "bitclass_storage: owner delete"
   using (
     bucket_id = 'bitclass_storage'
     and (
-      owner = auth.uid()
+      owner_id = auth.uid()::text
       or exists (
         select 1 from public.profiles
         where id = auth.uid() and role = 'admin'
@@ -116,7 +130,17 @@ create policy "bitclass_storage: owner update"
   using (
     bucket_id = 'bitclass_storage'
     and (
-      owner = auth.uid()
+      owner_id = auth.uid()::text
+      or exists (
+        select 1 from public.profiles
+        where id = auth.uid() and role = 'admin'
+      )
+    )
+  )
+  with check (
+    bucket_id = 'bitclass_storage'
+    and (
+      owner_id = auth.uid()::text
       or exists (
         select 1 from public.profiles
         where id = auth.uid() and role = 'admin'
@@ -154,11 +178,23 @@ create policy "files: enrolled can read"
     )
   );
 
--- Insert: uploader must be the authenticated user
+-- Insert: course instructor or admin, and the uploader must be the user.
 create policy "files: authenticated insert"
   on public.files for insert
   to authenticated
-  with check ( uploader_id = auth.uid() );
+  with check (
+    uploader_id = auth.uid()
+    and (
+      exists (
+        select 1 from public.courses c
+        where c.id = files.course_id and c.instructor_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.profiles p
+        where p.id = auth.uid() and p.role = 'admin'
+      )
+    )
+  );
 
 -- Update: uploader or admin
 create policy "files: owner update"
@@ -166,6 +202,19 @@ create policy "files: owner update"
   to authenticated
   using (
     uploader_id = auth.uid()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  )
+  with check (
+    (
+      uploader_id = auth.uid()
+      and exists (
+        select 1 from public.courses c
+        where c.id = files.course_id and c.instructor_id = auth.uid()
+      )
+    )
     or exists (
       select 1 from public.profiles p
       where p.id = auth.uid() and p.role = 'admin'

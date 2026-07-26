@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/config/environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/file_repository.dart';
@@ -25,6 +26,8 @@ class UploadFileScreen extends StatefulWidget {
 }
 
 class _UploadFileScreenState extends State<UploadFileScreen> {
+  static const int _maxUploadBytes = 50 * 1024 * 1024;
+
   final _formKey = GlobalKey<FormState>();
   final _fileNameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -57,6 +60,13 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
       if (result == null || result.files.isEmpty) return;
 
       final file = result.files.first;
+      if (file.size > _maxUploadBytes) {
+        _showError(
+          'This file is larger than 50 MB. Compress it or increase the '
+          'Supabase Storage limit before uploading.',
+        );
+        return;
+      }
       Uint8List? bytes = file.bytes;
 
       // On desktop (non-web), file_picker may not populate `bytes` even with
@@ -162,8 +172,15 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
     }
     if (!_formKey.currentState!.validate()) return;
 
-    final user = Supabase.instance.client.auth.currentUser;
-    final uploaderId = user?.id ?? 'anonymous';
+    final user = EnvironmentConfig.isDemoMode
+        ? null
+        : Supabase.instance.client.auth.currentUser;
+    if (!EnvironmentConfig.isDemoMode && user == null) {
+      _showError('Please sign in before uploading a file.');
+      return;
+    }
+
+    final uploaderId = user?.id ?? 'demo-instructor';
     final uploaderName =
         user?.userMetadata?['full_name'] as String? ??
         user?.email ??

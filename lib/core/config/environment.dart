@@ -85,7 +85,8 @@ class EnvironmentConfig {
       case Environment.demo:
         return '';
       case Environment.development:
-        return 'bitclass-dev';
+        // This must match the bucket created by supabase/setup_storage.sql.
+        return 'bitclass_storage';
       case Environment.production:
         return 'bitclass-prod';
     }

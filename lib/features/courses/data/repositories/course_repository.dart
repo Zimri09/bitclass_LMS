@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -395,6 +396,9 @@ class CourseRepository {
     required String instructorId,
     required String instructorName,
     String? thumbnailUrl,
+    Uint8List? thumbnailBytes,
+    String? thumbnailExtension,
+    String? thumbnailMimeType,
   }) async {
     final now = DateTime.now();
 
@@ -434,7 +438,45 @@ class CourseRepository {
         .select()
         .single();
 
-    return _courseFromRow(row, row['id'] as String);
+    final course = _courseFromRow(row, row['id'] as String);
+    if (thumbnailBytes == null) return course;
+
+    final uploadedThumbnailUrl = await uploadCourseThumbnail(
+      courseId: course.id,
+      imageBytes: thumbnailBytes,
+      extension: thumbnailExtension,
+      mimeType: thumbnailMimeType,
+    );
+    return updateCourse(course.id, {'thumbnailUrl': uploadedThumbnailUrl});
+  }
+
+  /// Uploads a course banner and returns its public URL for `thumbnail_url`.
+  Future<String> uploadCourseThumbnail({
+    required String courseId,
+    required Uint8List imageBytes,
+    String? extension,
+    String? mimeType,
+  }) async {
+    if (EnvironmentConfig.isDemoMode) {
+      throw UnsupportedError('Course image uploads require development mode.');
+    }
+
+    final normalizedExtension =
+        (extension ?? 'jpg').replaceFirst(RegExp(r'^\\.'), '').toLowerCase();
+    final storagePath =
+        '$courseId/thumbnails/${DateTime.now().microsecondsSinceEpoch}.$normalizedExtension';
+    final bucket = EnvironmentConfig.storageBucket;
+
+    await _supabase!.storage.from(bucket).uploadBinary(
+      storagePath,
+      imageBytes,
+      fileOptions: FileOptions(
+        contentType: mimeType ?? 'image/jpeg',
+        upsert: false,
+      ),
+    );
+
+    return _supabase!.storage.from(bucket).getPublicUrl(storagePath);
   }
 
   /// Update a course

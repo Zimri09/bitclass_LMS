@@ -11,7 +11,7 @@ import '../models/models.dart';
 /// Repository handling file upload operations.
 class FileRepository {
   static const String _filesTable = 'files';
-  static const String _storageBucket = 'bitclass_storage';
+  String get _storageBucket => EnvironmentConfig.storageBucket;
 
   final SupabaseClient? _supabase;
 
@@ -320,10 +320,13 @@ class FileRepository {
       return;
     }
 
+    String? storagePath;
+    var uploadedToStorage = false;
+
     try {
       final extension = fileName.split('.').last;
       final fileType = CourseFile.getTypeFromExtension(extension);
-      final storagePath = '$courseId/$fileId-$fileName';
+      storagePath = '$courseId/$fileId-$fileName';
 
       yield UploadProgress(
         fileId: fileId,
@@ -340,6 +343,7 @@ class FileRepository {
             fileData,
             fileOptions: FileOptions(contentType: mimeType, upsert: false),
           );
+      uploadedToStorage = true;
 
       final publicUrl = _supabase!.storage
           .from(_storageBucket)
@@ -373,6 +377,16 @@ class FileRepository {
         completedAt: DateTime.now(),
       );
     } catch (e) {
+      // Do not leave an unreachable object behind when the metadata insert
+      // fails because of a database policy or connectivity error.
+      if (uploadedToStorage && storagePath != null) {
+        try {
+          await _supabase!.storage.from(_storageBucket).remove([storagePath]);
+        } catch (_) {
+          // Preserve the original upload error; the object can be removed
+          // later from the Storage dashboard if this cleanup also fails.
+        }
+      }
       yield UploadProgress(
         fileId: fileId,
         fileName: fileName,

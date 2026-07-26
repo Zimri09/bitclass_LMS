@@ -34,6 +34,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
   String? _selectedPresetId; // preset banner ID (e.g. 'blue-teal')
   String? _existingThumbnailUrl; // for edit mode — existing URL
   bool _isLoadingCourse = false;
+  bool _isSavingThumbnail = false;
 
   bool get _isEditMode => widget.courseId != null;
 
@@ -88,10 +89,8 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     super.dispose();
   }
 
-  /// Compute the effective thumbnailUrl to store.
+  /// Compute the effective remote thumbnail URL to store.
   String? get _effectiveThumbnailUrl {
-    // Custom uploaded image takes priority
-    if (_selectedThumbnail != null) return _selectedThumbnail!.path;
     // Then a selected preset
     if (_selectedPresetId != null) {
       return CourseBannerPresets.toUrl(_selectedPresetId!);
@@ -100,17 +99,65 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     return _existingThumbnailUrl;
   }
 
-  void _handleCreateCourse() {
+  String get _thumbnailExtension {
+    final name = _selectedThumbnail?.name ?? '';
+    final dotIndex = name.lastIndexOf('.');
+    return dotIndex > 0 ? name.substring(dotIndex + 1).toLowerCase() : 'jpg';
+  }
+
+  String get _thumbnailMimeType {
+    switch (_thumbnailExtension) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  Future<void> _handleCreateCourse() async {
     if (_formKey.currentState!.validate()) {
       if (_isEditMode) {
+        String? thumbnailUrl = _effectiveThumbnailUrl;
+        if (_thumbnailBytes != null) {
+          setState(() => _isSavingThumbnail = true);
+          try {
+            thumbnailUrl = await context
+                .read<CourseRepository>()
+                .uploadCourseThumbnail(
+                  courseId: widget.courseId!,
+                  imageBytes: _thumbnailBytes!,
+                  extension: _thumbnailExtension,
+                  mimeType: _thumbnailMimeType,
+                );
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to upload course image: $e'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
+            return;
+          } finally {
+            if (mounted) setState(() => _isSavingThumbnail = false);
+          }
+        }
+
+        if (!mounted) return;
+
         // Update existing course
         final updates = <String, dynamic>{
           'title': _titleController.text.trim(),
           'description': _descriptionController.text.trim(),
           'category': _selectedCategory,
         };
-        if (_effectiveThumbnailUrl != null) {
-          updates['thumbnailUrl'] = _effectiveThumbnailUrl;
+        if (thumbnailUrl != null) {
+          updates['thumbnailUrl'] = thumbnailUrl;
         }
         context.read<CourseBloc>().add(
           UpdateCourse(courseId: widget.courseId!, updates: updates),
@@ -126,7 +173,11 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
               category: _selectedCategory,
               instructorId: authState.user.id,
               instructorName: authState.user.displayNameOrEmail,
-              thumbnailUrl: _effectiveThumbnailUrl,
+              thumbnailUrl:
+                  _thumbnailBytes == null ? _effectiveThumbnailUrl : null,
+              thumbnailBytes: _thumbnailBytes,
+              thumbnailExtension: _thumbnailExtension,
+              thumbnailMimeType: _thumbnailMimeType,
             ),
           );
         }
@@ -252,6 +303,16 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
             ),
           ),
         ],
+      );
+    }
+
+    // Existing remote banner in edit mode
+    if (_existingThumbnailUrl != null) {
+      return CourseBannerWidget(
+        thumbnailUrl: _existingThumbnailUrl,
+        width: double.infinity,
+        height: 160,
+        borderRadius: BorderRadius.circular(12),
       );
     }
 
@@ -604,7 +665,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                               flex: 2,
                               child: BlocBuilder<CourseBloc, CourseState>(
                                 builder: (context, state) {
-                                  final isLoading = state is CourseLoading;
+                                  final isLoading =
+                                      state is CourseLoading ||
+                                      _isSavingThumbnail;
                                   return ElevatedButton.icon(
                                     onPressed: isLoading
                                         ? null
