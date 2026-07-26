@@ -7,7 +7,8 @@ void main() {
       final user = UserModel(
         id: 'user-1',
         email: 'test@example.com',
-        displayName: 'Test User',
+        firstName: 'Test',
+        lastName: 'User',
         role: 'student',
         createdAt: DateTime(2024, 1, 1),
       );
@@ -23,7 +24,7 @@ void main() {
       final instructor = UserModel(
         id: 'user-2',
         email: 'instructor@example.com',
-        displayName: 'Instructor',
+        firstName: 'Instructor',
         role: 'instructor',
         createdAt: DateTime(2024, 1, 1),
       );
@@ -35,7 +36,8 @@ void main() {
       final user = UserModel(
         id: 'user-1',
         email: 'test@example.com',
-        displayName: 'Test User',
+        firstName: 'Test',
+        lastName: 'User',
         role: 'student',
         createdAt: DateTime(2024, 1, 1),
       );
@@ -47,7 +49,6 @@ void main() {
       final user = UserModel(
         id: 'user-1',
         email: 'test@example.com',
-        displayName: null,
         role: 'student',
         createdAt: DateTime(2024, 1, 1),
       );
@@ -59,7 +60,8 @@ void main() {
       final user = UserModel(
         id: 'user-1',
         email: 'test@example.com',
-        displayName: 'Test User',
+        firstName: 'Test',
+        lastName: 'User',
         role: 'student',
         bio: 'A test bio',
         createdAt: DateTime(2024, 1, 1),
@@ -69,7 +71,8 @@ void main() {
 
       expect(json['id'], 'user-1');
       expect(json['email'], 'test@example.com');
-      expect(json['displayName'], 'Test User');
+      expect(json['firstName'], 'Test');
+      expect(json['lastName'], 'User');
       expect(json['role'], 'student');
       expect(json['bio'], 'A test bio');
     });
@@ -78,7 +81,8 @@ void main() {
       final json = {
         'id': 'user-1',
         'email': 'test@example.com',
-        'displayName': 'Test User',
+        'firstName': 'Test',
+        'lastName': 'User',
         'role': 'student',
         'bio': 'A test bio',
         'createdAt': '2024-01-01T00:00:00.000',
@@ -97,12 +101,13 @@ void main() {
       final user = UserModel(
         id: 'user-1',
         email: 'test@example.com',
-        displayName: 'Test User',
+        firstName: 'Test',
+        lastName: 'User',
         role: 'student',
         createdAt: DateTime(2024, 1, 1),
       );
 
-      final updatedUser = user.copyWith(displayName: 'Updated Name');
+      final updatedUser = user.copyWith(firstName: 'Updated', lastName: 'Name');
 
       expect(updatedUser.displayName, 'Updated Name');
       expect(updatedUser.id, user.id);
