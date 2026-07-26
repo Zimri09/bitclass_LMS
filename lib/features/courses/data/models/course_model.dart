@@ -14,6 +14,8 @@ class CourseModel extends Equatable {
   final bool isPublished;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  /// Unique 6-character alphanumeric code students can use to join the course
+  final String courseCode;
 
   const CourseModel({
     required this.id,
@@ -28,6 +30,7 @@ class CourseModel extends Equatable {
     this.isPublished = false,
     required this.createdAt,
     this.updatedAt,
+    this.courseCode = '',
   });
 
   /// Create CourseModel from Firestore document
@@ -49,6 +52,7 @@ class CourseModel extends Equatable {
       updatedAt: map['updatedAt'] != null
           ? DateTime.parse(map['updatedAt'] as String)
           : null,
+      courseCode: map['courseCode'] as String? ?? '',
     );
   }
 
@@ -66,6 +70,7 @@ class CourseModel extends Equatable {
       'isPublished': isPublished,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'courseCode': courseCode,
     };
   }
 
@@ -91,6 +96,7 @@ class CourseModel extends Equatable {
     bool? isPublished,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? courseCode,
   }) {
     return CourseModel(
       id: id ?? this.id,
@@ -105,6 +111,7 @@ class CourseModel extends Equatable {
       isPublished: isPublished ?? this.isPublished,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      courseCode: courseCode ?? this.courseCode,
     );
   }
 
@@ -122,6 +129,7 @@ class CourseModel extends Equatable {
     isPublished,
     createdAt,
     updatedAt,
+    courseCode,
   ];
 }
 

@@ -127,6 +127,23 @@ class CheckEnrollment extends CourseEvent {
   List<Object?> get props => [courseId, userId];
 }
 
+class JoinCourseByCode extends CourseEvent {
+  final String code;
+  final String userId;
+  final String? studentName;
+  final String? studentEmail;
+
+  const JoinCourseByCode({
+    required this.code,
+    required this.userId,
+    this.studentName,
+    this.studentEmail,
+  });
+
+  @override
+  List<Object?> get props => [code, userId];
+}
+
 // States
 abstract class CourseState extends Equatable {
   const CourseState();
@@ -204,6 +221,16 @@ class CourseError extends CourseState {
   List<Object?> get props => [message];
 }
 
+class CourseJoinedByCode extends CourseState {
+  final CourseModel course;
+  final EnrollmentModel enrollment;
+
+  const CourseJoinedByCode({required this.course, required this.enrollment});
+
+  @override
+  List<Object?> get props => [course, enrollment];
+}
+
 // Bloc
 class CourseBloc extends Bloc<CourseEvent, CourseState> {
   final CourseRepository _courseRepository;
@@ -219,6 +246,7 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
     on<ToggleCoursePublish>(_onToggleCoursePublish);
     on<EnrollInCourse>(_onEnrollInCourse);
     on<CheckEnrollment>(_onCheckEnrollment);
+    on<JoinCourseByCode>(_onJoinCourseByCode);
   }
 
   Future<void> _onLoadCourses(
@@ -371,6 +399,40 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
       );
 
       emit(CourseDetailLoaded(course: course, enrollment: enrollment));
+    } catch (e) {
+      emit(CourseError(e.toString()));
+    }
+  }
+
+  Future<void> _onJoinCourseByCode(
+    JoinCourseByCode event,
+    Emitter<CourseState> emit,
+  ) async {
+    emit(CourseLoading());
+    try {
+      // 1. Find the course by code
+      final course = await _courseRepository.getCourseByCode(event.code);
+      if (course == null) {
+        emit(const CourseError('Invalid course code. Please check and try again.'));
+        return;
+      }
+
+      // 2. Check if already enrolled
+      final existing = await _courseRepository.getEnrollment(course.id, event.userId);
+      if (existing != null) {
+        emit(const CourseError('You are already enrolled in this course.'));
+        return;
+      }
+
+      // 3. Enroll
+      final enrollment = await _courseRepository.enrollInCourse(
+        courseId: course.id,
+        userId: event.userId,
+        studentName: event.studentName,
+        studentEmail: event.studentEmail,
+      );
+
+      emit(CourseJoinedByCode(course: course, enrollment: enrollment));
     } catch (e) {
       emit(CourseError(e.toString()));
     }
