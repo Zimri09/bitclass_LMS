@@ -328,8 +328,7 @@ class QuizRepository {
       return attempt;
     }
 
-    await _supabase!.from(_attemptsTable).insert({
-      'id': attempt.id,
+    final inserted = await _supabase!.from(_attemptsTable).insert({
       'quiz_id': attempt.quizId,
       'user_id': attempt.userId,
       'enrollment_id': attempt.enrollmentId,
@@ -342,9 +341,9 @@ class QuizRepository {
       'passed': attempt.passed,
       'time_spent_seconds': attempt.timeSpentSeconds,
       'answers': attempt.answers.map((k, v) => MapEntry(k, v.toMap())),
-    });
+    }).select().single();
 
-    return attempt;
+    return _attemptFromRow(inserted);
   }
 
   Future<List<QuizAttemptModel>> getAttempts({
@@ -432,7 +431,6 @@ class QuizRepository {
           'answers': updatedAttempt.answers.map(
             (k, v) => MapEntry(k, v.toMap()),
           ),
-          'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', attemptId);
 
@@ -508,7 +506,6 @@ class QuizRepository {
           'answers': gradedAttempt.answers.map(
             (k, v) => MapEntry(k, v.toMap()),
           ),
-          'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', attemptId);
 

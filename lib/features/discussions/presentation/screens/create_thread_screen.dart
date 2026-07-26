@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/repositories/discussion_repository.dart';
 import '../bloc/discussion_bloc.dart';
 import '../bloc/discussion_event.dart';
@@ -266,6 +267,20 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
   void _submit(BuildContext context) {
     if (!_formKey.currentState!.validate()) return;
 
+    // Get the actual authenticated user
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('You must be logged in to post'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final user = authState.user;
+
     setState(() => _isSubmitting = true);
 
     context.read<DiscussionBloc>().add(
@@ -274,8 +289,8 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
         courseId: widget.courseId,
         title: _titleController.text.trim(),
         content: _contentController.text.trim(),
-        authorId: 'demo-user',
-        authorName: 'Demo User',
+        authorId: user.id,
+        authorName: user.displayNameOrEmail,
       ),
     );
   }

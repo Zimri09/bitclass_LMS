@@ -29,14 +29,18 @@ class ProfileCubit extends Cubit<ProfileState> {
 
   /// Save profile changes
   Future<void> saveProfile({
-    required String displayName,
+    required String firstName,
+    required String lastName,
+    int? age,
     required String bio,
   }) async {
     emit(state.copyWith(status: ProfileStatus.saving));
 
     try {
       final updatedUser = await authRepository.updateProfile(
-        displayName: displayName,
+        firstName: firstName,
+        lastName: lastName,
+        age: age,
         bio: bio,
       );
       authBloc.add(AuthUserUpdated(updatedUser));

@@ -4,17 +4,21 @@ import 'package:equatable/equatable.dart';
 class UserModel extends Equatable {
   final String id;
   final String email;
-  final String? displayName;
+  final String? firstName;
+  final String? lastName;
+  final int? age;
   final String? avatarUrl;
   final String? bio;
-  final String role; // 'student' or 'instructor'
+  final String role; // 'student', 'instructor', or 'admin'
   final DateTime createdAt;
   final DateTime? updatedAt;
 
   const UserModel({
     required this.id,
     required this.email,
-    this.displayName,
+    this.firstName,
+    this.lastName,
+    this.age,
     this.avatarUrl,
     this.bio,
     required this.role,
@@ -22,28 +26,42 @@ class UserModel extends Equatable {
     this.updatedAt,
   });
 
+  /// Full display name derived from first + last name
+  String? get displayName {
+    if (firstName != null && lastName != null) {
+      return '${firstName!.trim()} ${lastName!.trim()}'.trim();
+    }
+    if (firstName != null) return firstName!.trim();
+    if (lastName != null) return lastName!.trim();
+    return null;
+  }
+
   /// Create a new UserModel with default values for registration
   factory UserModel.create({
     required String id,
     required String email,
     required String role,
-    String? displayName,
+    String? firstName,
+    String? lastName,
   }) {
     return UserModel(
       id: id,
       email: email,
-      displayName: displayName ?? email.split('@').first,
+      firstName: firstName ?? email.split('@').first,
+      lastName: lastName,
       role: role,
       createdAt: DateTime.now(),
     );
   }
 
-  /// Create UserModel from Firestore document
+  /// Create UserModel from Supabase profile row
   factory UserModel.fromMap(Map<String, dynamic> map, String id) {
     return UserModel(
       id: id,
       email: map['email'] as String,
-      displayName: map['displayName'] as String?,
+      firstName: map['firstName'] as String?,
+      lastName: map['lastName'] as String?,
+      age: map['age'] as int?,
       avatarUrl: map['avatarUrl'] as String?,
       bio: map['bio'] as String?,
       role: map['role'] as String? ?? 'student',
@@ -56,11 +74,13 @@ class UserModel extends Equatable {
     );
   }
 
-  /// Convert UserModel to Firestore document
+  /// Convert UserModel to map
   Map<String, dynamic> toMap() {
     return {
       'email': email,
-      'displayName': displayName,
+      'firstName': firstName,
+      'lastName': lastName,
+      'age': age,
       'avatarUrl': avatarUrl,
       'bio': bio,
       'role': role,
@@ -81,7 +101,10 @@ class UserModel extends Equatable {
   UserModel copyWith({
     String? id,
     String? email,
-    String? displayName,
+    String? firstName,
+    String? lastName,
+    int? age,
+    bool clearAge = false,
     String? avatarUrl,
     String? bio,
     String? role,
@@ -91,7 +114,9 @@ class UserModel extends Equatable {
     return UserModel(
       id: id ?? this.id,
       email: email ?? this.email,
-      displayName: displayName ?? this.displayName,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      age: clearAge ? null : (age ?? this.age),
       avatarUrl: avatarUrl ?? this.avatarUrl,
       bio: bio ?? this.bio,
       role: role ?? this.role,
@@ -106,6 +131,9 @@ class UserModel extends Equatable {
   /// Check if user is a student
   bool get isStudent => role == 'student';
 
+  /// Check if user is an admin
+  bool get isAdmin => role == 'admin';
+
   /// Get display name or fallback to email prefix
   String get displayNameOrEmail => displayName ?? email.split('@').first;
 
@@ -113,7 +141,9 @@ class UserModel extends Equatable {
   List<Object?> get props => [
     id,
     email,
-    displayName,
+    firstName,
+    lastName,
+    age,
     avatarUrl,
     bio,
     role,
@@ -130,7 +160,8 @@ class UserModel extends Equatable {
 /// Role enumeration for type safety
 enum UserRole {
   student,
-  instructor;
+  instructor,
+  admin;
 
   String get value {
     switch (this) {
@@ -138,6 +169,8 @@ enum UserRole {
         return 'student';
       case UserRole.instructor:
         return 'instructor';
+      case UserRole.admin:
+        return 'admin';
     }
   }
 
@@ -145,6 +178,8 @@ enum UserRole {
     switch (value) {
       case 'instructor':
         return UserRole.instructor;
+      case 'admin':
+        return UserRole.admin;
       default:
         return UserRole.student;
     }

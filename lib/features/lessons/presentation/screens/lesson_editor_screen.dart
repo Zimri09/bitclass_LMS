@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:uuid/uuid.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../data/models/lesson_model.dart';
@@ -116,7 +116,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           courseId: widget.courseId,
           moduleId:
               _moduleId ??
-              (_modules.isNotEmpty ? _modules.first.id : 'default-module'),
+              (_modules.isNotEmpty ? _modules.first.id : const Uuid().v4()),
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim().isEmpty
               ? null
@@ -348,13 +348,16 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                 ],
 
                 // Published
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Published'),
-                  subtitle: const Text('Make visible to students'),
-                  value: _isPublished,
-                  onChanged: (value) => setState(() => _isPublished = value),
-                  activeThumbColor: AppColors.success,
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Published'),
+                    subtitle: const Text('Make visible to students'),
+                    value: _isPublished,
+                    onChanged: (value) => setState(() => _isPublished = value),
+                    activeThumbColor: AppColors.success,
+                  ),
                 ),
               ],
             ),

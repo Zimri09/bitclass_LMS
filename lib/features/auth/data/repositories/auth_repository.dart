@@ -79,7 +79,8 @@ class AuthRepository {
       _demoUser = UserModel(
         id: isInstructor ? _demoInstructorUserId : _demoStudentUserId,
         email: normalizedEmail,
-        displayName: isInstructor ? 'Demo Instructor' : 'Demo Student',
+        firstName: isInstructor ? 'Demo' : 'Demo',
+        lastName: isInstructor ? 'Instructor' : 'Student',
         role: isInstructor ? 'instructor' : 'student',
         createdAt: DateTime.now(),
       );
@@ -101,7 +102,8 @@ class AuthRepository {
       return await _resolveProfileForUser(
         user,
         defaultRole: 'student',
-        displayName: user.userMetadata?['display_name'] as String?,
+        firstName: user.userMetadata?['first_name'] as String?,
+        lastName: user.userMetadata?['last_name'] as String?,
       );
     } on AuthException catch (e) {
       throw _handleAuthException(e.message);
@@ -115,14 +117,16 @@ class AuthRepository {
     required String email,
     required String password,
     required String role,
-    String? displayName,
+    String? firstName,
+    String? lastName,
   }) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
       _demoUser = UserModel(
         id: 'demo-user-${DateTime.now().millisecondsSinceEpoch}',
         email: email.trim(),
-        displayName: displayName ?? email.split('@').first,
+        firstName: firstName ?? email.split('@').first,
+        lastName: lastName,
         role: role,
         createdAt: DateTime.now(),
       );
@@ -138,7 +142,8 @@ class AuthRepository {
         password: password,
         data: <String, dynamic>{
           'role': role,
-          'display_name': displayName ?? normalizedEmail.split('@').first,
+          'first_name': firstName ?? normalizedEmail.split('@').first,
+          if (lastName != null) 'last_name': lastName,
         },
       );
 
@@ -157,7 +162,8 @@ class AuthRepository {
       return await _resolveProfileForUser(
         user,
         defaultRole: role,
-        displayName: displayName,
+        firstName: firstName,
+        lastName: lastName,
       );
     } on EmailConfirmationRequiredException {
       rethrow;
@@ -193,7 +199,10 @@ class AuthRepository {
 
   /// Update user profile
   Future<UserModel> updateProfile({
-    String? displayName,
+    String? firstName,
+    String? lastName,
+    int? age,
+    bool clearAge = false,
     String? bio,
     String? avatarUrl,
   }) async {
@@ -202,7 +211,10 @@ class AuthRepository {
         throw Exception('No authenticated user');
       }
       _demoUser = _demoUser!.copyWith(
-        displayName: displayName ?? _demoUser!.displayName,
+        firstName: firstName ?? _demoUser!.firstName,
+        lastName: lastName ?? _demoUser!.lastName,
+        age: age ?? _demoUser!.age,
+        clearAge: clearAge,
         bio: bio ?? _demoUser!.bio,
         avatarUrl: avatarUrl ?? _demoUser!.avatarUrl,
         updatedAt: DateTime.now(),
@@ -219,7 +231,13 @@ class AuthRepository {
       'updated_at': DateTime.now().toIso8601String(),
     };
 
-    if (displayName != null) updates['display_name'] = displayName;
+    if (firstName != null) updates['first_name'] = firstName;
+    if (lastName != null) updates['last_name'] = lastName;
+    if (clearAge) {
+      updates['age'] = null;
+    } else if (age != null) {
+      updates['age'] = age;
+    }
     if (bio != null) updates['bio'] = bio;
     if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
 
@@ -261,7 +279,8 @@ class AuthRepository {
   Future<UserModel> _resolveProfileForUser(
     User user, {
     required String defaultRole,
-    String? displayName,
+    String? firstName,
+    String? lastName,
   }) async {
     var profile = await getCurrentUserProfile();
     if (profile != null) return profile;
@@ -274,22 +293,26 @@ class AuthRepository {
     return _createOrSyncProfileFromAuth(
       user,
       defaultRole: defaultRole,
-      displayName: displayName,
+      firstName: firstName,
+      lastName: lastName,
     );
   }
 
   Future<UserModel> _createOrSyncProfileFromAuth(
     User user, {
     required String defaultRole,
-    String? displayName,
+    String? firstName,
+    String? lastName,
   }) async {
     final profile = UserModel(
       id: user.id,
       email: user.email ?? '',
-      displayName:
-          displayName ??
-          (user.userMetadata?['display_name'] as String?) ??
+      firstName:
+          firstName ??
+          (user.userMetadata?['first_name'] as String?) ??
           user.email?.split('@').first,
+      lastName:
+          lastName ?? (user.userMetadata?['last_name'] as String?),
       avatarUrl: user.userMetadata?['avatar_url'] as String?,
       bio: null,
       role: (user.userMetadata?['role'] as String?) ?? defaultRole,
@@ -301,7 +324,8 @@ class AuthRepository {
       await _supabase!.from(_profilesTable).upsert({
         'id': profile.id,
         'email': profile.email,
-        'display_name': profile.displayName,
+        'first_name': profile.firstName,
+        'last_name': profile.lastName,
         'avatar_url': profile.avatarUrl,
         'bio': profile.bio,
         'role': profile.role,
@@ -317,7 +341,9 @@ class AuthRepository {
   Map<String, dynamic> _rowToUserMap(Map<String, dynamic> row) {
     return {
       'email': row['email'] as String,
-      'displayName': row['display_name'] as String?,
+      'firstName': row['first_name'] as String?,
+      'lastName': row['last_name'] as String?,
+      'age': row['age'] as int?,
       'avatarUrl': row['avatar_url'] as String?,
       'bio': row['bio'] as String?,
       'role': row['role'] as String? ?? 'student',

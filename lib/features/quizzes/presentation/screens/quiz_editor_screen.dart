@@ -376,40 +376,55 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
           const SizedBox(height: 16),
 
           // Toggle switches
-          SwitchListTile(
-            title: const Text('Shuffle Questions'),
-            subtitle: const Text('Randomize question order for each attempt'),
-            value: _shuffleQuestions,
-            onChanged: (value) => setState(() => _shuffleQuestions = value),
-            activeThumbColor: AppColors.primary,
+          Material(
+            color: Colors.transparent,
+            child: SwitchListTile(
+              title: const Text('Shuffle Questions'),
+              subtitle: const Text('Randomize question order for each attempt'),
+              value: _shuffleQuestions,
+              onChanged: (value) => setState(() => _shuffleQuestions = value),
+              activeThumbColor: AppColors.primary,
+            ),
           ),
-          SwitchListTile(
-            title: const Text('Shuffle Answers'),
-            subtitle: const Text('Randomize answer options for each question'),
-            value: _shuffleAnswers,
-            onChanged: (value) => setState(() => _shuffleAnswers = value),
-            activeThumbColor: AppColors.primary,
+          Material(
+            color: Colors.transparent,
+            child: SwitchListTile(
+              title: const Text('Shuffle Answers'),
+              subtitle: const Text('Randomize answer options for each question'),
+              value: _shuffleAnswers,
+              onChanged: (value) => setState(() => _shuffleAnswers = value),
+              activeThumbColor: AppColors.primary,
+            ),
           ),
-          SwitchListTile(
-            title: const Text('Show Correct Answers'),
-            subtitle: const Text('Display correct answers after submission'),
-            value: _showCorrectAnswers,
-            onChanged: (value) => setState(() => _showCorrectAnswers = value),
-            activeThumbColor: AppColors.primary,
+          Material(
+            color: Colors.transparent,
+            child: SwitchListTile(
+              title: const Text('Show Correct Answers'),
+              subtitle: const Text('Display correct answers after submission'),
+              value: _showCorrectAnswers,
+              onChanged: (value) => setState(() => _showCorrectAnswers = value),
+              activeThumbColor: AppColors.primary,
+            ),
           ),
-          SwitchListTile(
-            title: const Text('Allow Retakes'),
-            subtitle: const Text('Allow students to retake the quiz'),
-            value: _allowRetakes,
-            onChanged: (value) => setState(() => _allowRetakes = value),
-            activeThumbColor: AppColors.primary,
+          Material(
+            color: Colors.transparent,
+            child: SwitchListTile(
+              title: const Text('Allow Retakes'),
+              subtitle: const Text('Allow students to retake the quiz'),
+              value: _allowRetakes,
+              onChanged: (value) => setState(() => _allowRetakes = value),
+              activeThumbColor: AppColors.primary,
+            ),
           ),
-          SwitchListTile(
-            title: const Text('Published'),
-            subtitle: const Text('Make quiz visible to students'),
-            value: _isPublished,
-            onChanged: (value) => setState(() => _isPublished = value),
-            activeThumbColor: AppColors.success,
+          Material(
+            color: Colors.transparent,
+            child: SwitchListTile(
+              title: const Text('Published'),
+              subtitle: const Text('Make quiz visible to students'),
+              value: _isPublished,
+              onChanged: (value) => setState(() => _isPublished = value),
+              activeThumbColor: AppColors.success,
+            ),
           ),
         ],
       ),
@@ -656,121 +671,124 @@ class _QuestionEditorState extends State<_QuestionEditor> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: ExpansionTile(
-        key: PageStorageKey(widget.question.id),
-        initiallyExpanded: widget.question.questionText.isEmpty,
-        leading: ReorderableDragStartListener(
-          index: widget.index,
-          child: Icon(Icons.drag_handle, color: AppColors.textSecondary),
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
         ),
-        title: Text(
-          widget.question.questionText.isEmpty
-              ? 'Question ${widget.index + 1}'
-              : widget.question.questionText,
-          style: AppTextStyles.bodyMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          '${_getQuestionTypeName(widget.question.type)} • ${widget.question.points} pts',
-          style: AppTextStyles.bodySmall.copyWith(
-            color: AppColors.textSecondary,
+        child: ExpansionTile(
+          key: PageStorageKey(widget.question.id),
+          initiallyExpanded: widget.question.questionText.isEmpty,
+          leading: ReorderableDragStartListener(
+            index: widget.index,
+            child: Icon(Icons.drag_handle, color: AppColors.textSecondary),
           ),
-        ),
-        trailing: IconButton(
-          icon: Icon(Icons.delete_outline, color: AppColors.error),
-          onPressed: widget.onRemove,
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Question type and points
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: DropdownButtonFormField<QuestionType>(
-                        initialValue: widget.question.type,
-                        decoration: const InputDecoration(
-                          labelText: 'Question Type',
-                        ),
-                        items: QuestionType.values.map((type) {
-                          return DropdownMenuItem(
-                            value: type,
-                            child: Text(_getQuestionTypeName(type)),
-                          );
-                        }).toList(),
-                        onChanged: _changeQuestionType,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _pointsController,
-                        decoration: const InputDecoration(labelText: 'Points'),
-                        keyboardType: TextInputType.number,
-                        onChanged: (_) => _updateQuestion(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Question text
-                TextFormField(
-                  controller: _questionTextController,
-                  decoration: const InputDecoration(
-                    labelText: 'Question Text',
-                    hintText: 'Enter your question here...',
-                  ),
-                  maxLines: 3,
-                  onChanged: (_) => _updateQuestion(),
-                ),
-                const SizedBox(height: 16),
-
-                // Answer options (for choice questions)
-                if (_isChoiceQuestion(widget.question.type)) ...[
-                  Text(
-                    'Answer Options',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ..._buildOptionEditors(),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: _addOption,
-                    icon: Icon(Icons.add),
-                    label: const Text('Add Option'),
-                  ),
-                ],
-
-                // Explanation
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _explanationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Explanation (Optional)',
-                    hintText: 'Explain the correct answer...',
-                  ),
-                  maxLines: 2,
-                  onChanged: (_) => _updateQuestion(),
-                ),
-              ],
+          title: Text(
+            widget.question.questionText.isEmpty
+                ? 'Question ${widget.index + 1}'
+                : widget.question.questionText,
+            style: AppTextStyles.bodyMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            '${_getQuestionTypeName(widget.question.type)} • ${widget.question.points} pts',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
-        ],
+          trailing: IconButton(
+            icon: Icon(Icons.delete_outline, color: AppColors.error),
+            onPressed: widget.onRemove,
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Question type and points
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: DropdownButtonFormField<QuestionType>(
+                          initialValue: widget.question.type,
+                          decoration: const InputDecoration(
+                            labelText: 'Question Type',
+                          ),
+                          items: QuestionType.values.map((type) {
+                            return DropdownMenuItem(
+                              value: type,
+                              child: Text(_getQuestionTypeName(type)),
+                            );
+                          }).toList(),
+                          onChanged: _changeQuestionType,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _pointsController,
+                          decoration: const InputDecoration(labelText: 'Points'),
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => _updateQuestion(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Question text
+                  TextFormField(
+                    controller: _questionTextController,
+                    decoration: const InputDecoration(
+                      labelText: 'Question Text',
+                      hintText: 'Enter your question here...',
+                    ),
+                    maxLines: 3,
+                    onChanged: (_) => _updateQuestion(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Answer options (for choice questions)
+                  if (_isChoiceQuestion(widget.question.type)) ...[
+                    Text(
+                      'Answer Options',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ..._buildOptionEditors(),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _addOption,
+                      icon: Icon(Icons.add),
+                      label: const Text('Add Option'),
+                    ),
+                  ],
+
+                  // Explanation
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _explanationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Explanation (Optional)',
+                      hintText: 'Explain the correct answer...',
+                    ),
+                    maxLines: 2,
+                    onChanged: (_) => _updateQuestion(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

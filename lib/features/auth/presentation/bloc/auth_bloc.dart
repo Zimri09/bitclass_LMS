@@ -30,17 +30,19 @@ class AuthRegisterRequested extends AuthEvent {
   final String email;
   final String password;
   final String role;
-  final String? displayName;
+  final String? firstName;
+  final String? lastName;
 
   const AuthRegisterRequested({
     required this.email,
     required this.password,
     required this.role,
-    this.displayName,
+    this.firstName,
+    this.lastName,
   });
 
   @override
-  List<Object?> get props => [email, password, role, displayName];
+  List<Object?> get props => [email, password, role, firstName, lastName];
 }
 
 class AuthLogoutRequested extends AuthEvent {}
@@ -195,7 +197,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         email: event.email,
         password: event.password,
         role: event.role,
-        displayName: event.displayName,
+        firstName: event.firstName,
+        lastName: event.lastName,
       );
       emit(AuthAuthenticated(user));
     } on EmailConfirmationRequiredException catch (e) {
