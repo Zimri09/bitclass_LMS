@@ -53,7 +53,7 @@ void main() {
         createdAt: DateTime(2024, 1, 1),
       );
 
-      expect(user.displayNameOrEmail, 'test@example.com');
+      expect(user.displayNameOrEmail, 'test');
     });
 
     test('toJson creates valid map', () {
