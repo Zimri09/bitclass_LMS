@@ -441,7 +441,10 @@ class AppRouter {
               return AppTransitions.slideFromBottom(
                 context: context,
                 state: state,
-                child: UploadFileScreen(courseId: courseId),
+                child: UploadFileScreen(
+                  courseId: courseId,
+                  lessonId: state.uri.queryParameters['lessonId'],
+                ),
               );
             },
           ),

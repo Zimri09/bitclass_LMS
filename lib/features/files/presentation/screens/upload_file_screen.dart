@@ -241,7 +241,11 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         },
         builder: (context, state) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Upload File')),
+            appBar: AppBar(
+              title: Text(
+                widget.lessonId == null ? 'Upload File' : 'Attach File to Lesson',
+              ),
+            ),
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(

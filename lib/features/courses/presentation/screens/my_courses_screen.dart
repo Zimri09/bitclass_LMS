@@ -214,7 +214,7 @@ class _InstructorCourseCard extends StatelessWidget {
         context.push('/courses/${course.id}/assignments/create');
         return;
       case 'files':
-        context.push(AppRoutes.uploadFilePath(course.id));
+        context.push(AppRoutes.filesPath(course.id));
         return;
       case 'publish':
         _togglePublish(context);

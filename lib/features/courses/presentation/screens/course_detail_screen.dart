@@ -767,11 +767,11 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               ),
               _buildInstructorAction(
                 context,
-                icon: Icons.upload_file_outlined,
-                label: 'Upload Files',
+                icon: Icons.folder_copy_outlined,
+                label: 'Course materials',
                 color: AppColors.success,
                 onTap: () => context
-                    .push(AppRoutes.uploadFilePath(course.id))
+                    .push(AppRoutes.filesPath(course.id))
                     .then((_) => _refreshContent()),
               ),
             ],

@@ -101,4 +101,8 @@ class AppRoutes {
   static String filesPath(String courseId) => '/courses/$courseId/files';
   static String uploadFilePath(String courseId) =>
       '/courses/$courseId/files/upload';
+  static String uploadLessonFilePath(String courseId, String lessonId) => Uri(
+    path: uploadFilePath(courseId),
+    queryParameters: {'lessonId': lessonId},
+  ).toString();
 }

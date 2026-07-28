@@ -21,6 +21,7 @@ class FileListScreen extends StatefulWidget {
 class _FileListScreenState extends State<FileListScreen> {
   final TextEditingController _searchController = TextEditingController();
   FileType? _selectedFilter;
+  int _reloadKey = 0;
 
   @override
   void dispose() {
@@ -30,18 +31,19 @@ class _FileListScreenState extends State<FileListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) =>
-          FileBloc(fileRepository: context.read<FileRepository>())
-            ..add(LoadCourseFiles(courseId: widget.courseId)),
-      child: Scaffold(
+    return KeyedSubtree(
+      key: ValueKey(_reloadKey),
+      child: BlocProvider(
+        create: (context) =>
+            FileBloc(fileRepository: context.read<FileRepository>())
+              ..add(LoadCourseFiles(courseId: widget.courseId)),
+        child: Scaffold(
         appBar: AppBar(
           title: const Text('Course Materials'),
           actions: [
             IconButton(
               icon: Icon(Icons.upload_file),
-              onPressed: () =>
-                  context.push('/courses/${widget.courseId}/files/upload'),
+              onPressed: _openUpload,
               tooltip: 'Upload File',
             ),
           ],
@@ -107,6 +109,7 @@ class _FileListScreenState extends State<FileListScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -248,8 +251,7 @@ class _FileListScreenState extends State<FileListScreen> {
           if (!hasFilter) ...[
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () =>
-                  context.push('/courses/${widget.courseId}/files/upload'),
+              onPressed: _openUpload,
               icon: Icon(Icons.upload_file),
               label: const Text('Upload File'),
             ),
@@ -257,6 +259,13 @@ class _FileListScreenState extends State<FileListScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openUpload() async {
+    await context.push('/courses/${widget.courseId}/files/upload');
+    if (mounted) {
+      setState(() => _reloadKey++);
+    }
   }
 
   Widget _buildFileCard(BuildContext context, CourseFile file) {

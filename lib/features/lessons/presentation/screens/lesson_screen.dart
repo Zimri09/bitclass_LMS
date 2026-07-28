@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/lesson_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../courses/data/repositories/course_repository.dart';
+import '../../../files/data/models/models.dart';
+import '../../../files/data/repositories/file_repository.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 import '../bloc/lesson_bloc.dart';
@@ -29,6 +32,7 @@ class LessonScreen extends StatefulWidget {
 
 class _LessonScreenState extends State<LessonScreen> {
   late LessonBloc _lessonBloc;
+  late Future<List<CourseFile>> _attachments;
   final ScrollController _scrollController = ScrollController();
 
   bool get _isInstructor {
@@ -51,6 +55,10 @@ class _LessonScreenState extends State<LessonScreen> {
     _lessonBloc = LessonBloc(
       lessonRepository: context.read<LessonRepository>(),
     );
+    _attachments = context.read<FileRepository>().getLessonFiles(
+      widget.courseId,
+      widget.lessonId,
+    );
     _loadLesson();
   }
 
@@ -69,6 +77,10 @@ class _LessonScreenState extends State<LessonScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.courseId != widget.courseId ||
         oldWidget.lessonId != widget.lessonId) {
+      _attachments = context.read<FileRepository>().getLessonFiles(
+        widget.courseId,
+        widget.lessonId,
+      );
       _loadLesson();
     }
   }
@@ -188,6 +200,8 @@ class _LessonScreenState extends State<LessonScreen> {
             _buildLessonHeader(context, state),
             // Lesson content
             _buildLessonContent(context, state.lesson),
+            // Files added through "Save and attach" stay with this lesson.
+            _buildAttachments(),
           ],
         ),
       );
@@ -341,6 +355,99 @@ class _LessonScreenState extends State<LessonScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: MarkdownContent(content: content, selectable: true),
         );
+    }
+  }
+
+  Widget _buildAttachments() {
+    return FutureBuilder<List<CourseFile>>(
+      future: _attachments,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final attachments = snapshot.data;
+        if (snapshot.hasError || attachments == null || attachments.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.attach_file, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Attachments',
+                    style: GoogleFonts.inter(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...attachments.map(
+                (file) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.insert_drive_file_outlined),
+                  title: Text(
+                    file.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    file.description.isEmpty
+                        ? file.formattedSize
+                        : file.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const Icon(Icons.open_in_new),
+                  onTap: () => _openAttachment(file),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openAttachment(CourseFile file) async {
+    try {
+      final opened = await launchUrl(
+        Uri.parse(file.url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw StateError('No application can open this file.');
+
+      try {
+        await context.read<FileRepository>().recordDownload(
+          widget.courseId,
+          file.id,
+        );
+      } catch (_) {
+        // A read-only student can still open the attachment.
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this attachment.')),
+      );
     }
   }
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
+
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../data/models/lesson_model.dart';
@@ -103,16 +105,17 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
     }
   }
 
-  Future<void> _saveLesson() async {
+  Future<void> _saveLesson({bool attachAfterSave = false}) async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
     try {
       final repo = context.read<LessonRepository>();
       final now = DateTime.now();
+      String? savedLessonId = widget.lessonId;
 
       if (widget.lessonId == null) {
-        await repo.createLesson(
+        final lesson = await repo.createLesson(
           courseId: widget.courseId,
           moduleId:
               _moduleId ??
@@ -132,6 +135,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           durationMinutes: int.tryParse(_durationController.text) ?? 10,
           isPublished: _isPublished,
         );
+        savedLessonId = lesson.id;
       } else {
         await repo.updateLesson(widget.courseId, widget.lessonId!, {
           'title': _titleController.text.trim(),
@@ -152,6 +156,14 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
       }
 
       if (mounted) {
+        if (attachAfterSave && savedLessonId != null) {
+          await context.push(
+            AppRoutes.uploadLessonFilePath(widget.courseId, savedLessonId),
+          );
+          if (mounted) context.pop(true);
+          return;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -162,12 +174,12 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
             backgroundColor: AppColors.success,
           ),
         );
-        context.pop();
+        context.pop(true);
       }
     } catch (e) {
       _showError('Failed to save lesson: $e');
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -194,23 +206,25 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           indicatorColor: AppColors.primary,
         ),
         actions: [
-          if (!_isLoading)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: FilledButton(
-                onPressed: _isSaving ? null : _saveLesson,
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Save'),
-              ),
+          if (!_isLoading) ...[
+            TextButton(
+              onPressed: _isSaving ? null : _saveLesson,
+              child: const Text('Save'),
             ),
+            IconButton(
+              tooltip: 'Save and attach a file',
+              onPressed: _isSaving
+                  ? null
+                  : () => _saveLesson(attachAfterSave: true),
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.attach_file),
+            ),
+          ],
         ],
       ),
       body: _isLoading
