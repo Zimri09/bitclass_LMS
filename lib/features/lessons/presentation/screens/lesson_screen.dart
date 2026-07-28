@@ -7,6 +7,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/lesson_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../courses/data/repositories/course_repository.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 import '../bloc/lesson_bloc.dart';
@@ -517,25 +518,54 @@ class _LessonScreenState extends State<LessonScreen> {
     context.go(AppRoutes.courseDetailPath(widget.courseId));
   }
 
-  void _markComplete() {
+  Future<void> _markComplete() async {
     if (_isInstructor) {
       return;
     }
-    
+
     final userId = _currentUserId;
     if (userId == null) {
       return; // Cannot mark complete if not logged in
     }
 
-    _lessonBloc.add(
-      MarkLessonComplete(
-        courseId: widget.courseId,
-        lessonId: widget.lessonId,
-        // TODO: In production, fetch the actual enrollment ID. For testing we pass an empty UUID.
-        enrollmentId: '00000000-0000-0000-0000-000000000000', 
-        userId: userId,
-      ),
-    );
+    try {
+      final enrollment = await context.read<CourseRepository>().getEnrollment(
+        widget.courseId,
+        userId,
+      );
+      if (!mounted) return;
+
+      if (enrollment == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Enroll in this course before marking lessons complete.',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+
+      _lessonBloc.add(
+        MarkLessonComplete(
+          courseId: widget.courseId,
+          lessonId: widget.lessonId,
+          enrollmentId: enrollment.id,
+          userId: userId,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Unable to confirm course enrollment. Please try again.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   void _showLessonInfo(BuildContext context, LessonModel lesson) {

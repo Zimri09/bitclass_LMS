@@ -83,8 +83,7 @@ demo data. Record the build, device, account role, evidence link, and result
 - [ ] Lesson text/Markdown, code blocks, video URLs, and navigation render correctly.
 - [ ] Student can access only lessons permitted by course/enrollment/publish status.
 - [ ] Completing a lesson creates or updates progress using the student's real
-      enrollment ID. The current UI sends a placeholder all-zero enrollment ID,
-      so this is expected to fail against strict backend validation.
+      enrollment ID, and shows a recoverable error when enrollment cannot be confirmed.
 - [ ] Completion, last-accessed state, and syllabus progress persist after restart.
 - [ ] Large lesson content loads without jank, excessive memory use, or broken Markdown.
 
@@ -143,16 +142,25 @@ demo data. Record the build, device, account role, evidence link, and result
 
 - [ ] Restore a reliable analyzer/test run. During this audit, `flutter analyze`
       and `flutter test` timed out, including a targeted model test.
-- [ ] Replace the lesson completion placeholder enrollment UUID with a real
-      enrollment lookup before validating progress persistence.
-- [ ] Implement or remove simulated profile-avatar actions.
-- [ ] Implement push-notification platform integration or relabel the feature as
-      in-app notification settings only.
+- [x] Lesson completion resolves the authenticated student's real enrollment ID
+      before creating progress.
+- [x] Demo-only profile-avatar controls are hidden outside demo mode.
+- [x] Push-delivery controls are disabled outside demo mode until a platform
+      integration exists.
+- [ ] Implement push-notification platform integration before enabling device
+      delivery in development or production.
 - [ ] Add widget/integration tests for authentication, role restrictions,
       enrollment, lesson progress, submission/grading, quiz attempts, files,
       and RLS-denied requests.
 - [ ] Review RLS policy intent: several course-content read policies permit any
       authenticated user to read published-course data, and the replies policy
       does not check enrollment or course publication.
-- [ ] Add explicit router guards for instructor-only grading and student-list
-      URLs; database RLS must remain the authoritative protection.
+- [x] Add `harden_rls.sql` to require enrollment for protected course-content,
+      discussion, file-metadata, and lesson-progress access. Deployment and
+      live RLS verification are still required.
+- [ ] Move file downloads from public URLs to signed URLs before making the
+      storage bucket private.
+- [ ] Separate quiz question prompts from answer keys before allowing students
+      to read quiz questions through the client API.
+- [x] Add explicit router guards for instructor-only grading and student-list
+      URLs; database RLS remains the authoritative protection.

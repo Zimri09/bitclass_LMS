@@ -96,6 +96,29 @@ create trigger profiles_updated_at
 before update on public.profiles
 for each row execute function public.set_updated_at();
 
+create schema if not exists private;
+revoke all on schema private from public;
+
+-- Authenticated clients may update their profile, but not elevate their role.
+create or replace function private.prevent_client_role_change()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, auth
+as $$
+begin
+  if (select auth.uid()) is not null
+     and new.role is distinct from old.role then
+    raise exception 'Profile roles can only be changed by a privileged server action';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_role_immutable on public.profiles;
+create trigger profiles_role_immutable
+  before update of role on public.profiles
+  for each row execute function private.prevent_client_role_change();
+
 -- Auto-create a profile row when a new auth user signs up.
 create or replace function public.handle_new_user()
 returns trigger
@@ -109,12 +132,15 @@ begin
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
-    coalesce((new.raw_user_meta_data->>'role')::user_role, 'student'::user_role)
+    case
+      when new.raw_user_meta_data->>'role' = 'instructor'
+        then 'instructor'::user_role
+      else 'student'::user_role
+    end
   )
   on conflict (id) do update set
     email = excluded.email,
     display_name = coalesce(excluded.display_name, public.profiles.display_name),
-    role = coalesce(excluded.role, public.profiles.role),
     updated_at = timezone('utc', now());
   return new;
 end;
@@ -483,7 +509,8 @@ create trigger notification_settings_updated_at
 before update on public.notification_settings
 for each row execute function public.set_updated_at();
 
--- Helper function: get current user's role without hitting profiles RLS
+-- Helper function: get the stored role without hitting profiles RLS.
+-- Authorization must not trust user-editable auth metadata.
 create or replace function public.current_user_role()
 returns text
 language sql
@@ -493,7 +520,6 @@ set search_path = public, auth
 as $$
   select coalesce(
     (select role::text from public.profiles where id = auth.uid()),
-    (select raw_user_meta_data->>'role' from auth.users where id = auth.uid()),
     'student'
   );
 $$;

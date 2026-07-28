@@ -1,3 +1,5 @@
+-- DEPRECATED: Run harden_rls.sql after this file if this legacy patch is
+-- required for an existing project. harden_rls.sql replaces the policies here.
 -- ============================================================
 -- Fix: Infinite recursion in profiles RLS policy
 -- ============================================================
@@ -6,7 +8,7 @@
 -- triggers the same policy again → infinite loop → 500 error.
 --
 -- Solution: Create a SECURITY DEFINER function that reads the
--- role from auth.users.raw_user_meta_data (bypasses RLS).
+-- stored profile role (bypasses RLS without trusting auth metadata).
 -- ============================================================
 
 -- 1. Helper function: get current user's role without hitting profiles RLS
@@ -18,10 +20,8 @@ security definer
 set search_path = public, auth
 as $$
   select coalesce(
-    -- First try the profiles table directly (bypasses RLS because SECURITY DEFINER)
+    -- Read profiles directly (bypasses RLS because SECURITY DEFINER).
     (select role::text from public.profiles where id = auth.uid()),
-    -- Fallback to auth metadata
-    (select raw_user_meta_data->>'role' from auth.users where id = auth.uid()),
     'student'
   );
 $$;

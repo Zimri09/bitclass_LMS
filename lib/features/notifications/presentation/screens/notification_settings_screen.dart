@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/config/environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
@@ -116,16 +117,23 @@ class NotificationSettingsView extends StatelessWidget {
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               subtitle: Text(
-                'Receive notifications on your device',
+                EnvironmentConfig.isDemoMode
+                    ? 'Receive notifications on your device'
+                    : 'Push delivery is not configured for this build',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               value: settings.pushEnabled,
               activeThumbColor: AppColors.primary,
-              onChanged: (value) {
-                context.read<NotificationBloc>().add(
-                  TogglePushNotifications(userId: userId, enabled: value),
-                );
-              },
+              onChanged: EnvironmentConfig.isDemoMode
+                  ? (value) {
+                      context.read<NotificationBloc>().add(
+                        TogglePushNotifications(
+                          userId: userId,
+                          enabled: value,
+                        ),
+                      );
+                    }
+                  : null,
             ),
           ),
         ),
@@ -334,7 +342,7 @@ class NotificationSettingsView extends StatelessWidget {
       trailing: Switch(
         value: settings.isTypeEnabled(type),
         activeThumbColor: AppColors.primary,
-        onChanged: settings.pushEnabled
+        onChanged: EnvironmentConfig.isDemoMode && settings.pushEnabled
             ? (value) {
                 context.read<NotificationBloc>().add(
                   ToggleNotificationType(

@@ -50,13 +50,16 @@ begin
       split_part(new.email, '@', 1)
     ),
     new.raw_user_meta_data->>'last_name',
-    coalesce((new.raw_user_meta_data->>'role')::user_role, 'student'::user_role)
+    case
+      when new.raw_user_meta_data->>'role' = 'instructor'
+        then 'instructor'::user_role
+      else 'student'::user_role
+    end
   )
   on conflict (id) do update set
     email      = excluded.email,
     first_name = coalesce(excluded.first_name, public.profiles.first_name),
     last_name  = coalesce(excluded.last_name,  public.profiles.last_name),
-    role       = coalesce(excluded.role,       public.profiles.role),
     updated_at = timezone('utc', now());
   return new;
 end;

@@ -486,26 +486,31 @@ class AppRouter {
       return AppRoutes.dashboard;
     }
 
-    // Instructor-only route guard: redirect non-instructors to dashboard
-    if (authState is AuthAuthenticated && authState.user.role != 'instructor') {
-      const instructorPrefixes = ['/courses/create', '/courses/'];
-      final loc = state.matchedLocation;
-      final isCreateEdit =
-          loc == '/courses/create' ||
-          (loc.contains('/lessons/create') ||
-              loc.contains('/lessons/') && loc.endsWith('/edit') ||
-              loc.contains('/quizzes/create') ||
-              loc.contains('/assignments/create') ||
-              loc.contains('/assignments/') && loc.endsWith('/edit') ||
-              loc.endsWith('/files/upload') ||
-              loc.endsWith('/edit') &&
-                  RegExp(r'/courses/[^/]+/edit$').hasMatch(loc));
-      if (isCreateEdit) {
-        return AppRoutes.dashboard;
-      }
+    if (authState is AuthAuthenticated && !_canManageCourse(authState)) {
+      if (_isInstructorOnlyPath(state.uri.path)) return AppRoutes.dashboard;
     }
 
     return null;
+  }
+
+  bool _canManageCourse(AuthAuthenticated authState) {
+    return authState.user.role == 'instructor' ||
+        authState.user.role == 'admin';
+  }
+
+  bool _isInstructorOnlyPath(String path) {
+    return [
+      RegExp(r'^/courses/create$'),
+      RegExp(r'^/courses/[^/]+/edit$'),
+      RegExp(r'^/courses/[^/]+/students$'),
+      RegExp(r'^/courses/[^/]+/lessons/create$'),
+      RegExp(r'^/courses/[^/]+/lessons/[^/]+/edit$'),
+      RegExp(r'^/courses/[^/]+/quizzes/create$'),
+      RegExp(r'^/courses/[^/]+/assignments/create$'),
+      RegExp(r'^/courses/[^/]+/assignments/[^/]+/edit$'),
+      RegExp(r'^/courses/[^/]+/assignments/[^/]+/grade$'),
+      RegExp(r'^/courses/[^/]+/files/upload$'),
+    ].any((pattern) => pattern.hasMatch(path));
   }
 }
 

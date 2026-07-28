@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/config/environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/glow_card.dart';
@@ -268,32 +269,33 @@ class _ProfileBodyState extends State<_ProfileBody> {
                         ),
                       ),
               ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: GestureDetector(
-                  onTap: isUploading
-                      ? null
-                      : () => _showAvatarOptions(context),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.background,
-                        width: 2,
+              if (EnvironmentConfig.isDemoMode)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: isUploading
+                        ? null
+                        : () => _showAvatarOptions(context),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.background,
+                          width: 2,
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Icons.camera_alt,
-                      size: 15,
-                      color: Colors.white,
+                      child: Icon(
+                        Icons.camera_alt,
+                        size: 15,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
