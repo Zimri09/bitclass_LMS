@@ -3215,6 +3215,34 @@ class _UploadWidgetState extends State<UploadWidget> {
       .toList();
   }
 
+  /// Gets a student's saved progress for the supplied lessons in one query.
+  Future<List<LessonProgressModel>> getLessonProgressForLessons({
+    required List<String> lessonIds,
+    required String userId,
+  }) async {
+    if (lessonIds.isEmpty) return const [];
+
+    if (EnvironmentConfig.isDemoMode) {
+      return _demoProgress
+          .where(
+            (progress) =>
+                progress.userId == userId && lessonIds.contains(progress.lessonId),
+          )
+          .toList();
+    }
+
+    final rows = await _supabase!
+        .from(_lessonProgressTable)
+        .select()
+        .eq('user_id', userId)
+        .inFilter('lesson_id', lessonIds);
+
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map((row) => _progressFromRow(row, row['id'] as String))
+        .toList();
+  }
+
   /// Mark a lesson as complete
   Future<LessonProgressModel> markLessonComplete({
     required String courseId,

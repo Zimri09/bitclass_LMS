@@ -108,6 +108,12 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   Future<void> _saveLesson({bool attachAfterSave = false}) async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (attachAfterSave && !_isPublished) {
+      final shouldPublish = await _confirmPublishBeforeAttaching();
+      if (shouldPublish != true || !mounted) return;
+      setState(() => _isPublished = true);
+    }
+
     setState(() => _isSaving = true);
     try {
       final repo = context.read<LessonRepository>();
@@ -189,6 +195,29 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
     );
   }
 
+  Future<bool?> _confirmPublishBeforeAttaching() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Publish lesson?'),
+        content: const Text(
+          'Students can only see attachments in published lessons. '
+          'Publish this lesson and continue to attach the file?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep draft'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Publish & attach'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -212,7 +241,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               child: const Text('Save'),
             ),
             IconButton(
-              tooltip: 'Save and attach a file',
+              tooltip: 'Publish and attach a file',
               onPressed: _isSaving
                   ? null
                   : () => _saveLesson(attachAfterSave: true),
@@ -222,7 +251,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.attach_file),
+                  : const Icon(Icons.publish_outlined),
             ),
           ],
         ],

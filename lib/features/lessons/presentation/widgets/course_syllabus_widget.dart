@@ -39,7 +39,13 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
   }
 
   void _loadModulesAndLessons() {
-    _lessonBloc.add(LoadModulesAndLessons(widget.courseId));
+    final authState = context.read<AuthBloc>().state;
+    final userId = authState is AuthAuthenticated &&
+            authState.user.role != 'instructor'
+        ? authState.user.id
+        : null;
+
+    _lessonBloc.add(LoadModulesAndLessons(widget.courseId, userId: userId));
   }
 
   @override

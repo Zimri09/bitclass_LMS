@@ -19,11 +19,12 @@ abstract class LessonEvent extends Equatable {
 /// Load all modules and lessons for a course
 class LoadModulesAndLessons extends LessonEvent {
   final String courseId;
+  final String? userId;
 
-  const LoadModulesAndLessons(this.courseId);
+  const LoadModulesAndLessons(this.courseId, {this.userId});
 
   @override
-  List<Object?> get props => [courseId];
+  List<Object?> get props => [courseId, userId];
 }
 
 /// Load a specific lesson's details
@@ -411,6 +412,16 @@ class LessonBloc extends Bloc<LessonEvent, LessonState> {
     try {
       final modules = await _lessonRepository.getModules(event.courseId);
       final allLessons = await _lessonRepository.getLessons(event.courseId);
+      final progress = event.userId == null
+          ? const <LessonProgressModel>[]
+          : await _lessonRepository.getLessonProgressForLessons(
+              lessonIds: allLessons.map((lesson) => lesson.id).toList(),
+              userId: event.userId!,
+            );
+      final progressByLesson = {
+        for (final item in progress) item.lessonId: item,
+      };
+      final completedLessons = progress.where((item) => item.isCompleted).length;
 
       // Group lessons by module
       final lessonsByModule = <String, List<LessonModel>>{};
@@ -425,9 +436,12 @@ class LessonBloc extends Bloc<LessonEvent, LessonState> {
           courseId: event.courseId,
           modules: modules,
           lessonsByModule: lessonsByModule,
+          progressByLesson: progressByLesson,
           totalLessons: allLessons.length,
-          completedLessons: 0, // Will be updated with enrollment context
-          completionPercentage: 0.0,
+          completedLessons: completedLessons,
+          completionPercentage: allLessons.isEmpty
+              ? 0.0
+              : completedLessons / allLessons.length,
         ),
       );
     } catch (e) {
