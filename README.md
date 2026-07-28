@@ -55,6 +55,8 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
        enrollment-based access rules used by the app
     - Run `supabase/restrict_course_access.sql` after hardening to require a
       class code before students can view or join a course
+    - If an account selected as an instructor is denied course creation, run
+      `supabase/fix_instructor_role.sql` with that account's sign-in email
     - If file metadata writes are denied after hardening, run
      `supabase/fix_file_metadata_policy.sql` last and retry the upload
    - Update `supabaseUrl`, `supabaseAnonKey`, and `storageBucket` in `environment.dart`

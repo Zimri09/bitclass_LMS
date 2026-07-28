@@ -7,8 +7,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../shared/widgets/course_banner.dart';
-import '../../../../shared/widgets/glow_card.dart';
+import '../../../../shared/widgets/classroom_course_card.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/course_model.dart';
@@ -51,6 +50,10 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+    final canJoinClasses =
+        authState is AuthAuthenticated && authState.user.role == 'student';
+
     return Scaffold(
       body: BlocListener<CourseBloc, CourseState>(
         listener: (context, state) {
@@ -88,7 +91,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
           // App bar
           SliverAppBar(
             floating: true,
-            title: Text('My Classes', style: AppTextStyles.h3),
+            title: Text('Classes', style: AppTextStyles.h3),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(120),
               child: Padding(
@@ -100,7 +103,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                       controller: _searchController,
                       onSubmitted: (_) => _loadCourses(),
                       decoration: InputDecoration(
-                        hintText: 'Search courses...',
+                        hintText: 'Search your classes...',
                         prefixIcon: Icon(Icons.search),
                         suffixIcon: _searchController.text.isNotEmpty
                             ? IconButton(
@@ -182,15 +185,20 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
         ],
       ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showJoinByCodeSheet(context),
-        backgroundColor: AppColors.secondary,
-        icon: const Icon(Icons.vpn_key_rounded, color: Colors.white),
-        label: const Text(
-          'Join with Code',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-      ),
+      floatingActionButton: canJoinClasses
+          ? FloatingActionButton.extended(
+              onPressed: () => _showJoinByCodeSheet(context),
+              backgroundColor: AppColors.secondary,
+              icon: const Icon(Icons.vpn_key_rounded, color: Colors.white),
+              label: const Text(
+                'Join class',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          : null,
     );
   }
 
@@ -459,90 +467,15 @@ class _CourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlowCard(
-      glowColor: AppColors.primary,
-      glowIntensity: 0.1,
-      padding: EdgeInsets.zero,
+    return ClassroomCourseCard(
+      course: course,
+      subtitle: course.description,
       onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
-      child: Row(
-        children: [
-          // Thumbnail
-          CourseBannerWidget(
-            thumbnailUrl: course.thumbnailUrl,
-            width: 100,
-            height: 100,
-            borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(12),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Category badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      course.category,
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Title
-                  Text(
-                    course.title,
-                    style: AppTextStyles.h4,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  // Instructor & stats
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 14,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          course.instructorName,
-                          style: AppTextStyles.caption,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Icon(
-                        Icons.people_outline,
-                        size: 14,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${course.enrollmentCount}',
-                        style: AppTextStyles.caption,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      footer: [
+        Icon(Icons.people_outline, size: 18, color: AppColors.textMuted),
+        const SizedBox(width: 4),
+        Text('${course.enrollmentCount}', style: AppTextStyles.caption),
+      ],
     );
   }
 }

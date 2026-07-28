@@ -144,7 +144,15 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
           pinned: true,
           leading: IconButton(
             icon: Icon(Icons.arrow_back),
-            onPressed: () => context.go(AppRoutes.courses),
+            onPressed: () {
+              final authState = context.read<AuthBloc>().state;
+              context.go(
+                authState is AuthAuthenticated &&
+                        authState.user.role == 'instructor'
+                    ? AppRoutes.myCourses
+                    : AppRoutes.dashboard,
+              );
+            },
           ),
           actions: [
             if (isOwnCourse)

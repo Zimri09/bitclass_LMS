@@ -102,18 +102,6 @@ class _DashboardContent extends StatelessWidget {
                     _buildStatsRow(dashState, isInstructor),
                     const SizedBox(height: 32),
 
-                    // Quick actions
-                    Text('Quick Actions', style: AppTextStyles.h3),
-                    const SizedBox(height: 16),
-                    _buildQuickActions(context, isInstructor),
-                    const SizedBox(height: 32),
-
-                    // Recent activity
-                    Text('Recent Activity', style: AppTextStyles.h3),
-                    const SizedBox(height: 16),
-                    _buildRecentActivity(context, dashState),
-                    const SizedBox(height: 32),
-
                     // Upcoming deadlines (for students)
                     if (!isInstructor) ...[
                       Text('Upcoming Deadlines', style: AppTextStyles.h3),

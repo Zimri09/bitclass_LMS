@@ -5,14 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../shared/widgets/course_banner.dart';
-import '../../../../shared/widgets/glow_card.dart';
+import '../../../../shared/widgets/classroom_course_card.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/course_model.dart';
 import '../../data/repositories/course_repository.dart';
 
-/// Screen showing instructor's created courses
+/// Classroom-style list of the courses managed by the signed-in instructor.
 class MyCoursesScreen extends StatefulWidget {
   const MyCoursesScreen({super.key});
 
@@ -39,18 +38,20 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
 
     try {
       final authState = context.read<AuthBloc>().state;
-      if (authState is AuthAuthenticated) {
-        final courses = await context
-            .read<CourseRepository>()
-            .getInstructorCourses(authState.user.id);
-        setState(() {
-          _courses = courses;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
+      if (authState is! AuthAuthenticated) return;
+
+      final courses = await context
+          .read<CourseRepository>()
+          .getInstructorCourses(authState.user.id);
+      if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _courses = courses;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
         _isLoading = false;
       });
     }
@@ -64,21 +65,18 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
         color: AppColors.primary,
         child: CustomScrollView(
           slivers: [
-            // App bar
             SliverAppBar(
               floating: true,
-              title: Text('My Courses', style: AppTextStyles.h3),
+              title: Text('Teaching', style: AppTextStyles.h3),
               actions: [
                 TextButton.icon(
                   onPressed: () => context.go(AppRoutes.createCourse),
-                  icon: Icon(Icons.add),
-                  label: const Text('New Course'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create class'),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
               ],
             ),
-
-            // Content
             if (_isLoading)
               const SliverCourseGridSkeleton()
             else if (_error != null)
@@ -89,18 +87,20 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
               SliverFillRemaining(
                 child: EmptyState(
                   icon: Icons.school_outlined,
-                  title: 'No courses yet',
-                  subtitle: 'Create your first course to start teaching',
+                  title: 'No classes yet',
+                  subtitle: 'Create your first class to start teaching',
                   action: ElevatedButton.icon(
                     onPressed: () => context.go(AppRoutes.createCourse),
-                    icon: Icon(Icons.add),
-                    label: const Text('Create Course'),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create class'),
                   ),
                 ),
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(
+                  MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+                ),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => Padding(
@@ -129,241 +129,122 @@ class _InstructorCourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlowCard(
-      glowColor: course.isPublished ? AppColors.success : AppColors.warning,
-      glowIntensity: 0.1,
+    return ClassroomCourseCard(
+      course: course,
+      subtitle: course.description,
+      statusLabel: course.isPublished ? 'Published' : 'Draft',
+      statusColor: course.isPublished ? AppColors.success : AppColors.warning,
       onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Thumbnail
-          CourseBannerWidget(
-            thumbnailUrl: course.thumbnailUrl,
-            width: 120,
-            height: 90,
-            borderRadius: BorderRadius.circular(8),
+      trailing: PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert, color: Colors.white),
+        onSelected: (value) => _handleAction(context, value),
+        itemBuilder: (context) => [
+          _menuItem('edit', Icons.edit_outlined, 'Edit class'),
+          _menuItem('content', Icons.menu_book_outlined, 'Manage content'),
+          const PopupMenuDivider(),
+          _menuItem('lesson', Icons.video_library_outlined, 'Add lesson'),
+          _menuItem('quiz', Icons.quiz_outlined, 'Add quiz'),
+          _menuItem('assignment', Icons.assignment_outlined, 'Add assignment'),
+          _menuItem('files', Icons.upload_file_outlined, 'Upload materials'),
+          const PopupMenuDivider(),
+          _menuItem(
+            'publish',
+            course.isPublished ? Icons.unpublished : Icons.publish,
+            course.isPublished ? 'Unpublish' : 'Publish',
           ),
-          const SizedBox(width: 16),
-
-          // Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    // Status badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            (course.isPublished
-                                    ? AppColors.success
-                                    : AppColors.warning)
-                                .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        course.isPublished ? 'Published' : 'Draft',
-                        style: AppTextStyles.caption.copyWith(
-                          color: course.isPublished
-                              ? AppColors.success
-                              : AppColors.warning,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        course.category,
-                        style: AppTextStyles.caption,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  course.title,
-                  style: AppTextStyles.h4,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  course.description,
-                  style: AppTextStyles.bodySmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _buildStat(
-                      Icons.people_outline,
-                      '${course.enrollmentCount}',
-                    ),
-                    const SizedBox(width: 16),
-                    _buildStat(
-                      Icons.menu_book_outlined,
-                      '${course.lessonCount}',
-                    ),
-                  ],
-                ),
+                Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                const SizedBox(width: 8),
+                Text('Delete', style: TextStyle(color: AppColors.error)),
               ],
             ),
           ),
+        ],
+      ),
+      footer: [
+        _stat(Icons.people_outline, '${course.enrollmentCount}'),
+        const SizedBox(width: 14),
+        _stat(Icons.menu_book_outlined, '${course.lessonCount}'),
+      ],
+    );
+  }
 
-          // Actions
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
-            onSelected: (value) {
-              switch (value) {
-                case 'edit':
-                  context.push(AppRoutes.editCoursePath(course.id));
-                  break;
-                case 'lessons':
-                  context.push('/courses/${course.id}');
-                  break;
-                case 'add_lesson':
-                  context.push('/courses/${course.id}/lessons/create');
-                  break;
-                case 'add_quiz':
-                  context.push('/courses/${course.id}/quizzes/create');
-                  break;
-                case 'add_assignment':
-                  context.push('/courses/${course.id}/assignments/create');
-                  break;
-                case 'upload_files':
-                  context.push(AppRoutes.uploadFilePath(course.id));
-                  break;
-                case 'publish':
-                  _togglePublish(context);
-                  break;
-                case 'delete':
-                  _showDeleteDialog(context);
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit, size: 20),
-                    SizedBox(width: 8),
-                    Text('Edit Course'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'lessons',
-                child: Row(
-                  children: [
-                    Icon(Icons.menu_book, size: 20),
-                    SizedBox(width: 8),
-                    Text('Manage Content'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'add_lesson',
-                child: Row(
-                  children: [
-                    Icon(Icons.video_library_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text('Add Lesson'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'add_quiz',
-                child: Row(
-                  children: [
-                    Icon(Icons.quiz_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text('Add Quiz'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'add_assignment',
-                child: Row(
-                  children: [
-                    Icon(Icons.assignment_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text('Add Assignment'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'upload_files',
-                child: Row(
-                  children: [
-                    Icon(Icons.upload_file_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text('Upload Files'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'publish',
-                child: Row(
-                  children: [
-                    Icon(
-                      course.isPublished ? Icons.unpublished : Icons.publish,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(course.isPublished ? 'Unpublish' : 'Publish'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, size: 20, color: AppColors.error),
-                    SizedBox(width: 8),
-                    Text('Delete', style: TextStyle(color: AppColors.error)),
-                  ],
-                ),
-              ),
-            ],
-          ),
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(width: 8),
+          Text(label),
         ],
       ),
     );
   }
 
+  Widget _stat(IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: AppColors.textMuted),
+        const SizedBox(width: 4),
+        Text(value, style: AppTextStyles.caption),
+      ],
+    );
+  }
+
+  void _handleAction(BuildContext context, String value) {
+    switch (value) {
+      case 'edit':
+        context.push(AppRoutes.editCoursePath(course.id));
+        return;
+      case 'content':
+        context.push(AppRoutes.courseDetailPath(course.id));
+        return;
+      case 'lesson':
+        context.push('/courses/${course.id}/lessons/create');
+        return;
+      case 'quiz':
+        context.push('/courses/${course.id}/quizzes/create');
+        return;
+      case 'assignment':
+        context.push('/courses/${course.id}/assignments/create');
+        return;
+      case 'files':
+        context.push(AppRoutes.uploadFilePath(course.id));
+        return;
+      case 'publish':
+        _togglePublish(context);
+        return;
+      case 'delete':
+        _showDeleteDialog(context);
+        return;
+    }
+  }
+
   Future<void> _togglePublish(BuildContext context) async {
     try {
-      final newState = !course.isPublished;
-      await context.read<CourseRepository>().togglePublish(course.id, newState);
+      final isNowPublished = !course.isPublished;
+      await context.read<CourseRepository>().togglePublish(
+        course.id,
+        isNowPublished,
+      );
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(newState ? 'Course published!' : 'Course unpublished'),
+          content: Text(isNowPublished ? 'Class published' : 'Class unpublished'),
           backgroundColor: AppColors.success,
         ),
       );
       onRefresh();
-    } catch (e) {
+    } catch (error) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update: $e'),
+          content: Text('Failed to update: $error'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -374,13 +255,9 @@ class _InstructorCourseCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Delete Course?',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
+        title: const Text('Delete class?'),
         content: Text(
-          'Are you sure you want to delete "${course.title}"? This action cannot be undone.',
-          style: TextStyle(color: AppColors.textSecondary),
+          'Delete "${course.title}"? This action cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -392,17 +269,19 @@ class _InstructorCourseCard extends StatelessWidget {
               Navigator.of(dialogContext).pop();
               try {
                 await context.read<CourseRepository>().deleteCourse(course.id);
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Course deleted'),
+                    content: const Text('Class deleted'),
                     backgroundColor: AppColors.success,
                   ),
                 );
                 onRefresh();
-              } catch (e) {
+              } catch (error) {
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Failed to delete: $e'),
+                    content: Text('Failed to delete: $error'),
                     backgroundColor: AppColors.error,
                   ),
                 );
@@ -413,16 +292,6 @@ class _InstructorCourseCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildStat(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: AppColors.textMuted),
-        const SizedBox(width: 4),
-        Text(text, style: AppTextStyles.caption),
-      ],
     );
   }
 }

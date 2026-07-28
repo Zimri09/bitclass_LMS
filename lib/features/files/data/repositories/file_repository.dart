@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
 import '../models/models.dart';
@@ -253,7 +254,9 @@ class FileRepository {
     required String uploaderId,
     required String uploaderName,
   }) async* {
-    final fileId = 'file-${DateTime.now().millisecondsSinceEpoch}';
+    // The deployed files table may use a UUID primary key. UUIDs are also
+    // valid when a newer database stores this identifier as text.
+    final fileId = const Uuid().v4();
     final startTime = DateTime.now();
 
     yield UploadProgress(
@@ -417,7 +420,7 @@ class FileRepository {
     required String uploaderId,
     required String uploaderName,
   }) async* {
-    final fileId = 'file-${DateTime.now().millisecondsSinceEpoch}';
+    final fileId = const Uuid().v4();
     final startTime = DateTime.now();
 
     yield UploadProgress(

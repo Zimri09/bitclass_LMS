@@ -531,20 +531,7 @@ class _AppShellState extends State<AppShell> {
         label: 'Home',
         path: AppRoutes.dashboard,
       ),
-      _NavItem(
-        icon: Icons.explore_outlined,
-        activeIcon: Icons.explore,
-        label: 'Courses',
-        path: AppRoutes.courses,
-      ),
-      if (isInstructor)
-        _NavItem(
-          icon: Icons.school_outlined,
-          activeIcon: Icons.school,
-          label: 'Teach',
-          path: AppRoutes.myCourses,
-        )
-      else
+      if (!isInstructor)
         _NavItem(
           icon: Icons.grade_outlined,
           activeIcon: Icons.grade,
@@ -566,7 +553,7 @@ class _AppShellState extends State<AppShell> {
       _NavItem(
         icon: Icons.dashboard_outlined,
         activeIcon: Icons.dashboard,
-        label: 'Dashboard',
+        label: 'Home',
         path: AppRoutes.dashboard,
       ),
       _NavItem(
@@ -575,19 +562,7 @@ class _AppShellState extends State<AppShell> {
         label: 'Todos',
         path: AppRoutes.todos,
       ),
-      _NavItem(
-        icon: Icons.explore_outlined,
-        activeIcon: Icons.explore,
-        label: 'Browse Courses',
-        path: AppRoutes.courses,
-      ),
       if (isInstructor) ...[
-        _NavItem(
-          icon: Icons.school_outlined,
-          activeIcon: Icons.school,
-          label: 'My Courses',
-          path: AppRoutes.myCourses,
-        ),
         _NavItem(
           icon: Icons.add_box_outlined,
           activeIcon: Icons.add_box,
@@ -595,12 +570,6 @@ class _AppShellState extends State<AppShell> {
           path: AppRoutes.createCourse,
         ),
       ] else ...[
-        _NavItem(
-          icon: Icons.bookmark_outline,
-          activeIcon: Icons.bookmark,
-          label: 'Enrolled Courses',
-          path: AppRoutes.enrolledCourses,
-        ),
         _NavItem(
           icon: Icons.grade_outlined,
           activeIcon: Icons.grade,

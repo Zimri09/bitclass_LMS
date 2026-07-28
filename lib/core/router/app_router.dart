@@ -7,12 +7,11 @@ import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
-import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/todos/presentation/screens/todos_list_screen.dart';
 import '../../features/todos/presentation/state/todos_cubit.dart';
 import '../../features/todos/data/repositories/todos_repository.dart';
 
-import '../../features/courses/presentation/screens/course_catalog_screen.dart';
+import '../../features/courses/presentation/screens/classroom_landing_screen.dart';
 import '../../features/courses/presentation/screens/course_detail_screen.dart';
 import '../../features/courses/presentation/screens/create_course_screen.dart';
 import '../../features/courses/presentation/screens/my_courses_screen.dart';
@@ -73,7 +72,7 @@ class AppRouter {
             pageBuilder: (context, state) => AppTransitions.fadeTransition(
               context: context,
               state: state,
-              child: const DashboardScreen(),
+              child: const ClassroomLandingScreen(),
             ),
           ),
           GoRoute(
@@ -109,7 +108,7 @@ class AppRouter {
             pageBuilder: (context, state) => AppTransitions.fadeTransition(
               context: context,
               state: state,
-              child: const CourseCatalogScreen(),
+              child: const ClassroomLandingScreen(),
             ),
           ),
           GoRoute(

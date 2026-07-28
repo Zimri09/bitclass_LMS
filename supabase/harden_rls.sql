@@ -145,7 +145,10 @@ begin
     target_lesson_count
   from public.profiles
   where id = authenticated_user_id
-  on conflict (course_id, user_id) do nothing
+  -- The function return column is also named course_id. Target the generated
+  -- unique constraint explicitly so PL/pgSQL cannot confuse it with that
+  -- output variable.
+  on conflict on constraint enrollments_course_id_user_id_key do nothing
   returning id into created_enrollment_id;
 
   if created_enrollment_id is null then

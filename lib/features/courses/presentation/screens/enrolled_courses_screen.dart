@@ -5,8 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../shared/widgets/course_banner.dart';
-import '../../../../shared/widgets/glow_card.dart';
+import '../../../../shared/widgets/classroom_course_card.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/course_model.dart';
@@ -77,7 +76,7 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
             // App bar
             SliverAppBar(
               floating: true,
-              title: Text('My Learning', style: AppTextStyles.h3),
+              title: Text('Classes', style: AppTextStyles.h3),
               actions: [
                 TextButton.icon(
                   onPressed: () => context.go(AppRoutes.courses),
@@ -100,12 +99,12 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
               SliverFillRemaining(
                 child: EmptyState(
                   icon: Icons.bookmark_outline,
-                  title: 'No courses yet',
-                  subtitle: 'Browse our catalog and enroll in a course',
+                  title: 'No classes yet',
+                  subtitle: 'Join a class with the code from your instructor',
                   action: ElevatedButton.icon(
                     onPressed: () => context.go(AppRoutes.courses),
                     icon: Icon(Icons.explore),
-                    label: const Text('Browse Courses'),
+                    label: const Text('Join a Class'),
                   ),
                 ),
               )
@@ -150,77 +149,17 @@ class _EnrolledCourseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final course = data.course;
 
-    return GlowCard(
-      glowColor: AppColors.primary,
-      glowIntensity: 0.1,
+    return ClassroomCourseCard(
+      course: course,
+      subtitle: '${data.enrollment.completedLessons} of ${data.enrollment.totalLessons} lessons complete',
+      statusLabel: data.enrollment.progress >= 1 ? 'Completed' : 'In progress',
+      statusColor: data.enrollment.progress >= 1
+          ? AppColors.success
+          : AppColors.primary,
       onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Thumbnail
-              CourseBannerWidget(
-                thumbnailUrl: course.thumbnailUrl,
-                width: 100,
-                height: 75,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              const SizedBox(width: 16),
-
-              // Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            course.category,
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      course.title,
-                      style: AppTextStyles.h4,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Instructor: ${course.instructorName}', style: AppTextStyles.bodySmall),
-                  ],
-                ),
-              ),
-
-              // Continue button
-              IconButton(
-                onPressed: () {
-                  context.go(AppRoutes.courseDetailPath(course.id));
-                },
-                icon: Icon(
-                  Icons.play_arrow,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      footer: [
+        Icon(Icons.play_circle_outline, size: 20, color: AppColors.primary),
+      ],
     );
   }
 }
