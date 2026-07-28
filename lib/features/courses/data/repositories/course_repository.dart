@@ -15,8 +15,6 @@ class CourseRepository {
 
   final SupabaseClient? _supabase;
   static const String _demoStudentUserId = 'demo-user-1';
-  static const String _demoStudentName = 'Demo Student';
-  static const String _demoStudentEmail = 'student@demo.com';
   static final Random _random = Random();
 
   /// Generate a unique 6-character alphanumeric course code
@@ -191,67 +189,6 @@ class CourseRepository {
     ]);
   }
 
-  void _syncDemoCourseToStudent(CourseModel course) {
-    if (!course.isPublished) return;
-
-    final enrollmentIndex = _demoEnrollments.indexWhere(
-      (e) => e.courseId == course.id && e.userId == _demoStudentUserId,
-    );
-
-    if (enrollmentIndex == -1) {
-      _demoEnrollments.add(
-        EnrollmentModel(
-          id: 'enroll-demo-sync-${course.id}',
-          courseId: course.id,
-          userId: _demoStudentUserId,
-          studentName: _demoStudentName,
-          studentEmail: _demoStudentEmail,
-          progress: 0.0,
-          completedLessons: 0,
-          totalLessons: course.lessonCount,
-          enrolledAt: DateTime.now(),
-        ),
-      );
-
-      final courseIndex = _demoCourses.indexWhere((c) => c.id == course.id);
-      if (courseIndex != -1) {
-        final current = _demoCourses[courseIndex];
-        _demoCourses[courseIndex] = CourseModel(
-          id: current.id,
-          title: current.title,
-          description: current.description,
-          category: current.category,
-          instructorId: current.instructorId,
-          instructorName: current.instructorName,
-          thumbnailUrl: current.thumbnailUrl,
-          enrollmentCount: current.enrollmentCount + 1,
-          lessonCount: current.lessonCount,
-          isPublished: current.isPublished,
-          createdAt: current.createdAt,
-          updatedAt: current.updatedAt,
-        );
-      }
-      return;
-    }
-
-    final existing = _demoEnrollments[enrollmentIndex];
-    if (existing.totalLessons != course.lessonCount) {
-      _demoEnrollments[enrollmentIndex] = EnrollmentModel(
-        id: existing.id,
-        courseId: existing.courseId,
-        userId: existing.userId,
-        studentName: existing.studentName,
-        studentEmail: existing.studentEmail,
-        progress: existing.progress,
-        completedLessons: existing.completedLessons,
-        totalLessons: course.lessonCount,
-        enrolledAt: existing.enrolledAt,
-        completedAt: existing.completedAt,
-        lastAccessedAt: existing.lastAccessedAt,
-      );
-    }
-  }
-
   CourseModel _courseFromRow(Map<String, dynamic> row, String id) {
     return CourseModel.fromMap({
       'title': row['title'],
@@ -269,32 +206,75 @@ class CourseRepository {
     }, id);
   }
 
-  /// Find a course by its join code (case-insensitive)
-  Future<CourseModel?> getCourseByCode(String code) async {
+  /// Validates a code and enrolls the authenticated student in one operation.
+  Future<({CourseModel course, EnrollmentModel enrollment})> joinCourseByCode({
+    required String code,
+    required String userId,
+    String? studentName,
+    String? studentEmail,
+  }) async {
     final upperCode = code.trim().toUpperCase();
     if (EnvironmentConfig.isDemoMode) {
       try {
-        return _demoCourses.firstWhere(
-          (c) => c.courseCode.toUpperCase() == upperCode,
+        final course = _demoCourses.firstWhere(
+          (c) =>
+              c.courseCode.toUpperCase() == upperCode && c.isPublished,
         );
-      } catch (_) {
-        return null;
+        if (_demoEnrollments.any(
+          (e) => e.courseId == course.id && e.userId == userId,
+        )) {
+          throw Exception('You are already enrolled in this course.');
+        }
+
+        final enrollment = EnrollmentModel(
+          id: 'enrollment-${DateTime.now().millisecondsSinceEpoch}',
+          courseId: course.id,
+          userId: userId,
+          studentName: studentName,
+          studentEmail: studentEmail,
+          progress: 0.0,
+          completedLessons: 0,
+          totalLessons: course.lessonCount,
+          enrolledAt: DateTime.now(),
+        );
+        _demoEnrollments.add(enrollment);
+
+        final courseIndex = _demoCourses.indexWhere((c) => c.id == course.id);
+        final current = _demoCourses[courseIndex];
+        _demoCourses[courseIndex] = current.copyWith(
+          enrollmentCount: current.enrollmentCount + 1,
+          updatedAt: DateTime.now(),
+        );
+        return (course: _demoCourses[courseIndex], enrollment: enrollment);
+      } on StateError {
+        throw Exception('Invalid course code. Please check and try again.');
       }
     }
 
-    try {
-      final row = await _supabase!
-          .from(_coursesTable)
-          .select()
-          .eq('course_code', upperCode)
-          .maybeSingle();
-      if (row == null) return null;
-      return _courseFromRow(row, row['id'] as String);
-    } catch (e) {
-      if (kDebugMode)
-        log('Error fetching course by code: $e', name: 'CourseRepository');
-      return null;
+    final authenticatedUserId = _supabase!.auth.currentUser?.id;
+    if (authenticatedUserId == null || authenticatedUserId != userId) {
+      throw StateError('Your session has expired. Please sign in again.');
     }
+
+    final response = await _supabase!.rpc(
+      'join_course_by_code',
+      params: {'join_code': upperCode},
+    );
+    final rows = (response as List<dynamic>)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    if (rows.length != 1) {
+      throw StateError('Could not join this course. Please try again.');
+    }
+
+    final courseId = rows.single['course_id'] as String;
+    final course = await getCourse(courseId);
+    final enrollment = await getEnrollment(courseId, authenticatedUserId);
+    if (course == null || enrollment == null) {
+      throw StateError('Could not load the course after joining.');
+    }
+
+    return (course: course, enrollment: enrollment);
   }
 
   EnrollmentModel _enrollmentFromRow(Map<String, dynamic> row, String id) {
@@ -312,7 +292,7 @@ class CourseRepository {
     }, id);
   }
 
-  /// Get all published courses
+  /// Get published courses the current student is already enrolled in.
   Future<List<CourseModel>> getCourses({
     String? category,
     String? searchQuery,
@@ -321,7 +301,13 @@ class CourseRepository {
   }) async {
     // Demo mode: return filtered demo courses
     if (EnvironmentConfig.isDemoMode) {
-      var courses = _demoCourses.where((c) => c.isPublished).toList();
+      final enrolledCourseIds = _demoEnrollments
+          .where((e) => e.userId == _demoStudentUserId)
+          .map((e) => e.courseId)
+          .toSet();
+      var courses = _demoCourses
+          .where((c) => c.isPublished && enrolledCourseIds.contains(c.id))
+          .toList();
       if (category != null && category.isNotEmpty) {
         courses = courses.where((c) => c.category == category).toList();
       }
@@ -466,7 +452,6 @@ class CourseRepository {
         courseCode: code,
       );
       _demoCourses.add(course);
-      _syncDemoCourseToStudent(course);
       return course;
     }
 
@@ -487,34 +472,67 @@ class CourseRepository {
       if (existing == null) break;
     }
 
-    final row = await _supabase!
-        .from(_coursesTable)
-        .insert({
-          'title': title,
-          'description': description,
-          'category': category,
-          'instructor_id': instructorId,
-          'instructor_name': instructorName,
-          'thumbnail_url': thumbnailUrl,
-          'enrollment_count': 0,
-          'lesson_count': 0,
-          'is_published': false,
-          'created_at': now.toIso8601String(),
-          'course_code': supabaseCode,
-        })
-        .select()
-        .single();
+    late final Map<String, dynamic> row;
+    try {
+      row = await _supabase!
+          .from(_coursesTable)
+          .insert({
+            'title': title,
+            'description': description,
+            'category': category,
+            'instructor_id': instructorId,
+            'instructor_name': instructorName,
+            'thumbnail_url': thumbnailUrl,
+            'enrollment_count': 0,
+            'lesson_count': 0,
+            'is_published': false,
+            'created_at': now.toIso8601String(),
+            'course_code': supabaseCode,
+          })
+          .select()
+          .single();
+    } on PostgrestException catch (error, stackTrace) {
+      if (kDebugMode) {
+        log(
+          'Course insert failed: ${error.message}',
+          stackTrace: stackTrace,
+        );
+      }
+      throw Exception('Course record creation failed: ${error.message}');
+    }
 
     final course = _courseFromRow(row, row['id'] as String);
     if (thumbnailBytes == null) return course;
 
-    final uploadedThumbnailUrl = await uploadCourseThumbnail(
-      courseId: course.id,
-      imageBytes: thumbnailBytes,
-      extension: thumbnailExtension,
-      mimeType: thumbnailMimeType,
-    );
-    return updateCourse(course.id, {'thumbnailUrl': uploadedThumbnailUrl});
+    try {
+      final uploadedThumbnailUrl = await uploadCourseThumbnail(
+        courseId: course.id,
+        imageBytes: thumbnailBytes,
+        extension: thumbnailExtension,
+        mimeType: thumbnailMimeType,
+      );
+      return updateCourse(course.id, {'thumbnailUrl': uploadedThumbnailUrl});
+    } catch (error, stackTrace) {
+      // Keep course creation atomic from the instructor's perspective.
+      try {
+        await deleteCourse(course.id);
+      } catch (cleanupError, cleanupStackTrace) {
+        if (kDebugMode) {
+          log(
+            'Failed to remove course after banner upload failure: $cleanupError',
+            stackTrace: cleanupStackTrace,
+          );
+        }
+      }
+
+      if (kDebugMode) {
+        log(
+          'Course banner upload failed for ${course.id}: $error',
+          stackTrace: stackTrace,
+        );
+      }
+      rethrow;
+    }
   }
 
   /// Uploads a course banner and returns its public URL for `thumbnail_url`.
@@ -576,7 +594,6 @@ class CourseRepository {
         updatedAt: DateTime.now(),
       );
       _demoCourses[index] = updated;
-      _syncDemoCourseToStudent(updated);
       return updated;
     }
 
@@ -617,86 +634,6 @@ class CourseRepository {
   /// Publish/unpublish a course
   Future<CourseModel> togglePublish(String courseId, bool publish) async {
     return updateCourse(courseId, {'isPublished': publish});
-  }
-
-  /// Enroll a student in a course
-  Future<EnrollmentModel> enrollInCourse({
-    required String courseId,
-    required String userId,
-    String? studentName,
-    String? studentEmail,
-  }) async {
-    // Check if already enrolled
-    final existing = await getEnrollment(courseId, userId);
-    if (existing != null) {
-      throw Exception('Already enrolled in this course');
-    }
-
-    final now = DateTime.now();
-    final course = await getCourse(courseId);
-    if (course == null) {
-      throw Exception('Course not found');
-    }
-
-    if (EnvironmentConfig.isDemoMode) {
-      final enrollment = EnrollmentModel(
-        id: 'enrollment-${DateTime.now().millisecondsSinceEpoch}',
-        courseId: courseId,
-        userId: userId,
-        studentName: studentName,
-        studentEmail: studentEmail,
-        progress: 0.0,
-        completedLessons: 0,
-        totalLessons: course.lessonCount,
-        enrolledAt: now,
-      );
-      _demoEnrollments.add(enrollment);
-
-      // Update demo course enrollment count
-      final courseIndex = _demoCourses.indexWhere((c) => c.id == courseId);
-      if (courseIndex != -1) {
-        final current = _demoCourses[courseIndex];
-        _demoCourses[courseIndex] = CourseModel(
-          id: current.id,
-          title: current.title,
-          description: current.description,
-          category: current.category,
-          instructorId: current.instructorId,
-          instructorName: current.instructorName,
-          thumbnailUrl: current.thumbnailUrl,
-          enrollmentCount: current.enrollmentCount + 1,
-          lessonCount: current.lessonCount,
-          isPublished: current.isPublished,
-          createdAt: current.createdAt,
-          updatedAt: current.updatedAt,
-        );
-      }
-      return enrollment;
-    }
-
-    final data = {
-      'course_id': courseId,
-      'user_id': userId,
-      'student_name': studentName,
-      'student_email': studentEmail,
-      'progress': 0.0,
-      'completed_lessons': 0,
-      'total_lessons': course.lessonCount,
-      'enrolled_at': now.toIso8601String(),
-    };
-
-    final row = await _supabase!
-        .from(_enrollmentsTable)
-        .insert(data)
-        .select()
-        .single();
-
-    await _supabase!
-        .from(_coursesTable)
-        .update({'enrollment_count': course.enrollmentCount + 1})
-        .eq('id', courseId);
-
-    return _enrollmentFromRow(row, row['id'] as String);
   }
 
   /// Get enrollment for a user in a course

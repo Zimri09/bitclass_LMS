@@ -14,7 +14,7 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/course_model.dart';
 import '../bloc/course_bloc.dart';
 
-/// Course catalog screen showing all available courses
+/// Student course list showing only classes the student has joined.
 class CourseCatalogScreen extends StatefulWidget {
   const CourseCatalogScreen({super.key});
 
@@ -88,7 +88,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
           // App bar
           SliverAppBar(
             floating: true,
-            title: Text('Browse Courses', style: AppTextStyles.h3),
+            title: Text('My Classes', style: AppTextStyles.h3),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(120),
               child: Padding(
@@ -154,10 +154,10 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                   return SliverFillRemaining(
                     child: EmptyState(
                       icon: Icons.school_outlined,
-                      title: 'No courses found',
+                      title: 'No classes joined yet',
                       subtitle: _selectedCategory != null
                           ? 'Try a different category'
-                          : 'Check back later for new courses',
+                          : 'Use your instructor\'s class code to join one',
                     ),
                   );
                 }

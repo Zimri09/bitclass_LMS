@@ -464,9 +464,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                       backgroundColor: AppColors.success,
                     ),
                   );
-                  // After creating a course, take instructor to file upload
-                  // so they can immediately add course materials.
-                  context.go(AppRoutes.uploadFilePath(state.course.id));
+                  // File uploads are optional. Avoid treating a later upload
+                  // failure as though the course itself was not created.
+                  context.go(AppRoutes.courseDetailPath(state.course.id));
                 } else if (state is CourseUpdated) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

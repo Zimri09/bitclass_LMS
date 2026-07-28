@@ -159,12 +159,21 @@ create table if not exists public.courses (
   instructor_id uuid not null references public.profiles(id) on delete cascade,
   instructor_name text not null,
   thumbnail_url text,
+  course_code text,
   enrollment_count integer not null default 0,
   lesson_count integer not null default 0,
   is_published boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+-- Existing projects created before course-code support need this too.
+alter table public.courses
+  add column if not exists course_code text;
+
+create unique index if not exists courses_course_code_unique_idx
+  on public.courses (course_code)
+  where course_code is not null;
 
 drop trigger if exists courses_updated_at on public.courses;
 create trigger courses_updated_at
@@ -592,8 +601,19 @@ create policy "profiles write own" on public.profiles
 create policy "profiles update own" on public.profiles
   for update using (auth.uid() = id);
 
-create policy "courses read published or own" on public.courses
-  for select using (is_published or instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('instructor', 'admin')));
+create policy "courses read enrolled or own" on public.courses
+  for select using (
+    instructor_id = auth.uid()
+    or public.current_user_role() = 'admin'
+    or (
+      is_published
+      and exists (
+        select 1
+        from public.enrollments e
+        where e.course_id = courses.id and e.user_id = auth.uid()
+      )
+    )
+  );
 create policy "courses manage instructors" on public.courses
   for all using (instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))
   with check (instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
@@ -612,9 +632,11 @@ create policy "lessons manage instructors" on public.lessons
 
 create policy "enrollments read own or instructors" on public.enrollments
   for select using (user_id = auth.uid() or exists (select 1 from public.courses c where c.id = course_id and c.instructor_id = auth.uid()) or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
-create policy "enrollments manage own" on public.enrollments
-  for all using (user_id = auth.uid())
+create policy "enrollments update own" on public.enrollments
+  for update using (user_id = auth.uid())
   with check (user_id = auth.uid());
+create policy "enrollments delete own" on public.enrollments
+  for delete using (user_id = auth.uid());
 
 create policy "lesson progress read own" on public.lesson_progress
   for select using (user_id = auth.uid() or exists (select 1 from public.courses c join public.enrollments e on e.course_id = c.id where e.id = enrollment_id and c.instructor_id = auth.uid()));
@@ -699,3 +721,76 @@ create policy "notification settings write own" on public.notification_settings
 
 create policy "device tokens manage own" on public.device_tokens
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Students can discover a course only by supplying its code. The function
+-- performs lookup, enrollment, and count maintenance as one server operation.
+create or replace function public.join_course_by_code(join_code text)
+returns table (course_id uuid, enrollment_id uuid)
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $$
+declare
+  authenticated_user_id uuid := (select auth.uid());
+  normalized_code text := upper(trim(join_code));
+  target_course_id uuid;
+  target_lesson_count integer;
+  created_enrollment_id uuid;
+begin
+  if authenticated_user_id is null then
+    raise exception 'Authentication is required';
+  end if;
+
+  if normalized_code !~ '^[A-Z0-9]{6}$' then
+    raise exception 'Invalid course code. Please check and try again.';
+  end if;
+
+  if public.current_user_role() <> 'student' then
+    raise exception 'Only student accounts can join courses.';
+  end if;
+
+  select id, lesson_count
+  into target_course_id, target_lesson_count
+  from public.courses
+  where course_code = normalized_code and is_published;
+
+  if target_course_id is null then
+    raise exception 'Invalid course code. Please check and try again.';
+  end if;
+
+  insert into public.enrollments (
+    course_id,
+    user_id,
+    student_name,
+    student_email,
+    progress,
+    completed_lessons,
+    total_lessons
+  )
+  select
+    target_course_id,
+    id,
+    display_name,
+    email,
+    0,
+    0,
+    target_lesson_count
+  from public.profiles
+  where id = authenticated_user_id
+  on conflict (course_id, user_id) do nothing
+  returning id into created_enrollment_id;
+
+  if created_enrollment_id is null then
+    raise exception 'You are already enrolled in this course.';
+  end if;
+
+  update public.courses
+  set enrollment_count = enrollment_count + 1
+  where id = target_course_id;
+
+  return query select target_course_id, created_enrollment_id;
+end;
+$$;
+
+revoke all on function public.join_course_by_code(text) from public;
+grant execute on function public.join_course_by_code(text) to authenticated;

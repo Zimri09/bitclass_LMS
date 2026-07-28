@@ -100,23 +100,6 @@ class ToggleCoursePublish extends CourseEvent {
   List<Object?> get props => [courseId, publish];
 }
 
-class EnrollInCourse extends CourseEvent {
-  final String courseId;
-  final String userId;
-  final String? studentName;
-  final String? studentEmail;
-
-  const EnrollInCourse({
-    required this.courseId,
-    required this.userId,
-    this.studentName,
-    this.studentEmail,
-  });
-
-  @override
-  List<Object?> get props => [courseId, userId, studentName, studentEmail];
-}
-
 class CheckEnrollment extends CourseEvent {
   final String courseId;
   final String userId;
@@ -203,15 +186,6 @@ class CourseUpdated extends CourseState {
 
 class CourseDeleted extends CourseState {}
 
-class CourseEnrolled extends CourseState {
-  final EnrollmentModel enrollment;
-
-  const CourseEnrolled(this.enrollment);
-
-  @override
-  List<Object?> get props => [enrollment];
-}
-
 class CourseError extends CourseState {
   final String message;
 
@@ -244,7 +218,6 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
     on<UpdateCourse>(_onUpdateCourse);
     on<DeleteCourse>(_onDeleteCourse);
     on<ToggleCoursePublish>(_onToggleCoursePublish);
-    on<EnrollInCourse>(_onEnrollInCourse);
     on<CheckEnrollment>(_onCheckEnrollment);
     on<JoinCourseByCode>(_onJoinCourseByCode);
   }
@@ -365,23 +338,6 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
     }
   }
 
-  Future<void> _onEnrollInCourse(
-    EnrollInCourse event,
-    Emitter<CourseState> emit,
-  ) async {
-    try {
-      final enrollment = await _courseRepository.enrollInCourse(
-        courseId: event.courseId,
-        userId: event.userId,
-        studentName: event.studentName,
-        studentEmail: event.studentEmail,
-      );
-      emit(CourseEnrolled(enrollment));
-    } catch (e) {
-      emit(CourseError(e.toString()));
-    }
-  }
-
   Future<void> _onCheckEnrollment(
     CheckEnrollment event,
     Emitter<CourseState> emit,
@@ -410,29 +366,19 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
   ) async {
     emit(CourseLoading());
     try {
-      // 1. Find the course by code
-      final course = await _courseRepository.getCourseByCode(event.code);
-      if (course == null) {
-        emit(const CourseError('Invalid course code. Please check and try again.'));
-        return;
-      }
-
-      // 2. Check if already enrolled
-      final existing = await _courseRepository.getEnrollment(course.id, event.userId);
-      if (existing != null) {
-        emit(const CourseError('You are already enrolled in this course.'));
-        return;
-      }
-
-      // 3. Enroll
-      final enrollment = await _courseRepository.enrollInCourse(
-        courseId: course.id,
+      final joined = await _courseRepository.joinCourseByCode(
+        code: event.code,
         userId: event.userId,
         studentName: event.studentName,
         studentEmail: event.studentEmail,
       );
 
-      emit(CourseJoinedByCode(course: course, enrollment: enrollment));
+      emit(
+        CourseJoinedByCode(
+          course: joined.course,
+          enrollment: joined.enrollment,
+        ),
+      );
     } catch (e) {
       emit(CourseError(e.toString()));
     }

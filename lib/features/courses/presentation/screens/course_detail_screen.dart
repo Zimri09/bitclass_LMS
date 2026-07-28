@@ -50,15 +50,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     return Scaffold(
       body: BlocConsumer<CourseBloc, CourseState>(
         listener: (context, state) {
-          if (state is CourseEnrolled) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Successfully enrolled in course!'),
-                backgroundColor: AppColors.success,
-              ),
-            );
-            _loadCourse();
-          } else if (state is CourseUpdated) {
+          if (state is CourseUpdated) {
             // Course was just edited (e.g. via the Edit Course screen, which
             // is pushed on top of this screen and shares this CourseBloc) or
             // published/unpublished via the toggle below. Without this,
@@ -694,22 +686,9 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     }
 
     return ElevatedButton.icon(
-      onPressed: () {
-        if (authState is AuthAuthenticated) {
-          context.read<CourseBloc>().add(
-            EnrollInCourse(
-              courseId: course.id,
-              userId: authState.user.id,
-              studentName: authState.user.displayName,
-              studentEmail: authState.user.email,
-            ),
-          );
-        } else {
-          context.go(AppRoutes.login);
-        }
-      },
-      icon: Icon(Icons.add),
-      label: const Text('Enroll in Course'),
+      onPressed: () => context.go(AppRoutes.courses),
+      icon: const Icon(Icons.vpn_key_rounded),
+      label: const Text('Join with Course Code'),
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.secondary,
         padding: const EdgeInsets.symmetric(vertical: 16),

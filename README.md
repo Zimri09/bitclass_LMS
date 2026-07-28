@@ -49,8 +49,14 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
    - Run the schema in `supabase/schema.sql` via the Supabase SQL editor
    - Run `supabase/setup_storage.sql` after the schema to create the
      `bitclass_storage` bucket and its upload permissions
-   - Run `supabase/harden_rls.sql` last to replace legacy policies with the
-     enrollment-based access rules used by the app
+   - For an existing project, run `supabase/add_course_code.sql` to enable
+     course creation and join-by-code
+    - Run `supabase/harden_rls.sql` last to replace legacy policies with the
+       enrollment-based access rules used by the app
+    - Run `supabase/restrict_course_access.sql` after hardening to require a
+      class code before students can view or join a course
+    - If file metadata writes are denied after hardening, run
+     `supabase/fix_file_metadata_policy.sql` last and retry the upload
    - Update `supabaseUrl`, `supabaseAnonKey`, and `storageBucket` in `environment.dart`
 
 4. **Run the app:**

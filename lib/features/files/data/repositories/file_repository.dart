@@ -336,37 +336,45 @@ class FileRepository {
         startedAt: startTime,
       );
 
-      await _supabase!.storage
-          .from(_storageBucket)
-          .uploadBinary(
-            storagePath,
-            fileData,
-            fileOptions: FileOptions(contentType: mimeType, upsert: false),
-          );
+      try {
+        await _supabase!.storage
+            .from(_storageBucket)
+            .uploadBinary(
+              storagePath,
+              fileData,
+              fileOptions: FileOptions(contentType: mimeType, upsert: false),
+            );
+      } catch (e) {
+        throw Exception('Storage upload failed: $e');
+      }
       uploadedToStorage = true;
 
       final publicUrl = _supabase!.storage
           .from(_storageBucket)
           .getPublicUrl(storagePath);
 
-      await _supabase!.from(_filesTable).insert({
-        'id': fileId,
-        'course_id': courseId,
-        'lesson_id': lessonId,
-        'uploader_id': uploaderId,
-        'uploader_name': uploaderName,
-        'name': fileName,
-        'description': description,
-        'bucket': _storageBucket,
-        'storage_path': storagePath,
-        'public_url': publicUrl,
-        'thumbnail_url': null,
-        'file_type': fileType.name,
-        'mime_type': mimeType,
-        'size_bytes': fileData.length,
-        'download_count': 0,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      try {
+        await _supabase!.from(_filesTable).insert({
+          'id': fileId,
+          'course_id': courseId,
+          'lesson_id': lessonId,
+          'uploader_id': uploaderId,
+          'uploader_name': uploaderName,
+          'name': fileName,
+          'description': description,
+          'bucket': _storageBucket,
+          'storage_path': storagePath,
+          'public_url': publicUrl,
+          'thumbnail_url': null,
+          'file_type': fileType.name,
+          'mime_type': mimeType,
+          'size_bytes': fileData.length,
+          'download_count': 0,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        throw Exception('File record save failed: $e');
+      }
 
       yield UploadProgress(
         fileId: fileId,
