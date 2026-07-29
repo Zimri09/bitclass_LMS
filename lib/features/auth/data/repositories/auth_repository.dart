@@ -554,6 +554,16 @@ class AuthRepository {
     if (text.contains('email rate limit exceeded')) {
       return Exception('Too many attempts. Please try again later');
     }
+    if (text.contains('error sending confirmation email') ||
+        text.contains('error sending recovery email') ||
+        (text.contains('unexpected_failure') &&
+            text.contains('sending') &&
+            text.contains('email'))) {
+      return Exception(
+        'The verification email could not be sent. '
+        'Please check the email service configuration and try again.',
+      );
+    }
     if (text.contains('user already registered')) {
       return Exception('An account already exists with this email');
     }
