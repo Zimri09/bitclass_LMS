@@ -602,7 +602,7 @@ class DiscussionRepository {
       return thread;
     }
 
-    await _supabase!.from(_threadsTable).upsert({
+    await _supabase!.from(_threadsTable).insert({
       'id': thread.id,
       'channel_id': thread.channelId,
       'course_id': thread.courseId,
@@ -621,16 +621,6 @@ class DiscussionRepository {
       'updated_at': thread.updatedAt?.toIso8601String(),
       'last_reply_at': thread.lastReplyAt?.toIso8601String(),
     });
-
-    await _supabase!
-        .from(_channelsTable)
-        .update({
-          'thread_count': await getChannel(
-            thread.channelId,
-          ).then((channel) => (channel?.threadCount ?? 0) + 1),
-          'last_activity_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', thread.channelId);
 
     return thread;
   }
@@ -758,7 +748,7 @@ class DiscussionRepository {
       return reply;
     }
 
-    await _supabase!.from(_repliesTable).upsert({
+    await _supabase!.from(_repliesTable).insert({
       'id': reply.id,
       'thread_id': reply.threadId,
       'channel_id': reply.channelId,
@@ -775,16 +765,6 @@ class DiscussionRepository {
       'created_at': reply.createdAt.toIso8601String(),
       'updated_at': reply.updatedAt?.toIso8601String(),
     });
-
-    await _supabase!
-        .from(_threadsTable)
-        .update({
-          'reply_count': await getThread(
-            reply.threadId,
-          ).then((thread) => (thread?.replyCount ?? 0) + 1),
-          'last_reply_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', reply.threadId);
 
     return reply;
   }

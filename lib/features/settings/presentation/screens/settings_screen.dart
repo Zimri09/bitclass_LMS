@@ -7,6 +7,7 @@ import '../../../../core/config/environment.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/app_shell.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../notifications/data/models/notification_model.dart';
 import '../../../notifications/data/models/notification_settings.dart';
@@ -78,6 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         return Scaffold(
           appBar: AppBar(
+            leading: const AppDrawerButton(),
             title: Text('Settings', style: AppTextStyles.h3),
           ),
           body: ListView(

@@ -8,6 +8,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/classroom_course_card.dart';
+import '../../../../shared/widgets/app_shell.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/course_model.dart';
@@ -91,6 +92,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
           // App bar
           SliverAppBar(
             floating: true,
+            leading: const AppDrawerButton(),
             title: Text('Classes', style: AppTextStyles.h3),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(120),

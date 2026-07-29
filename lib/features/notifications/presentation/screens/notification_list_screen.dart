@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../../shared/widgets/app_shell.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/notification_repository.dart';
@@ -52,6 +53,7 @@ class NotificationListView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AppDrawerButton(),
         title: const Text('Notifications'),
         actions: [
           IconButton(

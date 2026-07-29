@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/app_shell.dart';
 import '../../data/models/todo_model.dart';
 import '../state/todos_cubit.dart';
 
@@ -38,6 +39,7 @@ class _TodosListScreenState extends State<TodosListScreen>
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
+        leading: const AppDrawerButton(),
         title: const Text('To-do'),
         bottom: TabBar(
           controller: _tabController,

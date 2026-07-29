@@ -725,6 +725,31 @@ class CourseRepository {
     }
   }
 
+  /// Returns current public profile details for members of a course.
+  /// The database function deliberately exposes no email or private profile data.
+  Future<List<CourseRosterMember>> getCourseRoster(String courseId) async {
+    if (EnvironmentConfig.isDemoMode) {
+      return _demoEnrollments
+          .where((enrollment) => enrollment.courseId == courseId)
+          .map(
+            (enrollment) => CourseRosterMember(
+              userId: enrollment.userId,
+              displayName: enrollment.studentName ?? 'Student',
+            ),
+          )
+          .toList();
+    }
+
+    final rows = await _supabase!.rpc(
+      'get_course_roster',
+      params: {'target_course_id': courseId},
+    );
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(CourseRosterMember.fromMap)
+        .toList();
+  }
+
   /// Update enrollment progress
   Future<void> updateEnrollmentProgress({
     required String courseId,

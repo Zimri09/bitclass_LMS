@@ -469,9 +469,13 @@ create policy "threads: authors and managers write"
       and (select private.is_course_member(course_id))
       and exists (
         select 1
-        from public.discussion_channels
-        where id = channel_id
-          and course_id = threads.course_id
+      from public.discussion_channels dc
+      where dc.id = threads.channel_id
+        and dc.course_id = threads.course_id
+        and (
+          not dc.is_announcement
+          or (select private.can_manage_course(threads.course_id))
+        )
       )
     )
     or (select private.can_manage_course(course_id))

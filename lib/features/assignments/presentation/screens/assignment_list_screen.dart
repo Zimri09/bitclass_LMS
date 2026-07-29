@@ -16,8 +16,13 @@ import '../bloc/assignment_state.dart';
 /// Screen displaying list of assignments for a course
 class AssignmentListScreen extends StatefulWidget {
   final String courseId;
+  final bool embedded;
 
-  const AssignmentListScreen({super.key, required this.courseId});
+  const AssignmentListScreen({
+    super.key,
+    required this.courseId,
+    this.embedded = false,
+  });
 
   @override
   State<AssignmentListScreen> createState() => _AssignmentListScreenState();
@@ -70,67 +75,71 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final assignmentsBody = BlocBuilder<AssignmentBloc, AssignmentState>(
+      builder: (context, state) {
+        if (state is AssignmentsLoading) {
+          return Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          );
+        }
+
+        if (state is AssignmentError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                const SizedBox(height: 16),
+                Text(
+                  state.message,
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: _loadAssignments,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (state is AssignmentsLoaded) {
+          if (state.assignments.isEmpty) {
+            return _buildEmptyState();
+          }
+          return _buildAssignmentList(state.assignments);
+        }
+
+        return const SizedBox.shrink();
+      },
+    );
+
     return BlocProvider.value(
       value: _assignmentBloc,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Assignments',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
-          ),
-          actions: [
-            if (_canManageAssignments)
-              IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: 'Create assignment',
-                onPressed: _createAssignment,
-              ),
-          ],
-        ),
-        body: BlocBuilder<AssignmentBloc, AssignmentState>(
-          builder: (context, state) {
-            if (state is AssignmentsLoading) {
-              return Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              );
-            }
-
-            if (state is AssignmentError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 48, color: AppColors.error),
-                    const SizedBox(height: 16),
-                    Text(
-                      state.message,
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _loadAssignments,
-                      child: const Text('Retry'),
-                    ),
-                  ],
+      child: widget.embedded
+          ? assignmentsBody
+          : Scaffold(
+              appBar: AppBar(
+                title: Text(
+                  'Assignments',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
                 ),
-              );
-            }
-
-            if (state is AssignmentsLoaded) {
-              if (state.assignments.isEmpty) {
-                return _buildEmptyState();
-              }
-              return _buildAssignmentList(state.assignments);
-            }
-
-            return const SizedBox.shrink();
-          },
-        ),
-      ),
+                leading: IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: () => context.pop(),
+                ),
+                actions: [
+                  if (_canManageAssignments)
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      tooltip: 'Create assignment',
+                      onPressed: _createAssignment,
+                    ),
+                ],
+              ),
+              body: assignmentsBody,
+            ),
     );
   }
 

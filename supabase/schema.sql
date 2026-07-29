@@ -547,6 +547,36 @@ create trigger discussion_channels_updated_at
 before update on public.discussion_channels
 for each row execute function public.set_updated_at();
 
+-- Every course has an instructor announcement space and a shared discussion.
+create or replace function public.create_default_course_discussion_channels()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  insert into public.discussion_channels (
+    course_id, title, description, is_default, is_announcement,
+    is_published, created_by
+  )
+  values
+    (new.id, 'Announcements', 'Official updates from the instructor.', true,
+      true, true, new.instructor_id),
+    (new.id, 'General discussion', 'Questions and class conversations.', true,
+      false, true, new.instructor_id);
+  return new;
+end;
+$$;
+
+revoke all on function public.create_default_course_discussion_channels()
+  from public;
+
+drop trigger if exists courses_create_default_discussion_channels
+  on public.courses;
+create trigger courses_create_default_discussion_channels
+after insert on public.courses
+for each row execute function public.create_default_course_discussion_channels();
+
 create table if not exists public.threads (
   id uuid primary key default gen_random_uuid(),
   channel_id uuid not null references public.discussion_channels(id) on delete cascade,
@@ -602,6 +632,66 @@ drop trigger if exists replies_updated_at on public.replies;
 create trigger replies_updated_at
 before update on public.replies
 for each row execute function public.set_updated_at();
+
+-- Keep discussion activity counters server-owned so students can create posts
+-- without needing write access to channel or other-thread metadata.
+create or replace function public.sync_discussion_thread_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.discussion_channels
+    set thread_count = thread_count + 1, last_activity_at = new.created_at
+    where id = new.channel_id;
+    return new;
+  end if;
+
+  update public.discussion_channels
+  set thread_count = greatest(thread_count - 1, 0)
+  where id = old.channel_id;
+  return old;
+end;
+$$;
+
+create or replace function public.sync_discussion_reply_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.threads
+    set reply_count = reply_count + 1, last_reply_at = new.created_at
+    where id = new.thread_id;
+    update public.discussion_channels
+    set last_activity_at = new.created_at
+    where id = new.channel_id;
+    return new;
+  end if;
+
+  update public.threads
+  set reply_count = greatest(reply_count - 1, 0)
+  where id = old.thread_id;
+  return old;
+end;
+$$;
+
+revoke all on function public.sync_discussion_thread_count() from public;
+revoke all on function public.sync_discussion_reply_count() from public;
+
+drop trigger if exists threads_sync_channel_count on public.threads;
+create trigger threads_sync_channel_count
+after insert or delete on public.threads
+for each row execute function public.sync_discussion_thread_count();
+
+drop trigger if exists replies_sync_thread_count on public.replies;
+create trigger replies_sync_thread_count
+after insert or delete on public.replies
+for each row execute function public.sync_discussion_reply_count();
 
 create table if not exists public.files (
   id text primary key,

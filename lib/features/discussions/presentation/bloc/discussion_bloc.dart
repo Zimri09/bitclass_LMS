@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/discussion_repository.dart';
@@ -85,7 +86,7 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
   ) async {
     try {
       final thread = ThreadModel(
-        id: 'thread-${DateTime.now().millisecondsSinceEpoch}',
+        id: const Uuid().v4(),
         channelId: event.channelId,
         courseId: event.courseId,
         title: event.title,
@@ -113,7 +114,7 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
 
     try {
       final reply = ReplyModel(
-        id: 'reply-${DateTime.now().millisecondsSinceEpoch}',
+        id: const Uuid().v4(),
         threadId: event.threadId,
         channelId: event.channelId,
         courseId: event.courseId,

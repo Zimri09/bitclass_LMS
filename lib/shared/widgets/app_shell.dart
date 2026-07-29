@@ -13,8 +13,8 @@ class _Breakpoints {
   static const double tablet = 900;
 }
 
-/// Main application shell with responsive navigation
-/// - Mobile (<600px): Bottom navigation bar + drawer for extra items
+/// Main application shell with responsive navigation.
+/// - Mobile (<600px): Google Classroom-style navigation drawer
 /// - Tablet (600–900px): Collapsed rail sidebar (72px)
 /// - Desktop (>900px): Expanded sidebar (260px)
 class AppShell extends StatefulWidget {
@@ -24,6 +24,27 @@ class AppShell extends StatefulWidget {
 
   @override
   State<AppShell> createState() => _AppShellState();
+
+  /// Opens the shell drawer from a screen nested inside its own [Scaffold].
+  static void openDrawer(BuildContext context) {
+    final drawerScope = context
+        .dependOnInheritedWidgetOfExactType<_AppShellDrawerScope>();
+    drawerScope?.scaffoldKey.currentState?.openDrawer();
+  }
+}
+
+/// Use this in a primary screen app bar to open the application navigation.
+class AppDrawerButton extends StatelessWidget {
+  const AppDrawerButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.menu),
+      tooltip: 'Open navigation',
+      onPressed: () => AppShell.openDrawer(context),
+    );
+  }
 }
 
 class _AppShellState extends State<AppShell> {
@@ -47,92 +68,17 @@ class _AppShellState extends State<AppShell> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Mobile layout — bottom navigation + drawer
+  // Mobile layout — Google Classroom-style drawer navigation
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildMobileLayout(BuildContext context, bool isInstructor) {
-    final currentPath = GoRouterState.of(context).matchedLocation;
-    final bottomItems = _getBottomNavItems(isInstructor);
-    final currentIndex = _getBottomNavIndex(currentPath, bottomItems);
-    final colors = AppColors.of(context);
-
     return Scaffold(
       key: _scaffoldKey,
-      body: widget.child,
+      body: _AppShellDrawerScope(
+        scaffoldKey: _scaffoldKey,
+        child: widget.child,
+      ),
       drawer: _buildDrawer(context, isInstructor),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: colors.backgroundSecondary,
-          border: Border(top: BorderSide(color: colors.border, width: 1)),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                for (int i = 0; i < bottomItems.length; i++)
-                  _buildBottomNavItem(
-                    context: context,
-                    item: bottomItems[i],
-                    isActive: i == currentIndex,
-                  ),
-                // More button opens drawer
-                _buildBottomNavItem(
-                  context: context,
-                  item: _NavItem(
-                    icon: Icons.menu,
-                    activeIcon: Icons.menu,
-                    label: 'More',
-                    path: '',
-                  ),
-                  isActive: false,
-                  onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({
-    required BuildContext context,
-    required _NavItem item,
-    required bool isActive,
-    VoidCallback? onTap,
-  }) {
-    final colors = AppColors.of(context);
-    return Expanded(
-      child: InkWell(
-        onTap: onTap ?? () => context.go(item.path),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isActive ? item.activeIcon : item.icon,
-                color: isActive ? AppColors.primary : colors.textSecondary,
-                size: 22,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                item.label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                  color: isActive ? AppColors.primary : colors.textSecondary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -522,31 +468,6 @@ class _AppShellState extends State<AppShell> {
   // Navigation data
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Bottom nav items — a compact subset for mobile
-  List<_NavItem> _getBottomNavItems(bool isInstructor) {
-    return [
-      _NavItem(
-        icon: Icons.dashboard_outlined,
-        activeIcon: Icons.dashboard,
-        label: 'Home',
-        path: AppRoutes.dashboard,
-      ),
-      if (!isInstructor)
-        _NavItem(
-          icon: Icons.grade_outlined,
-          activeIcon: Icons.grade,
-          label: 'Grades',
-          path: AppRoutes.grades,
-        ),
-      _NavItem(
-        icon: Icons.notifications_outlined,
-        activeIcon: Icons.notifications,
-        label: 'Alerts',
-        path: AppRoutes.notifications,
-      ),
-    ];
-  }
-
   /// Full list of nav items for sidebar / drawer
   List<_NavItem> _getAllNavItems(bool isInstructor) {
     return [
@@ -599,15 +520,19 @@ class _AppShellState extends State<AppShell> {
     ];
   }
 
-  int _getBottomNavIndex(String currentPath, List<_NavItem> items) {
-    for (int i = 0; i < items.length; i++) {
-      if (currentPath == items[i].path ||
-          currentPath.startsWith('${items[i].path}/')) {
-        return i;
-      }
-    }
-    return -1; // no match — user is on a page not in bottom nav
-  }
+}
+
+class _AppShellDrawerScope extends InheritedWidget {
+  final GlobalKey<ScaffoldState> scaffoldKey;
+
+  const _AppShellDrawerScope({
+    required this.scaffoldKey,
+    required super.child,
+  });
+
+  @override
+  bool updateShouldNotify(_AppShellDrawerScope oldWidget) =>
+      scaffoldKey != oldWidget.scaffoldKey;
 }
 
 /// Simple data class for navigation items

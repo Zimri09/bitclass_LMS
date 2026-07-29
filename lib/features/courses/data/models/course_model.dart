@@ -228,3 +228,27 @@ class EnrollmentModel extends Equatable {
     lastAccessedAt,
   ];
 }
+
+/// Public profile details that can be shown to members of the same course.
+class CourseRosterMember extends Equatable {
+  final String userId;
+  final String displayName;
+  final String? avatarUrl;
+
+  const CourseRosterMember({
+    required this.userId,
+    required this.displayName,
+    this.avatarUrl,
+  });
+
+  factory CourseRosterMember.fromMap(Map<String, dynamic> map) {
+    return CourseRosterMember(
+      userId: map['user_id'] as String,
+      displayName: map['display_name'] as String? ?? 'Student',
+      avatarUrl: map['avatar_url'] as String?,
+    );
+  }
+
+  @override
+  List<Object?> get props => [userId, displayName, avatarUrl];
+}

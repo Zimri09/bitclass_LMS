@@ -10,6 +10,8 @@ import '../../../../shared/widgets/course_banner.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../assignments/presentation/screens/assignment_list_screen.dart';
+import '../../../discussions/presentation/screens/channel_list_screen.dart';
 import '../../../lessons/data/repositories/lesson_repository.dart';
 import '../../../lessons/presentation/widgets/course_syllabus_widget.dart';
 import '../../../quizzes/data/models/models.dart';
@@ -29,6 +31,8 @@ class CourseDetailScreen extends StatefulWidget {
 }
 
 class _CourseDetailScreenState extends State<CourseDetailScreen> {
+  int _selectedTab = 0;
+
   @override
   void initState() {
     super.initState();
@@ -92,6 +96,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               builder: (context, snapshot) => _CourseDetailContent(
                 course: snapshot.data ?? state.course,
                 enrollment: state.enrollment,
+                selectedTab: _selectedTab,
               ),
             );
           }
@@ -103,6 +108,34 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           return const BitClassLoader();
         },
       ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedTab,
+        onDestinationSelected: (index) {
+          setState(() => _selectedTab = index);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book),
+            label: 'Content',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.assignment_outlined),
+            selectedIcon: Icon(Icons.assignment),
+            label: 'Work',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.forum_outlined),
+            selectedIcon: Icon(Icons.forum),
+            label: 'Discussion',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'People',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -110,8 +143,13 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 class _CourseDetailContent extends StatefulWidget {
   final CourseModel course;
   final EnrollmentModel? enrollment;
+  final int selectedTab;
 
-  const _CourseDetailContent({required this.course, this.enrollment});
+  const _CourseDetailContent({
+    required this.course,
+    this.enrollment,
+    required this.selectedTab,
+  });
 
   @override
   State<_CourseDetailContent> createState() => _CourseDetailContentState();
@@ -119,7 +157,6 @@ class _CourseDetailContent extends StatefulWidget {
 
 class _CourseDetailContentState extends State<_CourseDetailContent> {
   int _syllabusRefreshKey = 0;
-  int _quizRefreshKey = 0;
 
   CourseModel get course => widget.course;
   EnrollmentModel? get enrollment => widget.enrollment;
@@ -129,7 +166,6 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     if (mounted) {
       setState(() {
         _syllabusRefreshKey++;
-        _quizRefreshKey++;
       });
     }
   }
@@ -142,6 +178,16 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     final isOwnCourse =
         authState is AuthAuthenticated &&
         authState.user.id == course.instructorId;
+
+    if (widget.selectedTab == 1) {
+      return _CourseWorkTab(course: course, isCourseOwner: isOwnCourse);
+    }
+    if (widget.selectedTab == 2) {
+      return _CourseDiscussionTab(courseId: course.id);
+    }
+    if (widget.selectedTab == 3) {
+      return _CoursePeopleTab(course: course);
+    }
 
     return CustomScrollView(
       slivers: [
@@ -289,34 +335,17 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               Text('Course Content', style: AppTextStyles.h3),
               const SizedBox(height: 12),
               _buildCourseSyllabus(),
+              const SizedBox(height: 16),
+              _buildCourseMaterialsLink(context),
               const SizedBox(height: 32),
 
-              // Enrolled students (instructor's own course only)
+              // Course setup and content controls stay with the content tab.
               if (isOwnCourse) ...[
                 _buildPublishToggleCard(context),
                 const SizedBox(height: 16),
                 _buildCourseCodeCard(context),
                 const SizedBox(height: 24),
-                _buildEnrolledStudentsSection(context),
-                const SizedBox(height: 32),
                 _buildInstructorContentSection(context),
-                const SizedBox(height: 16),
-                _buildManageAssignmentsLink(context),
-                const SizedBox(height: 32),
-              ],
-
-              // Quizzes section (visible to enrolled students and course owner)
-              if (isEnrolled || isOwnCourse) ...[
-                Text(
-                  isOwnCourse ? 'Manage Quizzes' : 'Quizzes',
-                  style: AppTextStyles.h3,
-                ),
-                const SizedBox(height: 12),
-                _CourseQuizzesSection(
-                  key: ValueKey('quizzes-$_quizRefreshKey'),
-                  courseId: course.id,
-                ),
-                _buildDiscussionsLink(context),
                 const SizedBox(height: 32),
               ],
 
@@ -828,6 +857,43 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     );
   }
 
+  Widget _buildCourseMaterialsLink(BuildContext context) {
+    return GlowCard(
+      glowColor: AppColors.success,
+      glowIntensity: 0.06,
+      onTap: () => context.push(AppRoutes.filesPath(course.id)),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.folder_outlined, color: AppColors.success),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Learning materials', style: AppTextStyles.bodyLarge),
+                const SizedBox(height: 4),
+                Text(
+                  'Open uploaded files and additional course resources.',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: AppColors.textMuted),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInstructorAction(
     BuildContext context, {
     required IconData icon,
@@ -941,6 +1007,269 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
           Icon(Icons.chevron_right, color: AppColors.textMuted),
         ],
       ),
+    );
+  }
+}
+
+class _CourseWorkTab extends StatelessWidget {
+  final CourseModel course;
+  final bool isCourseOwner;
+
+  const _CourseWorkTab({required this.course, required this.isCourseOwner});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Quizzes & Assignments',
+                    style: AppTextStyles.h3,
+                  ),
+                ),
+                if (isCourseOwner)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.add_circle_outline),
+                    tooltip: 'Add course work',
+                    onSelected: (value) {
+                      if (value == 'quiz') {
+                        context.push('/courses/${course.id}/quizzes/create');
+                      } else {
+                        context.push(
+                          AppRoutes.createAssignmentPath(course.id),
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'quiz',
+                        child: Text('Add quiz'),
+                      ),
+                      PopupMenuItem(
+                        value: 'assignment',
+                        child: Text('Add assignment'),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          const TabBar(
+            tabs: [
+              Tab(text: 'Quizzes'),
+              Tab(text: 'Assignments'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _CourseQuizzesSection(courseId: course.id),
+                ),
+                AssignmentListScreen(courseId: course.id, embedded: true),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CourseDiscussionTab extends StatelessWidget {
+  final String courseId;
+
+  const _CourseDiscussionTab({required this.courseId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Text('Course Discussion', style: AppTextStyles.h3),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Announcements, questions, and class conversations.',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ChannelListScreen(courseId: courseId, embedded: true),
+        ),
+      ],
+    );
+  }
+}
+
+class _CoursePeopleTab extends StatefulWidget {
+  final CourseModel course;
+
+  const _CoursePeopleTab({required this.course});
+
+  @override
+  State<_CoursePeopleTab> createState() => _CoursePeopleTabState();
+}
+
+class _CoursePeopleTabState extends State<_CoursePeopleTab> {
+  late Future<List<CourseRosterMember>> _students;
+
+  @override
+  void initState() {
+    super.initState();
+    _students = _loadStudents();
+  }
+
+  Future<List<CourseRosterMember>> _loadStudents() {
+    return context.read<CourseRepository>().getCourseRoster(widget.course.id);
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _students = _loadStudents());
+    await _students;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<CourseRosterMember>>(
+      future: _students,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return ErrorState(
+            message: 'Unable to load the class roster.',
+            onRetry: _refresh,
+          );
+        }
+
+        final students = snapshot.data ?? [];
+        return RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            children: [
+              Text('People', style: AppTextStyles.h3),
+              const SizedBox(height: 20),
+              Text('INSTRUCTOR', style: _sectionStyle(context)),
+              const SizedBox(height: 8),
+              _PersonTile(
+                name: widget.course.instructorName,
+                avatarUrl: widget.course.instructorAvatarUrl,
+                role: 'Instructor',
+              ),
+              const SizedBox(height: 28),
+              Row(
+                children: [
+                  Text('STUDENTS', style: _sectionStyle(context)),
+                  const Spacer(),
+                  Text(
+                    '${students.length}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (students.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.people_outline,
+                        size: 48,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No students have joined yet.',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...students.map(
+                  (student) => _PersonTile(
+                    name: student.displayName,
+                    avatarUrl: student.avatarUrl,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  TextStyle _sectionStyle(BuildContext context) {
+    return AppTextStyles.caption.copyWith(
+      color: AppColors.textMuted,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.8,
+    );
+  }
+}
+
+class _PersonTile extends StatelessWidget {
+  final String name;
+  final String? avatarUrl;
+  final String? role;
+
+  const _PersonTile({
+    required this.name,
+    this.avatarUrl,
+    this.role,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0])
+        .join()
+        .toUpperCase();
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      leading: CircleAvatar(
+        radius: 22,
+        backgroundImage: avatarUrl?.isNotEmpty == true
+            ? NetworkImage(avatarUrl!)
+            : null,
+        child: avatarUrl?.isNotEmpty == true ? null : Text(initials),
+      ),
+      title: Text(name, style: AppTextStyles.bodyLarge),
+      subtitle: role == null
+          ? null
+          : Text(
+              role!,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
     );
   }
 }

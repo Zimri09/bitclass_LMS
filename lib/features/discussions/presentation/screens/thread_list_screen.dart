@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/discussion_repository.dart';
 import '../bloc/discussion_bloc.dart';
@@ -55,12 +56,23 @@ class ThreadListView extends StatelessWidget {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          context.push('/courses/$courseId/discussions/$channelId/threads/create');
+      floatingActionButton: BlocBuilder<DiscussionBloc, DiscussionState>(
+        builder: (context, state) {
+          if (state is! ThreadsLoaded ||
+              !_canCreateThread(context, state.channel)) {
+            return const SizedBox.shrink();
+          }
+
+          return FloatingActionButton(
+            onPressed: () {
+              context.push(
+                '/courses/$courseId/discussions/$channelId/threads/create',
+              );
+            },
+            backgroundColor: AppColors.primary,
+            child: Icon(Icons.add, color: AppColors.background),
+          );
         },
-        backgroundColor: AppColors.primary,
-        child: Icon(Icons.add, color: AppColors.background),
       ),
       body: BlocBuilder<DiscussionBloc, DiscussionState>(
         builder: (context, state) {
@@ -91,6 +103,7 @@ class ThreadListView extends StatelessWidget {
 
           if (state is ThreadsLoaded) {
             final threads = state.threads;
+            final canCreate = _canCreateThread(context, state.channel);
 
             if (threads.isEmpty) {
               return Center(
@@ -104,20 +117,27 @@ class ThreadListView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No discussions yet',
+                      state.channel.isAnnouncement
+                          ? 'No announcements yet'
+                          : 'No discussions yet',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 16,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'Start the conversation!',
-                      style: TextStyle(
-                        color: AppColors.textSecondary.withValues(alpha: 0.7),
-                        fontSize: 14,
+                    if (canCreate)
+                      Text(
+                        state.channel.isAnnouncement
+                            ? 'Share an update with your class.'
+                            : 'Start the conversation!',
+                        style: TextStyle(
+                          color: AppColors.textSecondary.withValues(
+                            alpha: 0.7,
+                          ),
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               );
@@ -156,6 +176,13 @@ class ThreadListView extends StatelessWidget {
         },
       ),
     );
+  }
+
+  bool _canCreateThread(BuildContext context, ChannelModel channel) {
+    if (!channel.isAnnouncement) return true;
+    final authState = context.read<AuthBloc>().state;
+    return authState is AuthAuthenticated &&
+        authState.user.id == channel.createdBy;
   }
 
   Widget _buildSectionHeader(String title) {

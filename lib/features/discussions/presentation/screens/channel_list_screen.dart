@@ -12,8 +12,13 @@ import '../bloc/discussion_state.dart';
 /// Screen showing list of discussion channels for a course
 class ChannelListScreen extends StatelessWidget {
   final String courseId;
+  final bool embedded;
 
-  const ChannelListScreen({super.key, required this.courseId});
+  const ChannelListScreen({
+    super.key,
+    required this.courseId,
+    this.embedded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -21,23 +26,24 @@ class ChannelListScreen extends StatelessWidget {
       create: (context) => DiscussionBloc(
         discussionRepository: context.read<DiscussionRepository>(),
       )..add(LoadChannels(courseId: courseId)),
-      child: ChannelListView(courseId: courseId),
+      child: ChannelListView(courseId: courseId, embedded: embedded),
     );
   }
 }
 
 class ChannelListView extends StatelessWidget {
   final String courseId;
+  final bool embedded;
 
-  const ChannelListView({super.key, required this.courseId});
+  const ChannelListView({
+    super.key,
+    required this.courseId,
+    this.embedded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Discussions'),
-      ),
-      body: BlocBuilder<DiscussionBloc, DiscussionState>(
+    final discussionsBody = BlocBuilder<DiscussionBloc, DiscussionState>(
         builder: (context, state) {
           if (state is ChannelsLoading) {
             return Center(
@@ -136,7 +142,13 @@ class ChannelListView extends StatelessWidget {
 
           return const SizedBox.shrink();
         },
-      ),
+    );
+
+    if (embedded) return discussionsBody;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Discussions')),
+      body: discussionsBody,
     );
   }
 
