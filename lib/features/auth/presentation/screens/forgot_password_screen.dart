@@ -19,7 +19,6 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  bool _emailSent = false;
 
   @override
   void dispose() {
@@ -54,8 +53,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 backgroundColor: AppColors.error,
               ),
             );
-          } else if (state is AuthPasswordResetSent) {
-            setState(() => _emailSent = true);
+          } else if (state is AuthOtpChallenge &&
+              state.purpose == AuthOtpPurpose.passwordRecovery) {
+            context.go(AppRoutes.verifyOtp);
           }
         },
         child: Center(
@@ -63,7 +63,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
-              child: _emailSent ? _buildSuccessContent() : _buildResetForm(),
+              child: _buildResetForm(),
             ),
           ),
         ),
@@ -91,7 +91,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Enter your email address and we\'ll send you a link to reset your password.',
+              'Enter your email address and we\'ll send a verification code.',
               style: AppTextStyles.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -139,65 +139,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             ),
                           ),
                         )
-                      : const Text('Send Reset Link'),
+                      : const Text('Send Recovery Code'),
                 );
               },
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSuccessContent() {
-    return GlowCard(
-      glowColor: AppColors.success,
-      glowIntensity: 0.2,
-      isHoverable: false,
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: AppColors.success.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.mark_email_read,
-              color: AppColors.success,
-              size: 32,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Check your email',
-            style: AppTextStyles.h3,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'We\'ve sent a password reset link to:',
-            style: AppTextStyles.bodySmall,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _emailController.text,
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          OutlinedButton(
-            onPressed: () => context.go(AppRoutes.login),
-            child: const Text('Back to Sign In'),
-          ),
-        ],
       ),
     );
   }

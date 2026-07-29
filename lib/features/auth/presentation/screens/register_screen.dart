@@ -44,12 +44,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text,
           role: _selectedRole,
-          firstName: _firstNameController.text.trim().isNotEmpty
-              ? _firstNameController.text.trim()
-              : null,
-          lastName: _lastNameController.text.trim().isNotEmpty
-              ? _lastNameController.text.trim()
-              : null,
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
         ),
       );
     }
@@ -67,17 +63,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 backgroundColor: AppColors.error,
               ),
             );
-          } else if (state is AuthEmailConfirmationPending) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Account created! Check ${state.email} to confirm, then sign in.',
-                ),
-                backgroundColor: AppColors.primary,
-                duration: const Duration(seconds: 6),
-              ),
-            );
-            context.go(AppRoutes.login);
+          } else if (state is AuthOtpChallenge &&
+              state.purpose == AuthOtpPurpose.signup) {
+            context.go(AppRoutes.verifyOtp);
           } else if (state is AuthAuthenticated) {
             context.go(AppRoutes.dashboard);
           }
@@ -176,12 +164,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
               controller: _firstNameController,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
-                labelText: 'First Name (optional)',
+                labelText: 'First Name',
                 hintText: 'Your first name',
                 prefixIcon: Icon(Icons.person_outlined),
               ),
               validator: (value) {
-                if (value != null && value.length > 50) {
+                final name = value?.trim() ?? '';
+                if (name.isEmpty) {
+                  return 'Please enter your first name';
+                }
+                if (name.length > 50) {
                   return 'First name is too long';
                 }
                 return null;
@@ -194,12 +186,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
               controller: _lastNameController,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
-                labelText: 'Last Name (optional)',
+                labelText: 'Last Name',
                 hintText: 'Your last name',
                 prefixIcon: Icon(Icons.person_outlined),
               ),
               validator: (value) {
-                if (value != null && value.length > 50) {
+                final name = value?.trim() ?? '';
+                if (name.isEmpty) {
+                  return 'Please enter your last name';
+                }
+                if (name.length > 50) {
                   return 'Last name is too long';
                 }
                 return null;
@@ -221,7 +217,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 if (value == null || value.isEmpty) {
                   return 'Please enter your email';
                 }
-                if (!value.contains('@')) {
+                if (!RegExp(
+                  r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                ).hasMatch(value.trim())) {
                   return 'Please enter a valid email';
                 }
                 return null;
@@ -253,8 +251,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 if (value == null || value.isEmpty) {
                   return 'Please enter a password';
                 }
-                if (value.length < 6) {
-                  return 'Password must be at least 6 characters';
+                if (value.length < 8) {
+                  return 'Password must contain at least 8 characters';
                 }
                 return null;
               },

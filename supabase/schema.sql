@@ -126,54 +126,67 @@ create trigger profiles_role_immutable
   before update of role on public.profiles
   for each row execute function private.prevent_client_role_change();
 
--- Auto-create a profile row when a new auth user signs up.
+-- Create a complete profile only after the user verifies their email OTP.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
+declare
+  requested_role text := new.raw_user_meta_data->>'role';
+  given_name text := nullif(trim(new.raw_user_meta_data->>'first_name'), '');
+  family_name text := nullif(trim(new.raw_user_meta_data->>'last_name'), '');
 begin
+  if new.email_confirmed_at is null then
+    return new;
+  end if;
+
+  if given_name is null or family_name is null then
+    raise exception 'Registration requires first_name and last_name metadata';
+  end if;
+
+  if requested_role not in ('student', 'instructor') then
+    raise exception 'Registration role must be student or instructor';
+  end if;
+
   insert into public.profiles (
     id, email, display_name, first_name, last_name, role
   )
   values (
     new.id,
-    new.email,
-    coalesce(
-      new.raw_user_meta_data->>'display_name',
-      nullif(
-        trim(concat_ws(
-          ' ',
-          new.raw_user_meta_data->>'first_name',
-          new.raw_user_meta_data->>'last_name'
-        )),
-        ''
-      ),
-      split_part(new.email, '@', 1)
-    ),
-    new.raw_user_meta_data->>'first_name',
-    new.raw_user_meta_data->>'last_name',
-    case
-      when new.raw_user_meta_data->>'role' = 'instructor'
-        then 'instructor'::user_role
-      else 'student'::user_role
-    end
+    lower(new.email),
+    concat_ws(' ', given_name, family_name),
+    given_name,
+    family_name,
+    requested_role::public.user_role
   )
   on conflict (id) do update set
     email = excluded.email,
-    display_name = coalesce(excluded.display_name, public.profiles.display_name),
-    first_name = coalesce(excluded.first_name, public.profiles.first_name),
-    last_name = coalesce(excluded.last_name, public.profiles.last_name),
+    display_name = excluded.display_name,
+    first_name = excluded.first_name,
+    last_name = excluded.last_name,
     updated_at = timezone('utc', now());
   return new;
 end;
 $$;
 
+revoke all on function public.handle_new_user() from public;
+revoke all on function public.handle_new_user() from anon;
+revoke all on function public.handle_new_user() from authenticated;
+
 drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+drop trigger if exists on_auth_user_created_before on auth.users;
+drop function if exists public.auto_confirm_user();
+drop trigger if exists on_auth_user_email_verified on auth.users;
+create trigger on_auth_user_email_verified
+  after update of email_confirmed_at on auth.users
+  for each row
+  when (
+    old.email_confirmed_at is null
+    and new.email_confirmed_at is not null
+  )
+  execute function public.handle_new_user();
 
 create table if not exists public.courses (
   id uuid primary key default gen_random_uuid(),
@@ -1154,8 +1167,6 @@ create policy "todos update own" on public.todos
 
 create policy "profiles read own" on public.profiles
   for select using (auth.uid() = id or public.current_user_role() in ('instructor', 'admin'));
-create policy "profiles write own" on public.profiles
-  for insert with check (auth.uid() = id);
 create policy "profiles update own" on public.profiles
   for update using (auth.uid() = id);
 

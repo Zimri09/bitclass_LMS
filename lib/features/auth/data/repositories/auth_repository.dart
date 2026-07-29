@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -17,18 +18,31 @@ class EmailConfirmationRequiredException implements Exception {
   String toString() => 'Please confirm your email before signing in.';
 }
 
+/// Thrown when Supabase is configured to skip the required OTP challenge.
+class EmailOtpConfigurationException implements Exception {
+  const EmailOtpConfigurationException();
+
+  @override
+  String toString() =>
+      'Email OTP verification is not enabled. Please contact support.';
+}
+
 /// Repository handling authentication and user profile operations
 class AuthRepository {
   static const String _profilesTable = 'profiles';
   static const String _avatarsBucket = 'avatars';
+  static const String _authFlowBox = 'auth_flow';
+  static const String _pendingRecoveryUserKey = 'pending_recovery_user_id';
 
   final SupabaseClient? _supabase;
 
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoInstructorUserId = 'demo-instructor-1';
+  static const String _demoOtp = '123456';
 
   // Demo mode state
   UserModel? _demoUser;
+  UserModel? _demoPendingUser;
   final _demoAuthController = StreamController<User?>.broadcast();
 
   AuthRepository({SupabaseClient? supabase})
@@ -54,6 +68,7 @@ class AuthRepository {
 
     final user = currentUser;
     if (user == null) return null;
+    if (user.emailConfirmedAt == null) return null;
 
     try {
       final row = await _supabase!
@@ -75,9 +90,9 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
-      final normalizedEmail = email.trim().toLowerCase();
       final isInstructor = normalizedEmail.contains('instructor');
       _demoUser = UserModel(
         id: isInstructor ? _demoInstructorUserId : _demoStudentUserId,
@@ -93,7 +108,7 @@ class AuthRepository {
 
     try {
       final response = await _supabase!.auth.signInWithPassword(
-        email: email.trim(),
+        email: normalizedEmail,
         password: password,
       );
 
@@ -101,14 +116,22 @@ class AuthRepository {
       if (user == null) {
         throw Exception('Sign in failed: No user returned');
       }
+      if (user.emailConfirmedAt == null) {
+        await _supabase.auth.signOut(scope: SignOutScope.local);
+        throw EmailConfirmationRequiredException(normalizedEmail);
+      }
+      await _clearPendingRecovery(user.id);
 
       return await _resolveProfileForUser(
         user,
-        defaultRole: 'student',
-        firstName: user.userMetadata?['first_name'] as String?,
-        lastName: user.userMetadata?['last_name'] as String?,
+        defaultRole: _safeSelfRegisteredRole(user.userMetadata?['role']),
       );
+    } on EmailConfirmationRequiredException {
+      rethrow;
     } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains('email not confirmed')) {
+        throw EmailConfirmationRequiredException(normalizedEmail);
+      }
       throw _handleAuthException(e.message);
     } on PostgrestException catch (e) {
       throw _handlePostgrestException(e);
@@ -123,21 +146,37 @@ class AuthRepository {
     String? firstName,
     String? lastName,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedFirstName = firstName?.trim() ?? '';
+    final normalizedLastName = lastName?.trim() ?? '';
+    if (!_isValidEmail(normalizedEmail)) {
+      throw const FormatException('Please enter a valid email address.');
+    }
+    if (normalizedFirstName.isEmpty || normalizedLastName.isEmpty) {
+      throw const FormatException('First name and last name are required.');
+    }
+    if (password.length < 8) {
+      throw const FormatException(
+        'Password must contain at least 8 characters.',
+      );
+    }
+    if (role != 'student' && role != 'instructor') {
+      throw const FormatException('Please select a valid account role.');
+    }
+
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
-      _demoUser = UserModel(
+      _demoPendingUser = UserModel(
         id: 'demo-user-${DateTime.now().millisecondsSinceEpoch}',
-        email: email.trim(),
-        firstName: firstName ?? email.split('@').first,
-        lastName: lastName,
+        email: normalizedEmail,
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName,
         role: role,
         createdAt: DateTime.now(),
       );
       _demoAuthController.add(null);
-      return _demoUser!;
+      throw EmailConfirmationRequiredException(normalizedEmail);
     }
-
-    final normalizedEmail = email.trim();
 
     try {
       final response = await _supabase!.auth.signUp(
@@ -145,8 +184,9 @@ class AuthRepository {
         password: password,
         data: <String, dynamic>{
           'role': role,
-          'first_name': firstName ?? normalizedEmail.split('@').first,
-          if (lastName != null) 'last_name': lastName,
+          'first_name': normalizedFirstName,
+          'last_name': normalizedLastName,
+          'display_name': '$normalizedFirstName $normalizedLastName',
         },
       );
 
@@ -154,21 +194,21 @@ class AuthRepository {
       if (user == null) {
         throw Exception('Registration failed: No user returned');
       }
-
-      // Email confirmation enabled: no session yet, profile is created by DB trigger.
-      if (response.session == null) {
-        throw EmailConfirmationRequiredException(
-          user.email ?? normalizedEmail,
-        );
+      if (user.identities?.isEmpty ?? false) {
+        throw Exception('An account already exists with this email');
       }
 
-      return await _resolveProfileForUser(
-        user,
-        defaultRole: role,
-        firstName: firstName,
-        lastName: lastName,
-      );
+      // A session here means Confirm email/autoconfirm is enabled incorrectly.
+      // Sign out rather than allowing a user to bypass the OTP screen.
+      if (response.session != null) {
+        await _supabase.auth.signOut(scope: SignOutScope.local);
+        throw const EmailOtpConfigurationException();
+      }
+
+      throw EmailConfirmationRequiredException(user.email ?? normalizedEmail);
     } on EmailConfirmationRequiredException {
+      rethrow;
+    } on EmailOtpConfigurationException {
       rethrow;
     } on AuthException catch (e) {
       throw _handleAuthException(e.message);
@@ -184,22 +224,163 @@ class AuthRepository {
       _demoAuthController.add(null);
       return;
     }
+    final userId = currentUser?.id;
     // Flutter defaults to local sign-out. Keep it explicit so logout only
     // clears this device and never waits on unrelated application cleanup.
     await _supabase!.auth.signOut(scope: SignOutScope.local);
+    if (userId != null) await _clearPendingRecovery(userId);
   }
 
   /// Send password reset email
   Future<void> sendPasswordResetEmail(String email) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (!_isValidEmail(normalizedEmail)) {
+      throw const FormatException('Please enter a valid email address.');
+    }
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
       return;
     }
     try {
-      await _supabase!.auth.resetPasswordForEmail(email.trim());
+      await _supabase!.auth.resetPasswordForEmail(normalizedEmail);
     } on AuthException catch (e) {
       throw _handleAuthException(e.message);
     }
+  }
+
+  /// Verifies a signup OTP and resolves the profile created by the DB trigger.
+  Future<UserModel> verifySignupOtp({
+    required String email,
+    required String token,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedToken = _normalizeOtp(token);
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (normalizedToken != _demoOtp || _demoPendingUser == null) {
+        throw Exception('Invalid verification code.');
+      }
+      _demoUser = _demoPendingUser;
+      _demoPendingUser = null;
+      _demoAuthController.add(null);
+      return _demoUser!;
+    }
+
+    try {
+      final response = await _supabase!.auth.verifyOTP(
+        email: normalizedEmail,
+        token: normalizedToken,
+        type: OtpType.signup,
+      );
+      final user = response.user;
+      if (response.session == null ||
+          user == null ||
+          user.emailConfirmedAt == null) {
+        throw Exception('Email verification did not create a valid session.');
+      }
+      return _resolveProfileForUser(
+        user,
+        defaultRole: _safeSelfRegisteredRole(user.userMetadata?['role']),
+      );
+    } on AuthException catch (e) {
+      throw _handleOtpException(e.message);
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
+    }
+  }
+
+  /// Resends the current signup confirmation OTP.
+  Future<void> resendSignupOtp(String email) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (_demoPendingUser == null) {
+        throw Exception('No pending registration was found.');
+      }
+      return;
+    }
+
+    try {
+      await _supabase!.auth.resend(
+        email: normalizedEmail,
+        type: OtpType.signup,
+      );
+    } on AuthException catch (e) {
+      throw _handleOtpException(e.message);
+    }
+  }
+
+  /// Verifies a recovery OTP without exposing the application profile.
+  Future<void> verifyPasswordRecoveryOtp({
+    required String email,
+    required String token,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedToken = _normalizeOtp(token);
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (normalizedToken != _demoOtp) {
+        throw Exception('Invalid verification code.');
+      }
+      return;
+    }
+
+    try {
+      final response = await _supabase!.auth.verifyOTP(
+        email: normalizedEmail,
+        token: normalizedToken,
+        type: OtpType.recovery,
+      );
+      if (response.session == null || response.user == null) {
+        throw Exception('Password recovery verification failed.');
+      }
+      await _markPendingRecovery(response.user!.id);
+    } on AuthException catch (e) {
+      throw _handleOtpException(e.message);
+    }
+  }
+
+  /// Updates the password for the verified recovery session, then signs out.
+  Future<void> updatePasswordAfterRecovery(String newPassword) async {
+    if (newPassword.length < 8) {
+      throw const FormatException(
+        'Password must contain at least 8 characters.',
+      );
+    }
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _demoUser = null;
+      _demoAuthController.add(null);
+      return;
+    }
+
+    try {
+      final userId = currentUser?.id;
+      await _supabase!.auth.updateUser(UserAttributes(password: newPassword));
+      if (userId != null) await _clearPendingRecovery(userId);
+      await _supabase.auth.signOut(scope: SignOutScope.local);
+    } on AuthException catch (e) {
+      throw _handleAuthException(e.message);
+    }
+  }
+
+  /// Restores a verified user's trigger-created profile after app restart.
+  Future<UserModel?> restoreCurrentUserProfile() async {
+    if (EnvironmentConfig.isDemoMode) return _demoUser;
+    final user = currentUser;
+    if (user == null) return null;
+    if (user.emailConfirmedAt == null) {
+      await _supabase!.auth.signOut(scope: SignOutScope.local);
+      return null;
+    }
+    if (await _hasPendingRecovery(user.id)) {
+      await signOut();
+      return null;
+    }
+    return _resolveProfileForUser(
+      user,
+      defaultRole: _safeSelfRegisteredRole(user.userMetadata?['role']),
+    );
   }
 
   /// Update user profile
@@ -278,23 +459,25 @@ class AuthRepository {
     final objectPath = '${user.id}/${const Uuid().v4()}.jpg';
 
     try {
-      await _supabase!.storage.from(_avatarsBucket).uploadBinary(
-        objectPath,
-        imageBytes,
-        fileOptions: const FileOptions(
-          contentType: 'image/jpeg',
-          upsert: false,
-        ),
-      );
+      await _supabase!.storage
+          .from(_avatarsBucket)
+          .uploadBinary(
+            objectPath,
+            imageBytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              upsert: false,
+            ),
+          );
 
-      final publicUrl = _supabase!.storage
+      final publicUrl = _supabase.storage
           .from(_avatarsBucket)
           .getPublicUrl(objectPath);
 
       try {
         return await updateProfile(avatarUrl: publicUrl);
       } catch (_) {
-        await _supabase!.storage.from(_avatarsBucket).remove([objectPath]);
+        await _supabase.storage.from(_avatarsBucket).remove([objectPath]);
         rethrow;
       }
     } on StorageException catch (e) {
@@ -326,70 +509,23 @@ class AuthRepository {
       await _supabase!.rpc('delete_current_user_account');
     } catch (_) {
       await _supabase!.from(_profilesTable).delete().eq('id', user.id);
-      await _supabase!.auth.signOut();
+      await _supabase.auth.signOut();
     }
   }
 
   Future<UserModel> _resolveProfileForUser(
     User user, {
     required String defaultRole,
-    String? firstName,
-    String? lastName,
   }) async {
-    var profile = await getCurrentUserProfile();
-    if (profile != null) return profile;
-
-    // Brief pause so the handle_new_user trigger can finish on fresh sign-ups.
-    await Future.delayed(const Duration(milliseconds: 300));
-    profile = await getCurrentUserProfile();
-    if (profile != null) return profile;
-
-    return _createOrSyncProfileFromAuth(
-      user,
-      defaultRole: defaultRole,
-      firstName: firstName,
-      lastName: lastName,
-    );
-  }
-
-  Future<UserModel> _createOrSyncProfileFromAuth(
-    User user, {
-    required String defaultRole,
-    String? firstName,
-    String? lastName,
-  }) async {
-    final profile = UserModel(
-      id: user.id,
-      email: user.email ?? '',
-      firstName:
-          firstName ??
-          (user.userMetadata?['first_name'] as String?) ??
-          user.email?.split('@').first,
-      lastName:
-          lastName ?? (user.userMetadata?['last_name'] as String?),
-      avatarUrl: user.userMetadata?['avatar_url'] as String?,
-      bio: null,
-      role: (user.userMetadata?['role'] as String?) ?? defaultRole,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    try {
-      await _supabase!.from(_profilesTable).upsert({
-        'id': profile.id,
-        'email': profile.email,
-        'first_name': profile.firstName,
-        'last_name': profile.lastName,
-        'avatar_url': profile.avatarUrl,
-        'bio': profile.bio,
-        'role': profile.role,
-        'updated_at': profile.updatedAt?.toIso8601String(),
-      }, onConflict: 'id');
-
-      return (await getCurrentUserProfile()) ?? profile;
-    } on PostgrestException catch (e) {
-      throw _handlePostgrestException(e);
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final profile = await getCurrentUserProfile();
+      if (profile != null) return profile;
+      await Future.delayed(const Duration(milliseconds: 200));
     }
+    throw Exception(
+      'Your verified $defaultRole profile could not be restored. '
+      'Please sign out and try again.',
+    );
   }
 
   Map<String, dynamic> _rowToUserMap(Map<String, dynamic> row) {
@@ -428,6 +564,55 @@ class AuthRepository {
       return Exception('Invalid email address');
     }
     return Exception(message ?? 'Authentication failed');
+  }
+
+  Exception _handleOtpException(String? message) {
+    final text = message?.toLowerCase() ?? '';
+    if (text.contains('expired')) {
+      return Exception(
+        'This verification code has expired. Request a new one.',
+      );
+    }
+    if (text.contains('invalid') ||
+        text.contains('token') ||
+        text.contains('otp')) {
+      return Exception('Invalid verification code. Please try again.');
+    }
+    if (text.contains('rate limit') || text.contains('too many')) {
+      return Exception('Too many attempts. Please wait before trying again.');
+    }
+    return Exception(message ?? 'OTP verification failed.');
+  }
+
+  static String _normalizeOtp(String token) {
+    final normalized = token.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(normalized)) {
+      throw const FormatException('Enter the 6-digit verification code.');
+    }
+    return normalized;
+  }
+
+  static bool _isValidEmail(String email) =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+  static String _safeSelfRegisteredRole(Object? role) =>
+      role == 'instructor' ? 'instructor' : 'student';
+
+  Future<void> _markPendingRecovery(String userId) async {
+    final box = await Hive.openBox<String>(_authFlowBox);
+    await box.put(_pendingRecoveryUserKey, userId);
+  }
+
+  Future<bool> _hasPendingRecovery(String userId) async {
+    final box = await Hive.openBox<String>(_authFlowBox);
+    return box.get(_pendingRecoveryUserKey) == userId;
+  }
+
+  Future<void> _clearPendingRecovery(String userId) async {
+    final box = await Hive.openBox<String>(_authFlowBox);
+    if (box.get(_pendingRecoveryUserKey) == userId) {
+      await box.delete(_pendingRecoveryUserKey);
+    }
   }
 
   Exception _handlePostgrestException(PostgrestException e) {
