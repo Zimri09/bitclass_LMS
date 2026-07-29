@@ -299,7 +299,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             // Register button
             BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
-                final isLoading = state is AuthLoading;
+                final isLoading =
+                    state is AuthLoading &&
+                    state.operation == AuthOperation.signingUp;
                 return ElevatedButton(
                   onPressed: isLoading ? null : _handleRegister,
                   style: ElevatedButton.styleFrom(

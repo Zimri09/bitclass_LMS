@@ -16,6 +16,15 @@ abstract class AuthEvent extends Equatable {
 
 class AuthCheckRequested extends AuthEvent {}
 
+class _AuthSessionChanged extends AuthEvent {
+  final bool hasSession;
+
+  const _AuthSessionChanged({required this.hasSession});
+
+  @override
+  List<Object?> get props => [hasSession];
+}
+
 class AuthLoginRequested extends AuthEvent {
   final String email;
   final String password;
@@ -75,7 +84,22 @@ abstract class AuthState extends Equatable {
 
 class AuthInitial extends AuthState {}
 
-class AuthLoading extends AuthState {}
+enum AuthOperation {
+  checkingSession,
+  signingIn,
+  signingUp,
+  signingOut,
+  resettingPassword,
+}
+
+class AuthLoading extends AuthState {
+  final AuthOperation operation;
+
+  const AuthLoading(this.operation);
+
+  @override
+  List<Object?> get props => [operation];
+}
 
 class AuthAuthenticated extends AuthState {
   final UserModel user;
@@ -119,11 +143,13 @@ class AuthEmailConfirmationPending extends AuthState {
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
   StreamSubscription? _authStateSubscription;
+  int _requestGeneration = 0;
 
   AuthBloc({required AuthRepository authRepository})
     : _authRepository = authRepository,
       super(AuthInitial()) {
     on<AuthCheckRequested>(_onAuthCheckRequested);
+    on<_AuthSessionChanged>(_onAuthSessionChanged);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
@@ -132,11 +158,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     // Keep auth state in sync with Supabase session changes.
     _authStateSubscription = _authRepository.authStateChanges.listen((user) {
-      if (user != null) {
-        add(AuthCheckRequested());
-      } else if (state is AuthAuthenticated) {
-        add(AuthCheckRequested());
-      }
+      add(_AuthSessionChanged(hasSession: user != null));
     });
   }
 
@@ -144,12 +166,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthCheckRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    final currentState = state;
+    if (currentState is AuthLoading &&
+        currentState.operation == AuthOperation.signingOut) {
+      return;
+    }
+
+    final requestGeneration = _requestGeneration;
+    emit(const AuthLoading(AuthOperation.checkingSession));
 
     try {
       // In demo mode, check for demo user
       if (EnvironmentConfig.isDemoMode) {
         final demoUser = _authRepository.demoUser;
+        if (!_isCurrent(requestGeneration)) return;
         if (demoUser != null) {
           emit(AuthAuthenticated(demoUser));
         } else {
@@ -159,13 +189,46 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
 
       final profile = await _authRepository.getCurrentUserProfile();
+      if (!_isCurrent(requestGeneration)) return;
       if (profile != null) {
         emit(AuthAuthenticated(profile));
       } else {
         emit(AuthUnauthenticated());
       }
     } catch (e) {
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthUnauthenticated());
+    }
+  }
+
+  void _onAuthSessionChanged(
+    _AuthSessionChanged event,
+    Emitter<AuthState> emit,
+  ) {
+    if (!event.hasSession) {
+      final currentState = state;
+      final isSubmittingCredentials =
+          currentState is AuthLoading &&
+          (currentState.operation == AuthOperation.signingIn ||
+              currentState.operation == AuthOperation.signingUp ||
+              currentState.operation == AuthOperation.resettingPassword);
+      if (isSubmittingCredentials) {
+        return;
+      }
+
+      _requestGeneration++;
+      emit(AuthUnauthenticated());
+      return;
+    }
+
+    final currentState = state;
+    final shouldIgnoreSessionRefresh =
+        currentState is AuthLoading &&
+        (currentState.operation == AuthOperation.signingIn ||
+            currentState.operation == AuthOperation.signingUp ||
+            currentState.operation == AuthOperation.signingOut);
+    if (currentState is! AuthAuthenticated && !shouldIgnoreSessionRefresh) {
+      add(AuthCheckRequested());
     }
   }
 
@@ -173,15 +236,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLoginRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    final requestGeneration = ++_requestGeneration;
+    emit(const AuthLoading(AuthOperation.signingIn));
 
     try {
       final user = await _authRepository.signInWithEmailAndPassword(
         email: event.email,
         password: event.password,
       );
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthAuthenticated(user));
     } catch (e) {
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthError(e.toString().replaceFirst('Exception: ', '')));
     }
   }
@@ -190,7 +256,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthRegisterRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    final requestGeneration = ++_requestGeneration;
+    emit(const AuthLoading(AuthOperation.signingUp));
 
     try {
       final user = await _authRepository.registerWithEmailAndPassword(
@@ -200,10 +267,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         firstName: event.firstName,
         lastName: event.lastName,
       );
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthAuthenticated(user));
     } on EmailConfirmationRequiredException catch (e) {
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthEmailConfirmationPending(e.email));
     } catch (e) {
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthError(e.toString().replaceFirst('Exception: ', '')));
     }
   }
@@ -212,12 +282,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    final requestGeneration = ++_requestGeneration;
+    emit(const AuthLoading(AuthOperation.signingOut));
 
     try {
       await _authRepository.signOut();
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthUnauthenticated());
     } catch (e) {
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthError(e.toString().replaceFirst('Exception: ', '')));
     }
   }
@@ -226,12 +299,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthForgotPasswordRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    final requestGeneration = ++_requestGeneration;
+    emit(const AuthLoading(AuthOperation.resettingPassword));
 
     try {
       await _authRepository.sendPasswordResetEmail(event.email);
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthPasswordResetSent(event.email));
     } catch (e) {
+      if (!_isCurrent(requestGeneration)) return;
       emit(AuthError(e.toString().replaceFirst('Exception: ', '')));
     }
   }
@@ -239,6 +315,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   void _onUserUpdated(AuthUserUpdated event, Emitter<AuthState> emit) {
     emit(AuthAuthenticated(event.user));
   }
+
+  bool _isCurrent(int requestGeneration) =>
+      requestGeneration == _requestGeneration;
 
   @override
   Future<void> close() {

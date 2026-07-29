@@ -123,7 +123,6 @@ class _BitClassAppState extends State<BitClassApp> {
       requestPermission: _pushNotificationService.requestPermission,
       synchronize: _pushNotificationService.synchronize,
     );
-    _authRepository.beforeSignOut = _pushNotificationService.deactivateUser;
     _pushAuthSubscription = _authBloc.stream.listen((state) {
       if (state is AuthAuthenticated) {
         unawaited(

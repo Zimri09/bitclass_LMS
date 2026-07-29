@@ -334,18 +334,21 @@ class PushNotificationService with WidgetsBindingObserver {
       return;
     }
 
-    final token = await _messaging.getToken();
+    // Reset in-memory ownership before any Firebase or network call can wait.
     _userId = null;
     _role = null;
+    _syncRequested = false;
 
     final channel = _membershipChannel;
     _membershipChannel = null;
+    final topics = ((_box?.get(_storedTopicsKey) as List<dynamic>?) ?? const [])
+        .cast<String>();
+    final token = await _messaging.getToken();
+
     if (channel != null) {
       await _supabase?.removeChannel(channel);
     }
 
-    final topics = ((_box?.get(_storedTopicsKey) as List<dynamic>?) ?? const [])
-        .cast<String>();
     for (final topic in topics) {
       await _messaging.unsubscribeFromTopic(topic);
     }

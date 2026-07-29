@@ -203,7 +203,9 @@ class _LoginScreenState extends State<LoginScreen> {
             // Login button
             BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
-                final isLoading = state is AuthLoading;
+                final isLoading =
+                    state is AuthLoading &&
+                    state.operation == AuthOperation.signingIn;
                 return ElevatedButton(
                   onPressed: isLoading ? null : _handleLogin,
                   child: isLoading

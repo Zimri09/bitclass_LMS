@@ -123,7 +123,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             // Reset button
             BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
-                final isLoading = state is AuthLoading;
+                final isLoading =
+                    state is AuthLoading &&
+                    state.operation == AuthOperation.resettingPassword;
                 return ElevatedButton(
                   onPressed: isLoading ? null : _handleResetPassword,
                   child: isLoading
