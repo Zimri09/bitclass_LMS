@@ -176,7 +176,13 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
   ) async {
     final currentState = state;
     if (currentState is ThreadDetailLoaded) {
-      emit(currentState.copyWith(isSubmittingReply: true));
+      emit(
+        currentState.copyWith(
+          isSubmittingReply: true,
+          clearActionError: true,
+          clearCreatedReplyId: true,
+        ),
+      );
     }
 
     try {
@@ -188,16 +194,38 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
         content: event.content,
         authorId: event.authorId,
         authorName: event.authorName,
-        createdAt: DateTime.now(),
+        createdAt: DateTime.now().toUtc(),
       );
 
       final created = await discussionRepository.createReply(reply);
-      emit(ReplyCreated(reply: created));
-
-      // Reload thread detail
-      add(LoadThreadDetail(threadId: event.threadId));
+      final latestState = state;
+      if (latestState is ThreadDetailLoaded) {
+        final replies =
+            latestState.replies.any((reply) => reply.id == created.id)
+            ? latestState.replies
+            : [...latestState.replies, created];
+        emit(
+          latestState.copyWith(
+            replies: replies,
+            isSubmittingReply: false,
+            createdReplyId: created.id,
+            clearActionError: true,
+          ),
+        );
+      }
     } catch (e) {
-      emit(DiscussionError(message: 'Failed to post reply: $e'));
+      final latestState = state;
+      if (latestState is ThreadDetailLoaded) {
+        emit(
+          latestState.copyWith(
+            isSubmittingReply: false,
+            actionError: 'Failed to post reply: $e',
+            actionRevision: latestState.actionRevision + 1,
+          ),
+        );
+      } else {
+        emit(DiscussionError(message: 'Failed to post reply: $e'));
+      }
     }
   }
 

@@ -51,6 +51,7 @@ class ThreadDetailLoaded extends DiscussionState {
   final bool isSubmittingReply;
   final String? actionError;
   final int actionRevision;
+  final String? createdReplyId;
 
   const ThreadDetailLoaded({
     required this.thread,
@@ -58,6 +59,7 @@ class ThreadDetailLoaded extends DiscussionState {
     this.isSubmittingReply = false,
     this.actionError,
     this.actionRevision = 0,
+    this.createdReplyId,
   });
 
   @override
@@ -67,6 +69,7 @@ class ThreadDetailLoaded extends DiscussionState {
     isSubmittingReply,
     actionError,
     actionRevision,
+    createdReplyId,
   ];
 
   ThreadDetailLoaded copyWith({
@@ -76,6 +79,8 @@ class ThreadDetailLoaded extends DiscussionState {
     String? actionError,
     bool clearActionError = false,
     int? actionRevision,
+    String? createdReplyId,
+    bool clearCreatedReplyId = false,
   }) {
     return ThreadDetailLoaded(
       thread: thread ?? this.thread,
@@ -83,6 +88,9 @@ class ThreadDetailLoaded extends DiscussionState {
       isSubmittingReply: isSubmittingReply ?? this.isSubmittingReply,
       actionError: clearActionError ? null : actionError ?? this.actionError,
       actionRevision: actionRevision ?? this.actionRevision,
+      createdReplyId: clearCreatedReplyId
+          ? null
+          : createdReplyId ?? this.createdReplyId,
     );
   }
 }
@@ -95,16 +103,6 @@ class ThreadCreated extends DiscussionState {
 
   @override
   List<Object?> get props => [thread];
-}
-
-/// Reply created successfully
-class ReplyCreated extends DiscussionState {
-  final ReplyModel reply;
-
-  const ReplyCreated({required this.reply});
-
-  @override
-  List<Object?> get props => [reply];
 }
 
 /// Error state

@@ -11,6 +11,7 @@ import '../../data/repositories/discussion_repository.dart';
 import '../bloc/discussion_bloc.dart';
 import '../bloc/discussion_event.dart';
 import '../bloc/discussion_state.dart';
+import '../widgets/relative_timestamp.dart';
 
 /// Screen showing list of threads in a channel
 class ThreadListScreen extends StatelessWidget {
@@ -118,11 +119,7 @@ class _ThreadListViewState extends State<ThreadListView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: AppColors.error,
-                    size: 48,
-                  ),
+                  Icon(Icons.error_outline, color: AppColors.error, size: 48),
                   const SizedBox(height: 16),
                   Text(
                     state.message,
@@ -165,9 +162,7 @@ class _ThreadListViewState extends State<ThreadListView> {
                             ? 'Share an update with your class.'
                             : 'Start the conversation!',
                         style: TextStyle(
-                          color: AppColors.textSecondary.withValues(
-                            alpha: 0.7,
-                          ),
+                          color: AppColors.textSecondary.withValues(alpha: 0.7),
                           fontSize: 14,
                         ),
                       ),
@@ -253,11 +248,7 @@ class _ThreadListViewState extends State<ThreadListView> {
               Row(
                 children: [
                   if (thread.isPinned) ...[
-                    Icon(
-                      Icons.push_pin,
-                      color: AppColors.warning,
-                      size: 16,
-                    ),
+                    Icon(Icons.push_pin, color: AppColors.warning, size: 16),
                     const SizedBox(width: 6),
                   ],
                   Expanded(
@@ -350,10 +341,7 @@ class _ThreadListViewState extends State<ThreadListView> {
               // Content preview
               Text(
                 thread.content,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -428,17 +416,6 @@ class _ThreadListViewState extends State<ThreadListView> {
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays}d ago';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
+    return formatRelativeTimestamp(date);
   }
 }

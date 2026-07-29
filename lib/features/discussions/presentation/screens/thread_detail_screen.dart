@@ -11,6 +11,7 @@ import '../bloc/discussion_bloc.dart';
 import '../bloc/discussion_event.dart';
 import '../bloc/discussion_state.dart';
 import '../widgets/reaction_control.dart';
+import '../widgets/relative_timestamp.dart';
 
 /// Screen showing thread details with replies
 class ThreadDetailScreen extends StatelessWidget {
@@ -61,6 +62,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
   final FocusNode _replyFocusNode = FocusNode();
   final Set<String> _hiddenReplyIds = {};
   String? _editingReplyId;
+  String? _handledCreatedReplyId;
   late final DiscussionRepository _discussionRepository;
   RealtimeChannel? _realtimeChannel;
 
@@ -260,7 +262,10 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
   Widget build(BuildContext context) {
     return BlocConsumer<DiscussionBloc, DiscussionState>(
       listener: (context, state) {
-        if (state is ReplyCreated) {
+        if (state is ThreadDetailLoaded &&
+            state.createdReplyId != null &&
+            state.createdReplyId != _handledCreatedReplyId) {
+          _handledCreatedReplyId = state.createdReplyId;
           _replyController.clear();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -695,10 +700,9 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                           ],
                         ],
                       ),
-                      Text(
-                        reply.editedAt == null
-                            ? _formatDate(reply.createdAt)
-                            : '${_formatDate(reply.createdAt)} - Edited',
+                      RelativeTimestamp(
+                        timestamp: reply.createdAt,
+                        suffix: reply.editedAt == null ? null : 'Edited',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 11,
@@ -915,22 +919,8 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
     );
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays}d ago';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
-  }
-
   String _formatFullDate(DateTime date) {
+    final localDate = date.toLocal();
     final months = [
       'Jan',
       'Feb',
@@ -945,6 +935,6 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
       'Nov',
       'Dec',
     ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year} at ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    return '${months[localDate.month - 1]} ${localDate.day}, ${localDate.year} at ${localDate.hour}:${localDate.minute.toString().padLeft(2, '0')}';
   }
 }

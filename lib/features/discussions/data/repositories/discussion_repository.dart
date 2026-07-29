@@ -776,42 +776,44 @@ class DiscussionRepository {
   Future<ThreadModel> createThread(ThreadModel thread) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 400));
+      final created = thread.copyWith(createdAt: DateTime.now().toUtc());
       final threads = _threadsByChannel[thread.channelId] ?? [];
-      threads.add(thread);
+      threads.add(created);
       _threadsByChannel[thread.channelId] = threads;
       final channel = _channels[thread.channelId];
       if (channel != null) {
         _channels[thread.channelId] = channel.copyWith(
-          threadCount: channel.threadCount + (thread.isResolved ? 0 : 1),
+          threadCount: channel.threadCount + (created.isResolved ? 0 : 1),
           lastActivityAt: DateTime.now(),
         );
       }
-      return thread;
+      return created;
     }
 
-    await _supabase!.from(_threadsTable).insert({
-      'id': thread.id,
-      'channel_id': thread.channelId,
-      'course_id': thread.courseId,
-      'title': thread.title,
-      'content': thread.content,
-      'author_id': thread.authorId,
-      'author_name': thread.authorName,
-      'author_avatar_url': thread.authorAvatarUrl,
-      'is_pinned': thread.isPinned,
-      'is_locked': thread.isLocked,
-      'is_resolved': thread.isResolved,
-      'reply_count': thread.replyCount,
-      'like_count': thread.likeCount,
-      'liked_by': thread.likedBy,
-      'created_at': thread.createdAt.toIso8601String(),
-      if (thread.updatedAt != null)
-        'updated_at': thread.updatedAt!.toIso8601String(),
-      if (thread.lastReplyAt != null)
-        'last_reply_at': thread.lastReplyAt!.toIso8601String(),
-    });
+    final row = await _supabase!
+        .from(_threadsTable)
+        .insert({
+          'id': thread.id,
+          'channel_id': thread.channelId,
+          'course_id': thread.courseId,
+          'title': thread.title,
+          'content': thread.content,
+          'author_id': thread.authorId,
+          'author_name': thread.authorName,
+          'author_avatar_url': thread.authorAvatarUrl,
+          'is_pinned': thread.isPinned,
+          'is_locked': thread.isLocked,
+          'is_resolved': thread.isResolved,
+          'reply_count': thread.replyCount,
+          'like_count': thread.likeCount,
+          'liked_by': thread.likedBy,
+          if (thread.lastReplyAt != null)
+            'last_reply_at': thread.lastReplyAt!.toIso8601String(),
+        })
+        .select()
+        .single();
 
-    return thread;
+    return _threadFromRow(row);
   }
 
   Future<void> deleteThread(String threadId, String authorId) async {
@@ -954,8 +956,9 @@ class DiscussionRepository {
   Future<ReplyModel> createReply(ReplyModel reply) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 400));
+      final created = reply.copyWith(createdAt: DateTime.now().toUtc());
       final replies = _repliesByThread[reply.threadId] ?? [];
-      replies.add(reply);
+      replies.add(created);
       _repliesByThread[reply.threadId] = replies;
       for (final channelId in _threadsByChannel.keys) {
         final threads = _threadsByChannel[channelId]!;
@@ -975,30 +978,31 @@ class DiscussionRepository {
           break;
         }
       }
-      return reply;
+      return created;
     }
 
-    await _supabase!.from(_repliesTable).insert({
-      'id': reply.id,
-      'thread_id': reply.threadId,
-      'channel_id': reply.channelId,
-      'course_id': reply.courseId,
-      'parent_reply_id': reply.parentReplyId,
-      'content': reply.content,
-      'author_id': reply.authorId,
-      'author_name': reply.authorName,
-      'author_avatar_url': reply.authorAvatarUrl,
-      'is_instructor_answer': reply.isInstructorAnswer,
-      'like_count': reply.likeCount,
-      'liked_by': reply.likedBy,
-      'created_at': reply.createdAt.toIso8601String(),
-      if (reply.updatedAt != null)
-        'updated_at': reply.updatedAt!.toIso8601String(),
-      if (reply.editedAt != null)
-        'edited_at': reply.editedAt!.toIso8601String(),
-    });
+    final row = await _supabase!
+        .from(_repliesTable)
+        .insert({
+          'id': reply.id,
+          'thread_id': reply.threadId,
+          'channel_id': reply.channelId,
+          'course_id': reply.courseId,
+          'parent_reply_id': reply.parentReplyId,
+          'content': reply.content,
+          'author_id': reply.authorId,
+          'author_name': reply.authorName,
+          'author_avatar_url': reply.authorAvatarUrl,
+          'is_instructor_answer': reply.isInstructorAnswer,
+          'like_count': reply.likeCount,
+          'liked_by': reply.likedBy,
+          if (reply.editedAt != null)
+            'edited_at': reply.editedAt!.toIso8601String(),
+        })
+        .select()
+        .single();
 
-    return reply;
+    return _replyFromRow(row);
   }
 
   Future<void> deleteReply(
