@@ -107,12 +107,19 @@ class ToggleNotificationType extends NotificationEvent {
   List<Object?> get props => [userId, type, enabled];
 }
 
-/// New notification received (from push)
-class NotificationReceived extends NotificationEvent {
-  final NotificationModel notification;
+class UpdateQuietHours extends NotificationEvent {
+  final String userId;
+  final bool enabled;
+  final int startHour;
+  final int endHour;
 
-  const NotificationReceived({required this.notification});
+  const UpdateQuietHours({
+    required this.userId,
+    required this.enabled,
+    required this.startHour,
+    required this.endHour,
+  });
 
   @override
-  List<Object?> get props => [notification];
+  List<Object?> get props => [userId, enabled, startHour, endHour];
 }

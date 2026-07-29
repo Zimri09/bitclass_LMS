@@ -9,13 +9,14 @@ import '../models/models.dart';
 class NotificationRepository {
   static const String _notificationsTable = 'notifications';
   static const String _settingsTable = 'notification_settings';
-  static const String _deviceTokensTable = 'device_tokens';
 
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoInstructorUserId = 'demo-instructor-1';
   static const String _legacyDemoUserId = 'demo-user';
 
   final SupabaseClient? _supabase;
+  Future<bool> Function()? _pushPermissionRequester;
+  Future<void> Function()? _pushSynchronizer;
 
   // Demo data storage
   final List<NotificationModel> _notifications = [];
@@ -171,6 +172,14 @@ class NotificationRepository {
     _updateUnreadCount();
   }
 
+  void configurePushLifecycle({
+    required Future<bool> Function() requestPermission,
+    required Future<void> Function() synchronize,
+  }) {
+    _pushPermissionRequester = requestPermission;
+    _pushSynchronizer = synchronize;
+  }
+
   String _normalizeDemoUserId(String userId) {
     if (userId == _legacyDemoUserId) {
       return _demoStudentUserId;
@@ -286,7 +295,7 @@ class NotificationRepository {
         .update({'is_read': true})
         .eq('id', notificationId);
 
-    final row = await _supabase!
+    final row = await _supabase
         .from(_notificationsTable)
         .select()
         .eq('id', notificationId)
@@ -400,6 +409,7 @@ class NotificationRepository {
       'updated_at': updatedSettings.updatedAt.toIso8601String(),
     });
     _settingsController.add(updatedSettings);
+    await _pushSynchronizer?.call();
     return updatedSettings;
   }
 
@@ -409,6 +419,15 @@ class NotificationRepository {
     bool enabled,
   ) async {
     final current = await getSettings(userId);
+    if (enabled && !EnvironmentConfig.isDemoMode) {
+      final granted = await _pushPermissionRequester?.call() ?? false;
+      if (!granted) {
+        throw Exception(
+          'Notification permission was denied. Enable notifications in your '
+          'device settings and try again.',
+        );
+      }
+    }
     return updateSettings(current.copyWith(pushEnabled: enabled));
   }
 
@@ -426,77 +445,52 @@ class NotificationRepository {
     return updateSettings(current.copyWith(typeSettings: newTypeSettings));
   }
 
-  /// Register device token for push notifications
-  Future<void> registerDeviceToken(String userId, String token) async {
+  Future<NotificationSettings> updateQuietHours(
+    String userId, {
+    required bool enabled,
+    required int startHour,
+    required int endHour,
+  }) async {
+    final current = await getSettings(userId);
+    return updateSettings(
+      current.copyWith(
+        quietHoursEnabled: enabled,
+        quietHoursStart: startHour,
+        quietHoursEnd: endHour,
+      ),
+    );
+  }
+
+  /// Registers or refreshes this authenticated app installation.
+  Future<void> registerDeviceToken({
+    required String token,
+    required String platform,
+    required int timezoneOffsetMinutes,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
-      await Future.delayed(const Duration(milliseconds: 100));
       return;
     }
 
-    await _supabase!.from(_deviceTokensTable).upsert({
-      'user_id': userId,
-      'token': token,
-      'created_at': DateTime.now().toIso8601String(),
-      'platform': 'flutter',
-    });
+    await _supabase!.rpc(
+      'register_device_token',
+      params: {
+        'device_token': token,
+        'device_platform': platform,
+        'timezone_offset': timezoneOffsetMinutes,
+      },
+    );
   }
 
-  /// Unregister device token
-  Future<void> unregisterDeviceToken(String userId, String token) async {
+  /// Removes this app installation from the authenticated user's devices.
+  Future<void> unregisterDeviceToken(String token) async {
     if (EnvironmentConfig.isDemoMode) {
-      await Future.delayed(const Duration(milliseconds: 100));
       return;
     }
 
-    await _supabase!
-        .from(_deviceTokensTable)
-        .delete()
-        .eq('user_id', userId)
-        .eq('token', token);
-  }
-
-  /// Get the FCM token for this device
-  Future<String?> getFcmToken() async {
-    return null;
-  }
-
-  /// Request notification permissions
-  Future<bool> requestPermissions() async {
-    return EnvironmentConfig.isDemoMode;
-  }
-
-  /// Subscribe to a topic (e.g., course updates)
-  Future<void> subscribeToTopic(String topic) async {
-    return;
-  }
-
-  /// Unsubscribe from a topic
-  Future<void> unsubscribeFromTopic(String topic) async {
-    return;
-  }
-
-  /// Simulate receiving a new notification (for demo)
-  void simulateNewNotification(NotificationModel notification) async {
-    if (EnvironmentConfig.isDemoMode) {
-      _notifications.insert(0, notification);
-      _updateUnreadCount();
-      _notificationsController.add(_notifications);
-      return;
-    }
-
-    await _supabase!.from(_notificationsTable).insert({
-      'id': notification.id,
-      'user_id': notification.userId,
-      'type': notification.type.name,
-      'title': notification.title,
-      'body': notification.body,
-      'image_url': notification.imageUrl,
-      'data': notification.data,
-      'is_read': notification.isRead,
-      'created_at': notification.createdAt.toIso8601String(),
-      'course_id': notification.courseId,
-      'action_url': notification.actionUrl,
-    });
+    await _supabase!.rpc(
+      'unregister_device_token',
+      params: {'device_token': token},
+    );
   }
 
   void dispose() {

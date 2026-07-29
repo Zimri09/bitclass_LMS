@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/config/environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
@@ -53,9 +52,7 @@ class NotificationSettingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notification Settings'),
-      ),
+      appBar: AppBar(title: const Text('Notification Settings')),
       body: BlocConsumer<NotificationBloc, NotificationState>(
         listener: (context, state) {
           if (state is NotificationSettingsUpdated) {
@@ -77,11 +74,7 @@ class NotificationSettingsView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: AppColors.error,
-                    size: 48,
-                  ),
+                  Icon(Icons.error_outline, color: AppColors.error, size: 48),
                   const SizedBox(height: 16),
                   Text(
                     state.message,
@@ -117,23 +110,16 @@ class NotificationSettingsView extends StatelessWidget {
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               subtitle: Text(
-                EnvironmentConfig.isDemoMode
-                    ? 'Receive notifications on your device'
-                    : 'Push delivery is not configured for this build',
+                'Receive course updates on this device',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               value: settings.pushEnabled,
               activeThumbColor: AppColors.primary,
-              onChanged: EnvironmentConfig.isDemoMode
-                  ? (value) {
-                      context.read<NotificationBloc>().add(
-                        TogglePushNotifications(
-                          userId: userId,
-                          enabled: value,
-                        ),
-                      );
-                    }
-                  : null,
+              onChanged: (value) {
+                context.read<NotificationBloc>().add(
+                  TogglePushNotifications(userId: userId, enabled: value),
+                );
+              },
             ),
           ),
         ),
@@ -218,7 +204,6 @@ class NotificationSettingsView extends StatelessWidget {
 
         const SizedBox(height: 24),
 
-        // Quiet hours (UI only for demo)
         _buildSection(
           title: 'Quiet Hours',
           subtitle: 'Pause notifications during certain hours',
@@ -232,7 +217,8 @@ class NotificationSettingsView extends StatelessWidget {
                     style: TextStyle(color: AppColors.textPrimary),
                   ),
                   subtitle: Text(
-                    '10:00 PM - 8:00 AM',
+                    '${_formatHour(settings.quietHoursStart)} - '
+                    '${_formatHour(settings.quietHoursEnd)}',
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
@@ -241,15 +227,32 @@ class NotificationSettingsView extends StatelessWidget {
                   value: settings.quietHoursEnabled,
                   activeThumbColor: AppColors.primary,
                   onChanged: (value) {
-                    // In a full implementation, this would update quiet hours
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Quiet hours settings coming soon'),
-                        backgroundColor: AppColors.info,
+                    context.read<NotificationBloc>().add(
+                      UpdateQuietHours(
+                        userId: userId,
+                        enabled: value,
+                        startHour: settings.quietHoursStart,
+                        endHour: settings.quietHoursEnd,
                       ),
                     );
                   },
                 ),
+                if (settings.quietHoursEnabled) ...[
+                  _buildDivider(),
+                  ListTile(
+                    title: const Text('Starts'),
+                    trailing: Text(_formatHour(settings.quietHoursStart)),
+                    onTap: () =>
+                        _pickQuietHour(context, settings, isStart: true),
+                  ),
+                  _buildDivider(),
+                  ListTile(
+                    title: const Text('Ends'),
+                    trailing: Text(_formatHour(settings.quietHoursEnd)),
+                    onTap: () =>
+                        _pickQuietHour(context, settings, isStart: false),
+                  ),
+                ],
               ],
             ),
           ),
@@ -270,7 +273,8 @@ class NotificationSettingsView extends StatelessWidget {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Push notifications require FCM to be configured. This demo shows the settings UI.',
+                  'Preferences sync to all of your registered devices. '
+                  'Android system permission can also be changed in device settings.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -304,10 +308,7 @@ class NotificationSettingsView extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
         ],
         const SizedBox(height: 12),
@@ -342,7 +343,7 @@ class NotificationSettingsView extends StatelessWidget {
       trailing: Switch(
         value: settings.isTypeEnabled(type),
         activeThumbColor: AppColors.primary,
-        onChanged: EnvironmentConfig.isDemoMode && settings.pushEnabled
+        onChanged: settings.pushEnabled
             ? (value) {
                 context.read<NotificationBloc>().add(
                   ToggleNotificationType(
@@ -359,5 +360,38 @@ class NotificationSettingsView extends StatelessWidget {
 
   Widget _buildDivider() {
     return Divider(color: AppColors.surfaceLight, height: 1, indent: 72);
+  }
+
+  String _formatHour(int hour) {
+    final normalized = hour % 24;
+    final period = normalized >= 12 ? 'PM' : 'AM';
+    final displayHour = normalized % 12 == 0 ? 12 : normalized % 12;
+    return '$displayHour:00 $period';
+  }
+
+  Future<void> _pickQuietHour(
+    BuildContext context,
+    NotificationSettings settings, {
+    required bool isStart,
+  }) async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: isStart ? settings.quietHoursStart : settings.quietHoursEnd,
+        minute: 0,
+      ),
+    );
+    if (selected == null || !context.mounted) {
+      return;
+    }
+
+    context.read<NotificationBloc>().add(
+      UpdateQuietHours(
+        userId: userId,
+        enabled: settings.quietHoursEnabled,
+        startHour: isStart ? selected.hour : settings.quietHoursStart,
+        endHour: isStart ? settings.quietHoursEnd : selected.hour,
+      ),
+    );
   }
 }

@@ -1,10 +1,11 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'core/bloc/app_bloc_observer.dart';
 import 'core/constants/app_constants.dart';
@@ -12,7 +13,6 @@ import 'core/config/environment.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
-import 'core/utils/seed_data.dart';
 import 'features/assignments/data/repositories/assignment_repository.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
@@ -24,6 +24,7 @@ import 'features/grades/data/repositories/grade_repository.dart';
 import 'features/grades/presentation/bloc/grades_bloc.dart';
 import 'features/lessons/data/repositories/lesson_repository.dart';
 import 'features/notifications/data/repositories/notification_repository.dart';
+import 'features/notifications/data/services/push_notification_service.dart';
 import 'features/quizzes/data/repositories/quiz_repository.dart';
 import 'features/settings/data/repositories/settings_repository.dart';
 import 'features/settings/presentation/cubit/settings_cubit.dart';
@@ -58,17 +59,21 @@ Future<void> main() async {
     }
   }
 
+  final firebaseMessagingAvailable = await initializeFirebaseMessaging();
+
   // Initialize Hive for local caching
   await Hive.initFlutter();
 
   // Set up Bloc observer for debugging
   Bloc.observer = AppBlocObserver();
 
-  runApp(const BitClassApp());
+  runApp(BitClassApp(firebaseMessagingAvailable: firebaseMessagingAvailable));
 }
 
 class BitClassApp extends StatefulWidget {
-  const BitClassApp({super.key});
+  final bool firebaseMessagingAvailable;
+
+  const BitClassApp({super.key, required this.firebaseMessagingAvailable});
 
   @override
   State<BitClassApp> createState() => _BitClassAppState();
@@ -87,6 +92,8 @@ class _BitClassAppState extends State<BitClassApp> {
   late final SettingsRepository _settingsRepository;
   late final AuthBloc _authBloc;
   late final AppRouter _appRouter;
+  late final PushNotificationService _pushNotificationService;
+  StreamSubscription<AuthState>? _pushAuthSubscription;
 
   @override
   void initState() {
@@ -107,6 +114,37 @@ class _BitClassAppState extends State<BitClassApp> {
     _settingsRepository = SettingsRepository();
     _authBloc = AuthBloc(authRepository: _authRepository);
     _appRouter = AppRouter(authBloc: _authBloc);
+    _pushNotificationService = PushNotificationService(
+      notificationRepository: _notificationRepository,
+      firebaseAvailable: widget.firebaseMessagingAvailable,
+      onOpenLocation: (location) => _appRouter.router.go(location),
+    );
+    _notificationRepository.configurePushLifecycle(
+      requestPermission: _pushNotificationService.requestPermission,
+      synchronize: _pushNotificationService.synchronize,
+    );
+    _authRepository.beforeSignOut = _pushNotificationService.deactivateUser;
+    _pushAuthSubscription = _authBloc.stream.listen((state) {
+      if (state is AuthAuthenticated) {
+        unawaited(
+          _pushNotificationService
+              .activateUser(userId: state.user.id, role: state.user.role)
+              .catchError((Object error, StackTrace stackTrace) {
+                log('Push activation failed: $error', name: 'Main');
+              }),
+        );
+      } else if (state is AuthUnauthenticated) {
+        unawaited(
+          _pushNotificationService.deactivateUser().catchError((
+            Object error,
+            StackTrace stackTrace,
+          ) {
+            log('Push cleanup failed: $error', name: 'Main');
+          }),
+        );
+      }
+    });
+    unawaited(_pushNotificationService.initialize());
 
     // Check authentication status on app start
     _authBloc.add(AuthCheckRequested());
@@ -114,7 +152,10 @@ class _BitClassAppState extends State<BitClassApp> {
 
   @override
   void dispose() {
+    _pushAuthSubscription?.cancel();
+    unawaited(_pushNotificationService.dispose());
     _authBloc.close();
+    _notificationRepository.dispose();
     super.dispose();
   }
 

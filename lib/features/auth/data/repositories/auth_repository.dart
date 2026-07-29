@@ -23,6 +23,7 @@ class AuthRepository {
   static const String _avatarsBucket = 'avatars';
 
   final SupabaseClient? _supabase;
+  Future<void> Function()? beforeSignOut;
 
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoInstructorUserId = 'demo-instructor-1';
@@ -184,6 +185,7 @@ class AuthRepository {
       _demoAuthController.add(null);
       return;
     }
+    await beforeSignOut?.call();
     await _supabase!.auth.signOut();
   }
 

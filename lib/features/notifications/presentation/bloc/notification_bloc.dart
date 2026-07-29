@@ -23,7 +23,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     on<LoadNotificationSettings>(_onLoadNotificationSettings);
     on<TogglePushNotifications>(_onTogglePushNotifications);
     on<ToggleNotificationType>(_onToggleNotificationType);
-    on<NotificationReceived>(_onNotificationReceived);
+    on<UpdateQuietHours>(_onUpdateQuietHours);
   }
 
   Future<void> _onLoadNotifications(
@@ -163,19 +163,20 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     }
   }
 
-  Future<void> _onNotificationReceived(
-    NotificationReceived event,
+  Future<void> _onUpdateQuietHours(
+    UpdateQuietHours event,
     Emitter<NotificationState> emit,
   ) async {
-    notificationRepository.simulateNewNotification(event.notification);
-    final currentState = state;
-    if (currentState is NotificationsLoaded) {
-      emit(
-        currentState.copyWith(
-          notifications: [event.notification, ...currentState.notifications],
-          unreadCount: currentState.unreadCount + 1,
-        ),
+    try {
+      final settings = await notificationRepository.updateQuietHours(
+        event.userId,
+        enabled: event.enabled,
+        startHour: event.startHour,
+        endHour: event.endHour,
       );
+      emit(NotificationSettingsUpdated(settings: settings));
+    } catch (e) {
+      emit(NotificationError(message: 'Failed to update quiet hours: $e'));
     }
   }
 
