@@ -57,6 +57,7 @@ class _ThreadDetailPage extends StatefulWidget {
 class _ThreadDetailPageState extends State<_ThreadDetailPage> {
   final TextEditingController _replyController = TextEditingController();
   final FocusNode _replyFocusNode = FocusNode();
+  final Set<String> _hiddenReplyIds = {};
   late final DiscussionRepository _discussionRepository;
   RealtimeChannel? _realtimeChannel;
 
@@ -91,6 +92,107 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
     final authState = context.read<AuthBloc>().state;
     if (authState is AuthAuthenticated) return authState.user;
     return null;
+  }
+
+  Future<void> _deleteThread(ThreadModel thread, String userId) async {
+    if (thread.authorId != userId) return;
+
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Delete thread?'),
+            content: const Text(
+              'This will permanently delete the thread and all of its replies.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+
+    try {
+      await _discussionRepository.deleteThread(thread.id, userId);
+      if (!mounted) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Thread deleted.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete thread: $error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteReply(ReplyModel reply, String userId) async {
+    if (reply.authorId != userId) return;
+
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Unsend reply?'),
+            content: const Text(
+              'This reply will be permanently removed from the discussion.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                child: const Text('Unsend'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+
+    setState(() => _hiddenReplyIds.add(reply.id));
+    try {
+      await _discussionRepository.deleteReply(reply.id, reply.threadId, userId);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Reply unsent.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _reloadThread();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _hiddenReplyIds.remove(reply.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to unsend reply: $error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -174,18 +276,26 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
 
     if (state is ThreadDetailLoaded) {
       final user = _currentUser(context);
+      final visibleReplies = state.replies
+          .where((reply) => !_hiddenReplyIds.contains(reply.id))
+          .toList();
       return Column(
         children: [
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildThreadPost(context, state.thread, user),
+                _buildThreadPost(
+                  context,
+                  state.thread,
+                  user,
+                  visibleReplies.length,
+                ),
                 const SizedBox(height: 24),
-                if (state.replies.isNotEmpty) ...[
-                  _buildRepliesHeader(state.replies.length),
+                if (visibleReplies.isNotEmpty) ...[
+                  _buildRepliesHeader(visibleReplies.length),
                   const SizedBox(height: 12),
-                  ...state.replies.map(
+                  ...visibleReplies.map(
                     (reply) =>
                         _buildReplyCard(context, reply, state.thread, user),
                   ),
@@ -206,6 +316,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
     BuildContext context,
     ThreadModel thread,
     UserModel? user,
+    int visibleReplyCount,
   ) {
     final userId = user?.id ?? '';
 
@@ -282,6 +393,28 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                     ],
                   ),
                 ),
+                if (thread.authorId == userId)
+                  PopupMenuButton<String>(
+                    tooltip: 'Thread options',
+                    icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _deleteThread(thread, userId);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline, color: AppColors.error),
+                            SizedBox(width: 12),
+                            Text('Delete thread'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
 
@@ -338,7 +471,8 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                 const SizedBox(width: 24),
                 _buildActionButton(
                   icon: Icons.chat_bubble_outline,
-                  label: '${thread.replyCount} replies',
+                  label:
+                      '$visibleReplyCount ${visibleReplyCount == 1 ? 'reply' : 'replies'}',
                   color: AppColors.textSecondary,
                   onTap: () {
                     _replyFocusNode.requestFocus();
@@ -538,6 +672,28 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                         ),
                       ],
                     ),
+                  ),
+                if (reply.authorId == userId)
+                  PopupMenuButton<String>(
+                    tooltip: 'Reply options',
+                    icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _deleteReply(reply, userId);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.undo, color: AppColors.error),
+                            SizedBox(width: 12),
+                            Text('Unsend reply'),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
               ],
             ),

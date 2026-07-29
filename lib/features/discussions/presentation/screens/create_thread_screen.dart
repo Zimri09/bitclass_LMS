@@ -191,9 +191,6 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please provide some details';
                       }
-                      if (value.trim().length < 20) {
-                        return 'Please provide more details (at least 20 characters)';
-                      }
                       return null;
                     },
                   ),

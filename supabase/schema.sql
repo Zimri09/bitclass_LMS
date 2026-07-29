@@ -3,6 +3,7 @@ create extension if not exists pgcrypto;
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = pg_catalog
 as $$
 begin
   new.updated_at = timezone('utc', now());
@@ -662,7 +663,7 @@ create table if not exists public.threads (
 
 drop trigger if exists threads_updated_at on public.threads;
 create trigger threads_updated_at
-before update on public.threads
+before insert or update on public.threads
 for each row execute function public.set_updated_at();
 
 create table if not exists public.thread_likes (
@@ -693,7 +694,7 @@ create table if not exists public.replies (
 
 drop trigger if exists replies_updated_at on public.replies;
 create trigger replies_updated_at
-before update on public.replies
+before insert or update on public.replies
 for each row execute function public.set_updated_at();
 
 -- Keep discussion activity counters server-owned so students can create posts
@@ -1023,9 +1024,13 @@ create policy "discussion channels manage instructors" on public.discussion_chan
 
 create policy "threads read course members" on public.threads
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
-create policy "threads manage instructors and authors" on public.threads
-  for all using (author_id = auth.uid() or exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+create policy "threads create own" on public.threads
+  for insert with check (author_id = auth.uid());
+create policy "threads update authors and instructors" on public.threads
+  for update using (author_id = auth.uid() or exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
   with check (author_id = auth.uid() or exists (select 1 from public.courses c where c.id = course_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+create policy "threads creators delete" on public.threads
+  for delete using (author_id = auth.uid());
 
 create policy "thread likes read own" on public.thread_likes
   for select using (user_id = auth.uid());
@@ -1034,9 +1039,13 @@ create policy "thread likes manage own" on public.thread_likes
 
 create policy "replies read course members" on public.replies
   for select using (exists (select 1 from public.threads t where t.id = thread_id and (t.course_id is not null)));
-create policy "replies manage authors and instructors" on public.replies
-  for all using (author_id = auth.uid() or exists (select 1 from public.threads t join public.courses c on c.id = t.course_id where t.id = thread_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+create policy "replies create own" on public.replies
+  for insert with check (author_id = auth.uid());
+create policy "replies update authors and instructors" on public.replies
+  for update using (author_id = auth.uid() or exists (select 1 from public.threads t join public.courses c on c.id = t.course_id where t.id = thread_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
   with check (author_id = auth.uid() or exists (select 1 from public.threads t join public.courses c on c.id = t.course_id where t.id = thread_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+create policy "replies creators delete" on public.replies
+  for delete using (author_id = auth.uid());
 
 create policy "files read course members" on public.files
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));

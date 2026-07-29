@@ -707,11 +707,40 @@ class DiscussionRepository {
       'like_count': thread.likeCount,
       'liked_by': thread.likedBy,
       'created_at': thread.createdAt.toIso8601String(),
-      'updated_at': thread.updatedAt?.toIso8601String(),
-      'last_reply_at': thread.lastReplyAt?.toIso8601String(),
+      if (thread.updatedAt != null)
+        'updated_at': thread.updatedAt!.toIso8601String(),
+      if (thread.lastReplyAt != null)
+        'last_reply_at': thread.lastReplyAt!.toIso8601String(),
     });
 
     return thread;
+  }
+
+  Future<void> deleteThread(String threadId, String authorId) async {
+    if (EnvironmentConfig.isDemoMode) {
+      for (final entry in _threadsByChannel.entries) {
+        final index = entry.value.indexWhere((thread) => thread.id == threadId);
+        if (index < 0) continue;
+        if (entry.value[index].authorId != authorId) {
+          throw Exception('Only the thread creator can delete this thread.');
+        }
+        entry.value.removeAt(index);
+        _repliesByThread.remove(threadId);
+        return;
+      }
+      throw Exception('Thread not found.');
+    }
+
+    final deletedRows = await _supabase!
+        .from(_threadsTable)
+        .delete()
+        .eq('id', threadId)
+        .eq('author_id', authorId)
+        .select('id');
+
+    if ((deletedRows as List<dynamic>).isEmpty) {
+      throw Exception('Only the thread creator can delete this thread.');
+    }
   }
 
   Future<ThreadModel> toggleThreadLike(String threadId, String userId) async {
@@ -852,10 +881,55 @@ class DiscussionRepository {
       'like_count': reply.likeCount,
       'liked_by': reply.likedBy,
       'created_at': reply.createdAt.toIso8601String(),
-      'updated_at': reply.updatedAt?.toIso8601String(),
+      if (reply.updatedAt != null)
+        'updated_at': reply.updatedAt!.toIso8601String(),
     });
 
     return reply;
+  }
+
+  Future<void> deleteReply(
+    String replyId,
+    String threadId,
+    String authorId,
+  ) async {
+    if (EnvironmentConfig.isDemoMode) {
+      final replies = _repliesByThread[threadId];
+      final index = replies?.indexWhere((reply) => reply.id == replyId) ?? -1;
+      if (replies == null || index < 0) {
+        throw Exception('Reply not found.');
+      }
+      if (replies[index].authorId != authorId) {
+        throw Exception('You can only unsend your own replies.');
+      }
+      replies.removeAt(index);
+
+      for (final threads in _threadsByChannel.values) {
+        final threadIndex = threads.indexWhere(
+          (thread) => thread.id == threadId,
+        );
+        if (threadIndex >= 0) {
+          final thread = threads[threadIndex];
+          threads[threadIndex] = thread.copyWith(
+            replyCount: thread.replyCount > 0 ? thread.replyCount - 1 : 0,
+          );
+          break;
+        }
+      }
+      return;
+    }
+
+    final deletedRows = await _supabase!
+        .from(_repliesTable)
+        .delete()
+        .eq('id', replyId)
+        .eq('thread_id', threadId)
+        .eq('author_id', authorId)
+        .select('id');
+
+    if ((deletedRows as List<dynamic>).isEmpty) {
+      throw Exception('You can only unsend your own replies.');
+    }
   }
 
   Future<ReplyModel> toggleReplyLike(

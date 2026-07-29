@@ -463,18 +463,13 @@ create policy "threads: course members read"
     )
   );
 
-create policy "threads: authors and managers write"
-  on public.threads for all to authenticated
-  using (
-    author_id = (select auth.uid())
-    or (select private.can_manage_course(course_id))
-  )
+create policy "threads: members create"
+  on public.threads for insert to authenticated
   with check (
-    (
-      author_id = (select auth.uid())
-      and (select private.is_course_member(course_id))
-      and exists (
-        select 1
+    author_id = (select auth.uid())
+    and (select private.is_course_member(course_id))
+    and exists (
+      select 1
       from public.discussion_channels dc
       where dc.id = threads.channel_id
         and dc.course_id = threads.course_id
@@ -482,10 +477,31 @@ create policy "threads: authors and managers write"
           not dc.is_announcement
           or (select private.can_manage_course(threads.course_id))
         )
-      )
     )
-    or (select private.can_manage_course(course_id))
   );
+
+create policy "threads: authors and managers update"
+  on public.threads for update to authenticated
+  using (
+    author_id = (select auth.uid())
+    or (select private.can_manage_course(course_id))
+  )
+  with check (
+    (
+      author_id = (select auth.uid())
+      or (select private.can_manage_course(course_id))
+    )
+    and exists (
+      select 1
+      from public.discussion_channels dc
+      where dc.id = threads.channel_id
+        and dc.course_id = threads.course_id
+    )
+  );
+
+create policy "threads: creators delete"
+  on public.threads for delete to authenticated
+  using (author_id = (select auth.uid()));
 
 create policy "replies: course members read"
   on public.replies for select to authenticated
@@ -503,8 +519,24 @@ create policy "replies: course members read"
     )
   );
 
-create policy "replies: authors and managers write"
-  on public.replies for all to authenticated
+create policy "replies: members create"
+  on public.replies for insert to authenticated
+  with check (
+    author_id = (select auth.uid())
+    and (select private.is_course_member(course_id))
+    and exists (
+      select 1
+      from public.threads
+      join public.discussion_channels on discussion_channels.id = threads.channel_id
+      where threads.id = thread_id
+        and threads.course_id = replies.course_id
+        and threads.channel_id = replies.channel_id
+        and discussion_channels.course_id = replies.course_id
+    )
+  );
+
+create policy "replies: authors and managers update"
+  on public.replies for update to authenticated
   using (
     author_id = (select auth.uid())
     or (select private.can_manage_course(course_id))
@@ -512,19 +544,22 @@ create policy "replies: authors and managers write"
   with check (
     (
       author_id = (select auth.uid())
-      and (select private.is_course_member(course_id))
-      and exists (
-        select 1
-        from public.threads
-        join public.discussion_channels on discussion_channels.id = threads.channel_id
-        where threads.id = thread_id
-          and threads.course_id = replies.course_id
-          and threads.channel_id = replies.channel_id
-          and discussion_channels.course_id = replies.course_id
-      )
+      or (select private.can_manage_course(course_id))
     )
-    or (select private.can_manage_course(course_id))
+    and exists (
+      select 1
+      from public.threads
+      join public.discussion_channels on discussion_channels.id = threads.channel_id
+      where threads.id = thread_id
+        and threads.course_id = replies.course_id
+        and threads.channel_id = replies.channel_id
+        and discussion_channels.course_id = replies.course_id
+    )
   );
+
+create policy "replies: creators delete"
+  on public.replies for delete to authenticated
+  using (author_id = (select auth.uid()));
 
 create policy "files: course members read metadata"
   on public.files for select to authenticated
