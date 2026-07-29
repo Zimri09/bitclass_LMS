@@ -1,12 +1,29 @@
 import 'dart:developer';
 import 'dart:math' hide log;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
 import '../models/course_model.dart';
+
+class CourseJoinException implements Exception {
+  final String message;
+
+  const CourseJoinException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+class CourseUnenrollException implements Exception {
+  final String message;
+
+  const CourseUnenrollException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 /// Repository handling course operations
 class CourseRepository {
@@ -218,13 +235,20 @@ class CourseRepository {
     if (EnvironmentConfig.isDemoMode) {
       try {
         final course = _demoCourses.firstWhere(
-          (c) =>
-              c.courseCode.toUpperCase() == upperCode && c.isPublished,
+          (c) => c.courseCode.toUpperCase() == upperCode,
         );
+        if (!course.isPublished) {
+          throw const CourseJoinException(
+            'This class has not been published yet. '
+            'Ask your instructor to publish it first.',
+          );
+        }
         if (_demoEnrollments.any(
           (e) => e.courseId == course.id && e.userId == userId,
         )) {
-          throw Exception('You are already enrolled in this course.');
+          throw const CourseJoinException(
+            'You are already enrolled in this course.',
+          );
         }
 
         final enrollment = EnrollmentModel(
@@ -248,31 +272,44 @@ class CourseRepository {
         );
         return (course: _demoCourses[courseIndex], enrollment: enrollment);
       } on StateError {
-        throw Exception('Invalid course code. Please check and try again.');
+        throw const CourseJoinException(
+          'Invalid class code. Please check and try again.',
+        );
       }
     }
 
     final authenticatedUserId = _supabase!.auth.currentUser?.id;
     if (authenticatedUserId == null || authenticatedUserId != userId) {
-      throw StateError('Your session has expired. Please sign in again.');
+      throw const CourseJoinException(
+        'Your session has expired. Please sign in again.',
+      );
     }
 
-    final response = await _supabase!.rpc(
-      'join_course_by_code',
-      params: {'join_code': upperCode},
-    );
+    late final dynamic response;
+    try {
+      response = await _supabase.rpc(
+        'join_course_by_code',
+        params: {'join_code': upperCode},
+      );
+    } on PostgrestException catch (error) {
+      throw CourseJoinException(error.message);
+    }
     final rows = (response as List<dynamic>)
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
     if (rows.length != 1) {
-      throw StateError('Could not join this course. Please try again.');
+      throw const CourseJoinException(
+        'Could not join this course. Please try again.',
+      );
     }
 
     final courseId = rows.single['course_id'] as String;
     final course = await getCourse(courseId);
     final enrollment = await getEnrollment(courseId, authenticatedUserId);
     if (course == null || enrollment == null) {
-      throw StateError('Could not load the course after joining.');
+      throw const CourseJoinException(
+        'Could not load the course after joining.',
+      );
     }
 
     return (course: course, enrollment: enrollment);
@@ -330,8 +367,9 @@ class CourseRepository {
     }
 
     try {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Fetching courses from Supabase...', name: 'CourseRepository');
+      }
 
       final rows = await _supabase!
           .from(_coursesTable)
@@ -369,8 +407,9 @@ class CourseRepository {
 
       return courses;
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Error fetching courses: $e', name: 'CourseRepository');
+      }
       return [];
     }
   }
@@ -396,8 +435,9 @@ class CourseRepository {
       courses.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return courses;
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Error fetching instructor courses: $e', name: 'CourseRepository');
+      }
       return [];
     }
   }
@@ -444,6 +484,27 @@ class CourseRepository {
         );
   }
 
+  Stream<List<CourseModel>> watchInstructorCourses(String instructorId) {
+    if (EnvironmentConfig.isDemoMode) {
+      return Stream.value(
+        _demoCourses
+            .where((course) => course.instructorId == instructorId)
+            .toList(),
+      );
+    }
+
+    return _supabase!
+        .from(_coursesTable)
+        .stream(primaryKey: ['id'])
+        .eq('instructor_id', instructorId)
+        .order('created_at', ascending: false)
+        .map(
+          (rows) => rows
+              .map((row) => _courseFromRow(row, row['id'] as String))
+              .toList(),
+        );
+  }
+
   /// Create a new course
   Future<CourseModel> createCourse({
     required String title,
@@ -478,6 +539,10 @@ class CourseRepository {
       return course;
     }
 
+    final authenticatedInstructorId = await _requireInstructorSession(
+      instructorId,
+    );
+
     // Generate a unique code for the Supabase-backed course
     String supabaseCode;
     while (true) {
@@ -497,13 +562,13 @@ class CourseRepository {
 
     late final Map<String, dynamic> row;
     try {
-      row = await _supabase!
+      row = await _supabase
           .from(_coursesTable)
           .insert({
             'title': title,
             'description': description,
             'category': category,
-            'instructor_id': instructorId,
+            'instructor_id': authenticatedInstructorId,
             'instructor_name': instructorName,
             'thumbnail_url': thumbnailUrl,
             'enrollment_count': 0,
@@ -516,9 +581,12 @@ class CourseRepository {
           .single();
     } on PostgrestException catch (error, stackTrace) {
       if (kDebugMode) {
-        log(
-          'Course insert failed: ${error.message}',
-          stackTrace: stackTrace,
+        log('Course insert failed: ${error.message}', stackTrace: stackTrace);
+      }
+      if (error.code == '42501') {
+        throw Exception(
+          'Your instructor session was rejected by the database. '
+          'Please sign out, sign back in, and try again.',
         );
       }
       throw Exception('Course record creation failed: ${error.message}');
@@ -558,6 +626,42 @@ class CourseRepository {
     }
   }
 
+  Future<String> _requireInstructorSession(String expectedInstructorId) async {
+    final client = _supabase!;
+    var session = client.auth.currentSession;
+
+    if (session == null) {
+      throw Exception('Your session has ended. Please sign in again.');
+    }
+
+    if (session.isExpired) {
+      try {
+        session = (await client.auth.refreshSession()).session;
+      } on AuthException {
+        throw Exception('Your session has expired. Please sign in again.');
+      }
+    }
+
+    if (session == null || session.user.id != expectedInstructorId) {
+      throw Exception(
+        'The active account does not match this instructor profile. '
+        'Please sign out and sign back in.',
+      );
+    }
+
+    final profile = await client
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+    final role = profile?['role'] as String?;
+    if (role != 'instructor' && role != 'admin') {
+      throw Exception('This account is not registered as an instructor.');
+    }
+
+    return session.user.id;
+  }
+
   /// Uploads a course banner and returns its public URL for `thumbnail_url`.
   Future<String> uploadCourseThumbnail({
     required String courseId,
@@ -587,7 +691,7 @@ class CourseRepository {
           ),
         );
 
-    return _supabase!.storage.from(bucket).getPublicUrl(storagePath);
+    return _supabase.storage.from(bucket).getPublicUrl(storagePath);
   }
 
   /// Update a course
@@ -626,8 +730,9 @@ class CourseRepository {
     if (updates.containsKey('description')) {
       dbUpdates['description'] = updates['description'];
     }
-    if (updates.containsKey('category'))
+    if (updates.containsKey('category')) {
       dbUpdates['category'] = updates['category'];
+    }
     if (updates.containsKey('thumbnailUrl')) {
       dbUpdates['thumbnail_url'] = updates['thumbnailUrl'];
     }
@@ -719,8 +824,9 @@ class CourseRepository {
           .toList()
         ..sort((a, b) => b.enrolledAt.compareTo(a.enrolledAt));
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         log('Error fetching enrollments: $e', name: 'CourseRepository');
+      }
       return [];
     }
   }
@@ -823,9 +929,13 @@ class CourseRepository {
       return;
     }
 
-    await _supabase!.rpc(
-      'unenroll_from_course',
-      params: {'target_course_id': courseId},
-    );
+    try {
+      await _supabase!.rpc(
+        'unenroll_from_course',
+        params: {'target_course_id': courseId},
+      );
+    } on PostgrestException catch (error) {
+      throw CourseUnenrollException(error.message);
+    }
   }
 }

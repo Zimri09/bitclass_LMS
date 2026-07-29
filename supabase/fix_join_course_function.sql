@@ -13,6 +13,7 @@ declare
   normalized_code text := upper(trim(join_code));
   target_course_id uuid;
   target_lesson_count integer;
+  target_is_published boolean;
   created_enrollment_id uuid;
 begin
   if authenticated_user_id is null then
@@ -20,7 +21,7 @@ begin
   end if;
 
   if normalized_code !~ '^[A-Z0-9]{6}$' then
-    raise exception 'Invalid course code. Please check and try again.';
+    raise exception 'Invalid class code. Please check and try again.';
   end if;
 
   if not exists (
@@ -31,13 +32,17 @@ begin
     raise exception 'Only student accounts can join courses.';
   end if;
 
-  select id, lesson_count
-  into target_course_id, target_lesson_count
+  select id, lesson_count, is_published
+  into target_course_id, target_lesson_count, target_is_published
   from public.courses
-  where course_code = normalized_code and is_published;
+  where course_code = normalized_code;
 
   if target_course_id is null then
-    raise exception 'Invalid course code. Please check and try again.';
+    raise exception 'Invalid class code. Please check and try again.';
+  end if;
+
+  if not target_is_published then
+    raise exception 'This class has not been published yet. Ask your instructor to publish it first.';
   end if;
 
   insert into public.enrollments (
@@ -67,15 +72,12 @@ begin
     raise exception 'You are already enrolled in this course.';
   end if;
 
-  update public.courses
-  set enrollment_count = enrollment_count + 1
-  where id = target_course_id;
-
   return query select target_course_id, created_enrollment_id;
 end;
 $$;
 
 revoke all on function public.join_course_by_code(text) from public;
+revoke all on function public.join_course_by_code(text) from anon;
 grant execute on function public.join_course_by_code(text) to authenticated;
 
 -- Verify the repaired function definition exists. Do not run the function here:

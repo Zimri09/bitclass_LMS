@@ -88,104 +88,111 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
           }
         },
         child: CustomScrollView(
-        slivers: [
-          // App bar
-          SliverAppBar(
-            floating: true,
-            leading: const AppDrawerButton(),
-            title: Text('Classes', style: AppTextStyles.h3),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(120),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Column(
-                  children: [
-                    // Search bar
-                    TextField(
-                      controller: _searchController,
-                      onSubmitted: (_) => _loadCourses(),
-                      decoration: InputDecoration(
-                        hintText: 'Search your classes...',
-                        prefixIcon: Icon(Icons.search),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _loadCourses();
-                                },
-                              )
-                            : null,
+          slivers: [
+            // App bar
+            SliverAppBar(
+              floating: true,
+              leading: const AppDrawerButton(),
+              title: Text('Classes', style: AppTextStyles.h3),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(120),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Column(
+                    children: [
+                      // Search bar
+                      TextField(
+                        controller: _searchController,
+                        onSubmitted: (_) => _loadCourses(),
+                        decoration: InputDecoration(
+                          hintText: 'Search your classes...',
+                          prefixIcon: Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _loadCourses();
+                                  },
+                                )
+                              : null,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Category filter
-                    SizedBox(
-                      height: 36,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          _buildCategoryChip(null, 'All'),
-                          ...AppConstants.courseCategories.map(
-                            (cat) => _buildCategoryChip(cat, cat),
-                          ),
-                        ],
+                      const SizedBox(height: 12),
+                      // Category filter
+                      SizedBox(
+                        height: 36,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            _buildCategoryChip(null, 'All'),
+                            ...AppConstants.courseCategories.map(
+                              (cat) => _buildCategoryChip(cat, cat),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Course grid
-          BlocBuilder<CourseBloc, CourseState>(
-            builder: (context, state) {
-              if (state is CourseLoading) {
-                return const SliverCourseGridSkeleton();
-              }
+            // Course grid
+            BlocBuilder<CourseBloc, CourseState>(
+              builder: (context, state) {
+                final visibleCourses = switch (state) {
+                  CoursesLoaded(:final courses) => courses,
+                  CourseJoining(:final courses) => courses,
+                  CourseJoinFailure(:final courses) => courses,
+                  _ => null,
+                };
 
-              if (state is CourseError) {
-                return SliverFillRemaining(
-                  child: ErrorState(
-                    message: state.message,
-                    onRetry: _loadCourses,
-                  ),
-                );
-              }
+                if (visibleCourses != null) {
+                  if (visibleCourses.isEmpty) {
+                    return SliverFillRemaining(
+                      child: EmptyState(
+                        icon: Icons.school_outlined,
+                        title: 'No classes joined yet',
+                        subtitle: _selectedCategory != null
+                            ? 'Try a different category'
+                            : 'Use your instructor\'s class code to join one',
+                      ),
+                    );
+                  }
 
-              if (state is CoursesLoaded) {
-                if (state.courses.isEmpty) {
-                  return SliverFillRemaining(
-                    child: EmptyState(
-                      icon: Icons.school_outlined,
-                      title: 'No classes joined yet',
-                      subtitle: _selectedCategory != null
-                          ? 'Try a different category'
-                          : 'Use your instructor\'s class code to join one',
+                  return SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _CourseCard(course: visibleCourses[index]),
+                        ),
+                        childCount: visibleCourses.length,
+                      ),
                     ),
                   );
                 }
 
-                return SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _CourseCard(course: state.courses[index]),
-                      ),
-                      childCount: state.courses.length,
-                    ),
-                  ),
-                );
-              }
+                if (state is CourseLoading) {
+                  return const SliverCourseGridSkeleton();
+                }
 
-              return const SliverCourseGridSkeleton();
-            },
-          ),
-        ],
-      ),
+                if (state is CourseError) {
+                  return SliverFillRemaining(
+                    child: ErrorState(
+                      message: state.message,
+                      onRetry: _loadCourses,
+                    ),
+                  );
+                }
+
+                return const SliverCourseGridSkeleton();
+              },
+            ),
+          ],
+        ),
       ),
       floatingActionButton: canJoinClasses
           ? FloatingActionButton.extended(
@@ -218,12 +225,12 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
           value: context.read<CourseBloc>(),
           child: BlocConsumer<CourseBloc, CourseState>(
             listener: (ctx, state) {
-              if (state is CourseJoinedByCode || state is CourseError) {
-                Navigator.of(sheetCtx).pop(); // close sheet; main listener handles the rest
+              if (state is CourseJoinedByCode) {
+                Navigator.of(sheetCtx).pop();
               }
             },
             builder: (ctx, state) {
-              final isLoading = state is CourseLoading;
+              final isLoading = state is CourseJoining;
               return Padding(
                 padding: EdgeInsets.only(
                   bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
@@ -236,7 +243,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, -4),
                       ),
@@ -288,7 +295,10 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Join a Course', style: AppTextStyles.h3),
+                                  Text(
+                                    'Join a Course',
+                                    style: AppTextStyles.h3,
+                                  ),
                                   Text(
                                     'Enter the 6-character code from your instructor',
                                     style: AppTextStyles.caption.copyWith(
@@ -328,9 +338,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                               prefixIcon: const Icon(Icons.tag),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: AppColors.border,
-                                ),
+                                borderSide: BorderSide(color: AppColors.border),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -369,6 +377,26 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                               ),
                             ],
                           ),
+                          if (state is CourseJoinFailure) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.error.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: AppColors.error.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Text(
+                                state.message,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.error,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 24),
 
                           // Join button
@@ -388,10 +416,9 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                                             JoinCourseByCode(
                                               code: codeController.text.trim(),
                                               userId: authState.user.id,
-                                              studentName:
-                                                  authState
-                                                      .user
-                                                      .displayNameOrEmail,
+                                              studentName: authState
+                                                  .user
+                                                  .displayNameOrEmail,
                                               studentEmail:
                                                   authState.user.email,
                                             ),
@@ -410,7 +437,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                                     )
                                   : const Icon(Icons.login_rounded),
                               label: Text(
-                                isLoading ? 'Joining…' : 'Join Course',
+                                isLoading ? 'Joining...' : 'Join Course',
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.secondary,
@@ -498,4 +525,3 @@ class UpperCaseTextFormatter extends TextInputFormatter {
     );
   }
 }
-

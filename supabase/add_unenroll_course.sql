@@ -6,8 +6,8 @@
 create or replace function public.unenroll_from_course(target_course_id uuid)
 returns void
 language plpgsql
-security definer
-set search_path = public, pg_temp
+security invoker
+set search_path = pg_catalog, public
 as $$
 begin
   if (select auth.uid()) is null then
@@ -22,13 +22,9 @@ begin
     raise exception 'You are not enrolled in this class.';
   end if;
 
-  update public.courses
-  set
-    enrollment_count = greatest(enrollment_count - 1, 0),
-    updated_at = timezone('utc', now())
-  where id = target_course_id;
 end;
 $$;
 
 revoke all on function public.unenroll_from_course(uuid) from public;
+revoke all on function public.unenroll_from_course(uuid) from anon;
 grant execute on function public.unenroll_from_course(uuid) to authenticated;

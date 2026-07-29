@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -24,11 +26,50 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
   List<CourseModel>? _courses;
   bool _isLoading = true;
   String? _error;
+  StreamSubscription<List<CourseModel>>? _coursesSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadCourses();
+    _listenToCourses();
+  }
+
+  @override
+  void dispose() {
+    _coursesSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _listenToCourses() {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) {
+      setState(() {
+        _isLoading = false;
+        _error = 'Please sign in again.';
+      });
+      return;
+    }
+
+    _coursesSubscription = context
+        .read<CourseRepository>()
+        .watchInstructorCourses(authState.user.id)
+        .listen(
+          (courses) {
+            if (!mounted) return;
+            setState(() {
+              _courses = courses;
+              _isLoading = false;
+              _error = null;
+            });
+          },
+          onError: (Object error) {
+            if (!mounted) return;
+            setState(() {
+              _error = error.toString();
+              _isLoading = false;
+            });
+          },
+        );
   }
 
   Future<void> _loadCourses() async {

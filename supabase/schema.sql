@@ -389,6 +389,69 @@ create table if not exists public.enrollments (
 
 create index if not exists enrollments_course_user_idx on public.enrollments (course_id, user_id);
 
+-- Keep the denormalized course count correct for joins, unenrollments, and
+-- cascades caused by deleting a profile or auth user.
+create or replace function private.sync_course_enrollment_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  target_course_id uuid;
+begin
+  if tg_op = 'UPDATE' and old.course_id is distinct from new.course_id then
+    update public.courses as course_row
+    set
+      enrollment_count = (
+        select count(*)::integer
+        from public.enrollments
+        where course_id = old.course_id
+      ),
+      updated_at = timezone('utc', now())
+    where course_row.id = old.course_id;
+  end if;
+
+  target_course_id := case
+    when tg_op = 'DELETE' then old.course_id
+    else new.course_id
+  end;
+
+  update public.courses as course_row
+  set
+    enrollment_count = (
+      select count(*)::integer
+      from public.enrollments
+      where course_id = target_course_id
+    ),
+    updated_at = timezone('utc', now())
+  where course_row.id = target_course_id;
+
+  return null;
+end;
+$$;
+
+revoke all on function private.sync_course_enrollment_count() from public;
+
+drop trigger if exists enrollments_sync_course_count on public.enrollments;
+create trigger enrollments_sync_course_count
+after insert or delete or update of course_id on public.enrollments
+for each row execute function private.sync_course_enrollment_count();
+
+update public.courses as course_row
+set
+  enrollment_count = (
+    select count(*)::integer
+    from public.enrollments
+    where course_id = course_row.id
+  ),
+  updated_at = timezone('utc', now())
+where course_row.enrollment_count is distinct from (
+  select count(*)::integer
+  from public.enrollments
+  where course_id = course_row.id
+);
+
 create table if not exists public.lesson_progress (
   id uuid primary key default gen_random_uuid(),
   enrollment_id uuid not null references public.enrollments(id) on delete cascade,
@@ -693,6 +756,37 @@ create trigger replies_sync_thread_count
 after insert or delete on public.replies
 for each row execute function public.sync_discussion_reply_count();
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'discussion_channels'
+  ) then
+    alter publication supabase_realtime add table public.discussion_channels;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'threads'
+  ) then
+    alter publication supabase_realtime add table public.threads;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'replies'
+  ) then
+    alter publication supabase_realtime add table public.replies;
+  end if;
+end;
+$$;
+
 create table if not exists public.files (
   id text primary key,
   course_id uuid not null references public.courses(id) on delete cascade,
@@ -976,6 +1070,7 @@ declare
   normalized_code text := upper(trim(join_code));
   target_course_id uuid;
   target_lesson_count integer;
+  target_is_published boolean;
   created_enrollment_id uuid;
 begin
   if authenticated_user_id is null then
@@ -983,20 +1078,24 @@ begin
   end if;
 
   if normalized_code !~ '^[A-Z0-9]{6}$' then
-    raise exception 'Invalid course code. Please check and try again.';
+    raise exception 'Invalid class code. Please check and try again.';
   end if;
 
   if public.current_user_role() <> 'student' then
     raise exception 'Only student accounts can join courses.';
   end if;
 
-  select id, lesson_count
-  into target_course_id, target_lesson_count
+  select id, lesson_count, is_published
+  into target_course_id, target_lesson_count, target_is_published
   from public.courses
-  where course_code = normalized_code and is_published;
+  where course_code = normalized_code;
 
   if target_course_id is null then
-    raise exception 'Invalid course code. Please check and try again.';
+    raise exception 'Invalid class code. Please check and try again.';
+  end if;
+
+  if not target_is_published then
+    raise exception 'This class has not been published yet. Ask your instructor to publish it first.';
   end if;
 
   insert into public.enrollments (
@@ -1025,22 +1124,19 @@ begin
     raise exception 'You are already enrolled in this course.';
   end if;
 
-  update public.courses
-  set enrollment_count = enrollment_count + 1
-  where id = target_course_id;
-
   return query select target_course_id, created_enrollment_id;
 end;
 $$;
 
 revoke all on function public.join_course_by_code(text) from public;
+revoke all on function public.join_course_by_code(text) from anon;
 grant execute on function public.join_course_by_code(text) to authenticated;
 
 create or replace function public.unenroll_from_course(target_course_id uuid)
 returns void
 language plpgsql
-security definer
-set search_path = public, pg_temp
+security invoker
+set search_path = pg_catalog, public
 as $$
 begin
   if (select auth.uid()) is null then
@@ -1055,13 +1151,9 @@ begin
     raise exception 'You are not enrolled in this class.';
   end if;
 
-  update public.courses
-  set
-    enrollment_count = greatest(enrollment_count - 1, 0),
-    updated_at = timezone('utc', now())
-  where id = target_course_id;
 end;
 $$;
 
 revoke all on function public.unenroll_from_course(uuid) from public;
+revoke all on function public.unenroll_from_course(uuid) from anon;
 grant execute on function public.unenroll_from_course(uuid) to authenticated;

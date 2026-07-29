@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -11,7 +12,7 @@ import '../bloc/discussion_event.dart';
 import '../bloc/discussion_state.dart';
 
 /// Screen showing thread details with replies
-class ThreadDetailScreen extends StatefulWidget {
+class ThreadDetailScreen extends StatelessWidget {
   final String courseId;
   final String channelId;
   final String threadId;
@@ -24,18 +25,65 @@ class ThreadDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<ThreadDetailScreen> createState() => _ThreadDetailScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => DiscussionBloc(
+        discussionRepository: context.read<DiscussionRepository>(),
+      )..add(LoadThreadDetail(threadId: threadId)),
+      child: _ThreadDetailPage(
+        courseId: courseId,
+        channelId: channelId,
+        threadId: threadId,
+      ),
+    );
+  }
 }
 
-class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
+class _ThreadDetailPage extends StatefulWidget {
+  final String courseId;
+  final String channelId;
+  final String threadId;
+
+  const _ThreadDetailPage({
+    required this.courseId,
+    required this.channelId,
+    required this.threadId,
+  });
+
+  @override
+  State<_ThreadDetailPage> createState() => _ThreadDetailPageState();
+}
+
+class _ThreadDetailPageState extends State<_ThreadDetailPage> {
   final TextEditingController _replyController = TextEditingController();
   final FocusNode _replyFocusNode = FocusNode();
+  late final DiscussionRepository _discussionRepository;
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _discussionRepository = context.read<DiscussionRepository>();
+    _realtimeChannel = _discussionRepository.subscribeToThreadDetail(
+      threadId: widget.threadId,
+      onChanged: _reloadThread,
+    );
+  }
 
   @override
   void dispose() {
     _replyController.dispose();
     _replyFocusNode.dispose();
+    _discussionRepository.removeRealtimeChannel(_realtimeChannel);
     super.dispose();
+  }
+
+  void _reloadThread() {
+    if (mounted) {
+      context.read<DiscussionBloc>().add(
+        LoadThreadDetail(threadId: widget.threadId),
+      );
+    }
   }
 
   /// Get the current authenticated user, or null
@@ -47,12 +95,8 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => DiscussionBloc(
-        discussionRepository: context.read<DiscussionRepository>(),
-      )..add(LoadThreadDetail(threadId: widget.threadId)),
-      child: BlocConsumer<DiscussionBloc, DiscussionState>(
-        listener: (context, state) {
+    return BlocConsumer<DiscussionBloc, DiscussionState>(
+      listener: (context, state) {
           if (state is ReplyCreated) {
             _replyController.clear();
             ScaffoldMessenger.of(context).showSnackBar(
@@ -69,9 +113,9 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
               ),
             );
           }
-        },
-        builder: (context, state) {
-          return Scaffold(
+      },
+      builder: (context, state) {
+        return Scaffold(
             appBar: AppBar(
               title: Text(
                 state is ThreadDetailLoaded ? state.thread.title : 'Thread',
@@ -100,9 +144,8 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
               ],
             ),
             body: _buildBody(context, state),
-          );
-        },
-      ),
+        );
+      },
     );
   }
 

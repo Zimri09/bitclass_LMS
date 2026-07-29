@@ -89,9 +89,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 
           if (state is CourseDetailLoaded) {
             return StreamBuilder<CourseModel?>(
-              stream: context
-                  .read<CourseRepository>()
-                  .watchCourse(state.course.id),
+              stream: context.read<CourseRepository>().watchCourse(
+                state.course.id,
+              ),
               initialData: state.course,
               builder: (context, snapshot) => _CourseDetailContent(
                 course: snapshot.data ?? state.course,
@@ -157,6 +157,7 @@ class _CourseDetailContent extends StatefulWidget {
 
 class _CourseDetailContentState extends State<_CourseDetailContent> {
   int _syllabusRefreshKey = 0;
+  bool _isUnenrolling = false;
 
   CourseModel get course => widget.course;
   EnrollmentModel? get enrollment => widget.enrollment;
@@ -175,18 +176,39 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     final authState = context.watch<AuthBloc>().state;
     final isInstructor =
         authState is AuthAuthenticated && authState.user.role == 'instructor';
+    final isStudent =
+        authState is AuthAuthenticated && authState.user.role == 'student';
     final isOwnCourse =
         authState is AuthAuthenticated &&
         authState.user.id == course.instructorId;
+    final studentCourseMenu = isStudent && isEnrolled
+        ? _buildStudentCourseMenu(context)
+        : null;
 
     if (widget.selectedTab == 1) {
-      return _CourseWorkTab(course: course, isCourseOwner: isOwnCourse);
+      return SafeArea(
+        bottom: false,
+        child: _CourseWorkTab(
+          course: course,
+          isCourseOwner: isOwnCourse,
+          courseMenu: studentCourseMenu,
+        ),
+      );
     }
     if (widget.selectedTab == 2) {
-      return _CourseDiscussionTab(courseId: course.id);
+      return SafeArea(
+        bottom: false,
+        child: _CourseDiscussionTab(
+          courseId: course.id,
+          courseMenu: studentCourseMenu,
+        ),
+      );
     }
     if (widget.selectedTab == 3) {
-      return _CoursePeopleTab(course: course);
+      return SafeArea(
+        bottom: false,
+        child: _CoursePeopleTab(course: course, courseMenu: studentCourseMenu),
+      );
     }
 
     return CustomScrollView(
@@ -215,6 +237,8 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                   context.push(AppRoutes.editCoursePath(course.id));
                 },
               ),
+            if (studentCourseMenu != null)
+              _buildStudentCourseMenu(context, iconColor: Colors.white),
           ],
           flexibleSpace: FlexibleSpaceBar(
             background: Stack(
@@ -416,10 +440,12 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('Course Status', style: AppTextStyles.h4),
-                      const SizedBox(width: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -780,7 +806,8 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
   Widget _buildCourseSyllabus() {
     final authState = context.read<AuthBloc>().state;
     final isCourseOwner =
-        authState is AuthAuthenticated && authState.user.id == course.instructorId;
+        authState is AuthAuthenticated &&
+        authState.user.id == course.instructorId;
 
     return CourseSyllabusWidget(
       key: ValueKey('syllabus-$_syllabusRefreshKey'),
@@ -788,6 +815,107 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
       showHeader: true,
       showStudentProgress: !isCourseOwner,
     );
+  }
+
+  Widget _buildStudentCourseMenu(BuildContext context, {Color? iconColor}) {
+    if (_isUnenrolling) {
+      return Padding(
+        padding: const EdgeInsets.all(14),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: iconColor ?? AppColors.primary,
+          ),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, color: iconColor),
+      tooltip: 'Course options',
+      onSelected: (value) {
+        if (value == 'unenroll') {
+          _confirmUnenroll();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'unenroll',
+          child: Row(
+            children: [
+              Icon(Icons.exit_to_app, size: 20, color: AppColors.error),
+              const SizedBox(width: 10),
+              Text('Unenroll Course', style: TextStyle(color: AppColors.error)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmUnenroll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Unenroll from course?'),
+        content: Text(
+          'Are you sure you want to unenroll from "${course.title}"? '
+          'You will lose access to course materials, and your saved lesson '
+          'progress will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Unenroll Course'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() => _isUnenrolling = true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await context.read<CourseRepository>().unenrollFromCourse(course.id);
+      if (!mounted) {
+        return;
+      }
+
+      context.go(AppRoutes.dashboard);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('You have successfully unenrolled from the course.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _isUnenrolling = false);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Unable to unenroll: $error'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+    }
   }
 
   Widget _buildInstructorContentSection(BuildContext context) {
@@ -1014,8 +1142,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
 class _CourseWorkTab extends StatelessWidget {
   final CourseModel course;
   final bool isCourseOwner;
+  final Widget? courseMenu;
 
-  const _CourseWorkTab({required this.course, required this.isCourseOwner});
+  const _CourseWorkTab({
+    required this.course,
+    required this.isCourseOwner,
+    this.courseMenu,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1028,10 +1161,7 @@ class _CourseWorkTab extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    'Quizzes & Assignments',
-                    style: AppTextStyles.h3,
-                  ),
+                  child: Text('Quizzes & Assignments', style: AppTextStyles.h3),
                 ),
                 if (isCourseOwner)
                   PopupMenuButton<String>(
@@ -1041,22 +1171,18 @@ class _CourseWorkTab extends StatelessWidget {
                       if (value == 'quiz') {
                         context.push('/courses/${course.id}/quizzes/create');
                       } else {
-                        context.push(
-                          AppRoutes.createAssignmentPath(course.id),
-                        );
+                        context.push(AppRoutes.createAssignmentPath(course.id));
                       }
                     },
                     itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: 'quiz',
-                        child: Text('Add quiz'),
-                      ),
+                      PopupMenuItem(value: 'quiz', child: Text('Add quiz')),
                       PopupMenuItem(
                         value: 'assignment',
                         child: Text('Add assignment'),
                       ),
                     ],
                   ),
+                ?courseMenu,
               ],
             ),
           ),
@@ -1085,8 +1211,9 @@ class _CourseWorkTab extends StatelessWidget {
 
 class _CourseDiscussionTab extends StatelessWidget {
   final String courseId;
+  final Widget? courseMenu;
 
-  const _CourseDiscussionTab({required this.courseId});
+  const _CourseDiscussionTab({required this.courseId, this.courseMenu});
 
   @override
   Widget build(BuildContext context) {
@@ -1095,7 +1222,14 @@ class _CourseDiscussionTab extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-          child: Text('Course Discussion', style: AppTextStyles.h3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('Course Discussion', style: AppTextStyles.h3),
+              ),
+              ?courseMenu,
+            ],
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1107,9 +1241,7 @@ class _CourseDiscussionTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Expanded(
-          child: ChannelListScreen(courseId: courseId, embedded: true),
-        ),
+        Expanded(child: ChannelListScreen(courseId: courseId, embedded: true)),
       ],
     );
   }
@@ -1117,8 +1249,9 @@ class _CourseDiscussionTab extends StatelessWidget {
 
 class _CoursePeopleTab extends StatefulWidget {
   final CourseModel course;
+  final Widget? courseMenu;
 
-  const _CoursePeopleTab({required this.course});
+  const _CoursePeopleTab({required this.course, this.courseMenu});
 
   @override
   State<_CoursePeopleTab> createState() => _CoursePeopleTabState();
@@ -1164,7 +1297,12 @@ class _CoursePeopleTabState extends State<_CoursePeopleTab> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             children: [
-              Text('People', style: AppTextStyles.h3),
+              Row(
+                children: [
+                  Expanded(child: Text('People', style: AppTextStyles.h3)),
+                  ?widget.courseMenu,
+                ],
+              ),
               const SizedBox(height: 20),
               Text('INSTRUCTOR', style: _sectionStyle(context)),
               const SizedBox(height: 8),
@@ -1235,11 +1373,7 @@ class _PersonTile extends StatelessWidget {
   final String? avatarUrl;
   final String? role;
 
-  const _PersonTile({
-    required this.name,
-    this.avatarUrl,
-    this.role,
-  });
+  const _PersonTile({required this.name, this.avatarUrl, this.role});
 
   @override
   Widget build(BuildContext context) {
@@ -1288,7 +1422,8 @@ class _StudentCourseProgressCard extends StatefulWidget {
       _StudentCourseProgressCardState();
 }
 
-class _StudentCourseProgressCardState extends State<_StudentCourseProgressCard> {
+class _StudentCourseProgressCardState
+    extends State<_StudentCourseProgressCard> {
   late Future<_CourseProgressSummary> _progressFuture;
 
   @override

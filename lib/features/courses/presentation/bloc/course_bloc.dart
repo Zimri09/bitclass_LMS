@@ -205,6 +205,25 @@ class CourseJoinedByCode extends CourseState {
   List<Object?> get props => [course, enrollment];
 }
 
+class CourseJoining extends CourseState {
+  final List<CourseModel> courses;
+
+  const CourseJoining(this.courses);
+
+  @override
+  List<Object?> get props => [courses];
+}
+
+class CourseJoinFailure extends CourseState {
+  final String message;
+  final List<CourseModel> courses;
+
+  const CourseJoinFailure({required this.message, required this.courses});
+
+  @override
+  List<Object?> get props => [message, courses];
+}
+
 // Bloc
 class CourseBloc extends Bloc<CourseEvent, CourseState> {
   final CourseRepository _courseRepository;
@@ -364,7 +383,14 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
     JoinCourseByCode event,
     Emitter<CourseState> emit,
   ) async {
-    emit(CourseLoading());
+    final visibleCourses = switch (state) {
+      CoursesLoaded(:final courses) => courses,
+      CourseJoining(:final courses) => courses,
+      CourseJoinFailure(:final courses) => courses,
+      _ => const <CourseModel>[],
+    };
+
+    emit(CourseJoining(visibleCourses));
     try {
       final joined = await _courseRepository.joinCourseByCode(
         code: event.code,
@@ -380,7 +406,7 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
         ),
       );
     } catch (e) {
-      emit(CourseError(e.toString()));
+      emit(CourseJoinFailure(message: e.toString(), courses: visibleCourses));
     }
   }
 }

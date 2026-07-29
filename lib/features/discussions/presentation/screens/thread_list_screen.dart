@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
@@ -33,7 +34,7 @@ class ThreadListScreen extends StatelessWidget {
   }
 }
 
-class ThreadListView extends StatelessWidget {
+class ThreadListView extends StatefulWidget {
   final String courseId;
   final String channelId;
 
@@ -42,6 +43,38 @@ class ThreadListView extends StatelessWidget {
     required this.courseId,
     required this.channelId,
   });
+
+  @override
+  State<ThreadListView> createState() => _ThreadListViewState();
+}
+
+class _ThreadListViewState extends State<ThreadListView> {
+  late final DiscussionRepository _discussionRepository;
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _discussionRepository = context.read<DiscussionRepository>();
+    _realtimeChannel = _discussionRepository.subscribeToChannelThreads(
+      channelId: widget.channelId,
+      onChanged: _reloadThreads,
+    );
+  }
+
+  @override
+  void dispose() {
+    _discussionRepository.removeRealtimeChannel(_realtimeChannel);
+    super.dispose();
+  }
+
+  void _reloadThreads() {
+    if (mounted) {
+      context.read<DiscussionBloc>().add(
+        LoadThreads(channelId: widget.channelId),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +99,7 @@ class ThreadListView extends StatelessWidget {
           return FloatingActionButton(
             onPressed: () {
               context.push(
-                '/courses/$courseId/discussions/$channelId/threads/create',
+                '/courses/${widget.courseId}/discussions/${widget.channelId}/threads/create',
               );
             },
             backgroundColor: AppColors.primary,
@@ -150,7 +183,7 @@ class ThreadListView extends StatelessWidget {
             return RefreshIndicator(
               onRefresh: () async {
                 context.read<DiscussionBloc>().add(
-                  LoadThreads(channelId: channelId),
+                  LoadThreads(channelId: widget.channelId),
                 );
               },
               color: AppColors.primary,
@@ -207,7 +240,7 @@ class ThreadListView extends StatelessWidget {
       child: InkWell(
         onTap: () {
           context.push(
-            '/courses/$courseId/discussions/$channelId/threads/${thread.id}',
+            '/courses/${widget.courseId}/discussions/${widget.channelId}/threads/${thread.id}',
           );
         },
         borderRadius: BorderRadius.circular(12),

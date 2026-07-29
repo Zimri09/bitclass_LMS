@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/models.dart';
@@ -31,7 +32,7 @@ class ChannelListScreen extends StatelessWidget {
   }
 }
 
-class ChannelListView extends StatelessWidget {
+class ChannelListView extends StatefulWidget {
   final String courseId;
   final bool embedded;
 
@@ -42,109 +43,135 @@ class ChannelListView extends StatelessWidget {
   });
 
   @override
+  State<ChannelListView> createState() => _ChannelListViewState();
+}
+
+class _ChannelListViewState extends State<ChannelListView> {
+  late final DiscussionRepository _discussionRepository;
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _discussionRepository = context.read<DiscussionRepository>();
+    _realtimeChannel = _discussionRepository.subscribeToCourseChannels(
+      courseId: widget.courseId,
+      onChanged: _reloadChannels,
+    );
+  }
+
+  @override
+  void dispose() {
+    _discussionRepository.removeRealtimeChannel(_realtimeChannel);
+    super.dispose();
+  }
+
+  void _reloadChannels() {
+    if (mounted) {
+      context.read<DiscussionBloc>().add(
+        LoadChannels(courseId: widget.courseId),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final discussionsBody = BlocBuilder<DiscussionBloc, DiscussionState>(
-        builder: (context, state) {
-          if (state is ChannelsLoading) {
-            return Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
+      builder: (context, state) {
+        if (state is ChannelsLoading) {
+          return Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          );
+        }
 
-          if (state is DiscussionError) {
+        if (state is DiscussionError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: AppColors.error, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  state.message,
+                  style: TextStyle(color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    context.read<DiscussionBloc>().add(
+                      LoadChannels(courseId: widget.courseId),
+                    );
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (state is ChannelsLoaded) {
+          final channels = state.channels;
+          if (channels.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.error_outline,
-                    color: AppColors.error,
-                    size: 48,
+                    Icons.forum_outlined,
+                    color: AppColors.textSecondary,
+                    size: 64,
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text(
-                    state.message,
-                    style: TextStyle(color: AppColors.textSecondary),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      context.read<DiscussionBloc>().add(
-                        LoadChannels(courseId: courseId),
-                      );
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (state is ChannelsLoaded) {
-            final channels = state.channels;
-            if (channels.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.forum_outlined,
+                    'No discussion channels yet',
+                    style: TextStyle(
                       color: AppColors.textSecondary,
-                      size: 64,
+                      fontSize: 16,
                     ),
-                    SizedBox(height: 16),
-                    Text(
-                      'No discussion channels yet',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            // Separate announcements and regular channels
-            final announcements = channels
-                .where((c) => c.isAnnouncement)
-                .toList();
-            final regularChannels = channels
-                .where((c) => !c.isAnnouncement)
-                .toList();
-
-            return RefreshIndicator(
-              onRefresh: () async {
-                context.read<DiscussionBloc>().add(
-                  LoadChannels(courseId: courseId),
-                );
-              },
-              color: AppColors.primary,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (announcements.isNotEmpty) ...[
-                    _buildSectionHeader('Announcements'),
-                    ...announcements.map((c) => _buildChannelCard(context, c)),
-                    const SizedBox(height: 24),
-                  ],
-                  if (regularChannels.isNotEmpty) ...[
-                    _buildSectionHeader('Channels'),
-                    ...regularChannels.map(
-                      (c) => _buildChannelCard(context, c),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             );
           }
 
-          return const SizedBox.shrink();
-        },
+          // Separate announcements and regular channels
+          final announcements = channels
+              .where((c) => c.isAnnouncement)
+              .toList();
+          final regularChannels = channels
+              .where((c) => !c.isAnnouncement)
+              .toList();
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              context.read<DiscussionBloc>().add(
+                LoadChannels(courseId: widget.courseId),
+              );
+            },
+            color: AppColors.primary,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (announcements.isNotEmpty) ...[
+                  _buildSectionHeader('Announcements'),
+                  ...announcements.map((c) => _buildChannelCard(context, c)),
+                  const SizedBox(height: 24),
+                ],
+                if (regularChannels.isNotEmpty) ...[
+                  _buildSectionHeader('Channels'),
+                  ...regularChannels.map((c) => _buildChannelCard(context, c)),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return const SizedBox.shrink();
+      },
     );
 
-    if (embedded) return discussionsBody;
+    if (widget.embedded) return discussionsBody;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Discussions')),
@@ -191,11 +218,15 @@ class ChannelListView extends StatelessWidget {
         ),
         title: Row(
           children: [
-            Text(
-              channel.name,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                channel.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             if (channel.isDefault) ...[
@@ -247,7 +278,7 @@ class ChannelListView extends StatelessWidget {
           ],
         ),
         onTap: () {
-          context.push('/courses/$courseId/discussions/${channel.id}');
+          context.push('/courses/${widget.courseId}/discussions/${channel.id}');
         },
       ),
     );

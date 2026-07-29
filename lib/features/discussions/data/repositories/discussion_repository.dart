@@ -94,6 +94,95 @@ class DiscussionRepository {
   ReplyModel _replyFromRow(Map<String, dynamic> row) =>
       ReplyModel.fromMap(_rowToReplyMap(row));
 
+  RealtimeChannel? subscribeToCourseChannels({
+    required String courseId,
+    required VoidCallback onChanged,
+  }) {
+    if (EnvironmentConfig.isDemoMode) return null;
+
+    return _supabase!
+        .channel(
+          'discussion-channels-$courseId-${DateTime.now().microsecondsSinceEpoch}',
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: _channelsTable,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'course_id',
+            value: courseId,
+          ),
+          callback: (_) => onChanged(),
+        )
+        .subscribe();
+  }
+
+  RealtimeChannel? subscribeToChannelThreads({
+    required String channelId,
+    required VoidCallback onChanged,
+  }) {
+    if (EnvironmentConfig.isDemoMode) return null;
+
+    return _supabase!
+        .channel(
+          'discussion-threads-$channelId-${DateTime.now().microsecondsSinceEpoch}',
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: _threadsTable,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'channel_id',
+            value: channelId,
+          ),
+          callback: (_) => onChanged(),
+        )
+        .subscribe();
+  }
+
+  RealtimeChannel? subscribeToThreadDetail({
+    required String threadId,
+    required VoidCallback onChanged,
+  }) {
+    if (EnvironmentConfig.isDemoMode) return null;
+
+    return _supabase!
+        .channel(
+          'discussion-thread-$threadId-${DateTime.now().microsecondsSinceEpoch}',
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: _threadsTable,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: threadId,
+          ),
+          callback: (_) => onChanged(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: _repliesTable,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'thread_id',
+            value: threadId,
+          ),
+          callback: (_) => onChanged(),
+        )
+        .subscribe();
+  }
+
+  Future<void> removeRealtimeChannel(RealtimeChannel? channel) async {
+    if (channel != null && !EnvironmentConfig.isDemoMode) {
+      await _supabase!.removeChannel(channel);
+    }
+  }
+
   void _initDemoData() {
     // ── Course 1: Introduction to Flutter ──────────────────────────────
     _channels['channel-c1-general'] = ChannelModel(
