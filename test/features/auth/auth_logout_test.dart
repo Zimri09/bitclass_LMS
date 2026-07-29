@@ -142,6 +142,10 @@ class _FakeAuthRepository extends AuthRepository {
       profileCompleter?.future ?? Future<UserModel?>.value(null);
 
   @override
+  Future<UserModel?> restoreCurrentUserProfile() =>
+      profileCompleter?.future ?? Future<UserModel?>.value(null);
+
+  @override
   Future<void> signOut() => logoutCompleter?.future ?? Future<void>.value();
 
   Future<void> dispose() async {

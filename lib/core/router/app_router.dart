@@ -7,6 +7,8 @@ import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
+import '../../features/auth/presentation/screens/otp_verification_screen.dart';
+import '../../features/auth/presentation/screens/reset_password_screen.dart';
 import '../../features/todos/presentation/screens/todos_list_screen.dart';
 import '../../features/todos/presentation/state/todos_cubit.dart';
 import '../../features/todos/data/repositories/todos_repository.dart';
@@ -59,6 +61,16 @@ class AppRouter {
         path: AppRoutes.forgotPassword,
         name: 'forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyOtp,
+        name: 'verify-otp',
+        builder: (context, state) => const OtpVerificationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.resetPassword,
+        name: 'reset-password',
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
 
       // Main app routes with shell
@@ -476,7 +488,9 @@ class AppRouter {
     final isAuthRoute =
         state.matchedLocation == AppRoutes.login ||
         state.matchedLocation == AppRoutes.register ||
-        state.matchedLocation == AppRoutes.forgotPassword;
+        state.matchedLocation == AppRoutes.forgotPassword ||
+        state.matchedLocation == AppRoutes.verifyOtp ||
+        state.matchedLocation == AppRoutes.resetPassword;
 
     // If not authenticated and not on an auth route, redirect to login
     if (authState is! AuthAuthenticated && !isAuthRoute) {

@@ -54,6 +54,9 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           } else if (state is AuthAuthenticated) {
             context.go(AppRoutes.dashboard);
+          } else if (state is AuthOtpChallenge &&
+              state.purpose == AuthOtpPurpose.signup) {
+            context.go(AppRoutes.verifyOtp);
           }
         },
         child: Center(
