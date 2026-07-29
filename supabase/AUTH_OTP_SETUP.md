@@ -8,8 +8,15 @@ email verification. Complete these hosted Auth settings before testing signup.
 1. Open **Authentication > Providers > Email**.
 2. Enable the Email provider.
 3. Turn **Confirm email** on.
-4. Set **Email OTP expiration** to `600` seconds.
-5. Keep the resend/rate-limit interval at `60` seconds or longer.
+4. Set **Email OTP length** to `8` digits.
+5. Set **Email OTP expiration** to `600` seconds.
+6. Keep the resend/rate-limit interval at `60` seconds or longer.
+
+The database cleanup job uses the same 10-minute period. It runs once per
+minute and deletes only BitClass registrations that are still unverified.
+Resending a code updates the registration deadline. Keep the hosted expiration
+setting and `cleanup_expired_unverified_registrations.sql` interval aligned.
+Keep the hosted OTP length aligned with `authEmailOtpLength` in the app.
 
 ## Confirm Signup Template
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bitclass/features/auth/auth_otp.dart';
 import 'package:bitclass/features/auth/data/models/user_model.dart';
 import 'package:bitclass/features/auth/data/repositories/auth_repository.dart';
 import 'package:bitclass/features/auth/presentation/bloc/auth_bloc.dart';
@@ -8,6 +9,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   group('email OTP authentication', () {
+    test('accepts exactly eight OTP digits, including leading zeroes', () {
+      expect(normalizeAuthEmailOtp(' 00123456 '), '00123456');
+      expect(authEmailOtpLength, 8);
+    });
+
+    test('rejects the old six-digit OTP length', () {
+      expect(
+        () => normalizeAuthEmailOtp('123456'),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            authEmailOtpInputMessage,
+          ),
+        ),
+      );
+    });
+
     test('registration requires a signup OTP before authentication', () async {
       final repository = _OtpAuthRepository();
       final bloc = AuthBloc(authRepository: repository);
@@ -58,7 +77,7 @@ void main() {
         );
         await bloc.stream.firstWhere((state) => state is AuthOtpChallenge);
 
-        bloc.add(const AuthOtpVerificationRequested('111111'));
+        bloc.add(const AuthOtpVerificationRequested('11111111'));
         final failed =
             await bloc.stream.firstWhere(
                   (state) =>
@@ -94,13 +113,13 @@ void main() {
         );
         await bloc.stream.firstWhere((state) => state is AuthOtpChallenge);
 
-        bloc.add(const AuthOtpVerificationRequested('123456'));
+        bloc.add(const AuthOtpVerificationRequested('12345678'));
         final authenticated =
             await bloc.stream.firstWhere((state) => state is AuthAuthenticated)
                 as AuthAuthenticated;
 
         expect(authenticated.user.role, 'instructor');
-        expect(repository.lastSignupOtp, '123456');
+        expect(repository.lastSignupOtp, '12345678');
       },
     );
 
@@ -118,7 +137,7 @@ void main() {
               as AuthOtpChallenge;
       expect(challenge.purpose, AuthOtpPurpose.passwordRecovery);
 
-      bloc.add(const AuthOtpVerificationRequested('123456'));
+      bloc.add(const AuthOtpVerificationRequested('12345678'));
       await bloc.stream.firstWhere(
         (state) => state is AuthPasswordResetRequired,
       );
@@ -129,7 +148,7 @@ void main() {
       );
 
       expect(repository.passwordResetRequests, 1);
-      expect(repository.lastRecoveryOtp, '123456');
+      expect(repository.lastRecoveryOtp, '12345678');
       expect(repository.updatedPassword, 'newpassword123');
     });
   });

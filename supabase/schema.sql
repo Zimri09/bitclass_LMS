@@ -1,4 +1,5 @@
 create extension if not exists pgcrypto;
+create extension if not exists pg_cron;
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -187,6 +188,50 @@ create trigger on_auth_user_email_verified
     and new.email_confirmed_at is not null
   )
   execute function public.handle_new_user();
+
+-- Expired unverified registrations are removed within one minute so the same
+-- email can register again. Resending an OTP updates confirmation_sent_at and
+-- restarts the 10-minute window.
+create or replace function private.cleanup_expired_unverified_registrations()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  deleted_count integer;
+begin
+  with deleted_users as (
+    delete from auth.users as auth_user
+    where auth_user.email_confirmed_at is null
+      and auth_user.email is not null
+      and coalesce(
+        auth_user.confirmation_sent_at,
+        auth_user.created_at
+      ) < now() - interval '10 minutes'
+      and auth_user.raw_user_meta_data->>'role' in ('student', 'instructor')
+    returning auth_user.id
+  )
+  select count(*)::integer
+  into deleted_count
+  from deleted_users;
+
+  return deleted_count;
+end;
+$$;
+
+revoke all on function private.cleanup_expired_unverified_registrations()
+  from public;
+revoke all on function private.cleanup_expired_unverified_registrations()
+  from anon;
+revoke all on function private.cleanup_expired_unverified_registrations()
+  from authenticated;
+
+select cron.schedule(
+  'cleanup-expired-bitclass-registrations',
+  '* * * * *',
+  'select private.cleanup_expired_unverified_registrations();'
+);
 
 create table if not exists public.courses (
   id uuid primary key default gen_random_uuid(),

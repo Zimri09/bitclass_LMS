@@ -9,6 +9,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/glow_card.dart';
+import '../../auth_otp.dart';
 import '../bloc/auth_bloc.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -43,10 +44,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   void _verify(AuthOtpChallenge challenge) {
-    if (_otpController.text.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter the 6-digit verification code.')),
-      );
+    if (_otpController.text.length != authEmailOtpLength) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(authEmailOtpInputMessage)));
       return;
     }
     if (!challenge.canAttempt) return;
@@ -137,7 +138,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Enter the 6-digit code sent to\n${challenge.email}',
+                  'Enter the $authEmailOtpLength-digit code sent to\n'
+                  '${challenge.email}',
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -149,11 +151,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   autofocus: true,
                   keyboardType: TextInputType.number,
                   textInputAction: TextInputAction.done,
-                  maxLength: 6,
+                  maxLength: authEmailOtpLength,
                   textAlign: TextAlign.center,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(6),
+                    LengthLimitingTextInputFormatter(authEmailOtpLength),
                   ],
                   onSubmitted: (_) => _verify(challenge),
                   style: AppTextStyles.h2.copyWith(

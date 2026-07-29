@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
+import '../../auth_otp.dart';
 import '../models/user_model.dart';
 
 /// Thrown when sign-up succeeds but the user must confirm their email first.
@@ -38,7 +39,7 @@ class AuthRepository {
 
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _demoInstructorUserId = 'demo-instructor-1';
-  static const String _demoOtp = '123456';
+  static const String _demoOtp = '12345678';
 
   // Demo mode state
   UserModel? _demoUser;
@@ -254,7 +255,7 @@ class AuthRepository {
     required String token,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
-    final normalizedToken = _normalizeOtp(token);
+    final normalizedToken = normalizeAuthEmailOtp(token);
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       if (normalizedToken != _demoOtp || _demoPendingUser == null) {
@@ -316,7 +317,7 @@ class AuthRepository {
     required String token,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
-    final normalizedToken = _normalizeOtp(token);
+    final normalizedToken = normalizeAuthEmailOtp(token);
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       if (normalizedToken != _demoOtp) {
@@ -599,14 +600,6 @@ class AuthRepository {
       return Exception('Too many attempts. Please wait before trying again.');
     }
     return Exception(message ?? 'OTP verification failed.');
-  }
-
-  static String _normalizeOtp(String token) {
-    final normalized = token.trim();
-    if (!RegExp(r'^\d{6}$').hasMatch(normalized)) {
-      throw const FormatException('Enter the 6-digit verification code.');
-    }
-    return normalized;
   }
 
   static bool _isValidEmail(String email) =>
