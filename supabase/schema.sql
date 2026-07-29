@@ -656,6 +656,9 @@ create table if not exists public.threads (
   reply_count integer not null default 0,
   like_count integer not null default 0,
   liked_by jsonb not null default '[]'::jsonb,
+  reaction_count integer not null default 0,
+  reaction_counts jsonb not null default
+    '{"like": 0, "haha": 0, "sad": 0, "heart": 0, "angry": 0}'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   last_reply_at timestamptz
@@ -674,6 +677,18 @@ create table if not exists public.thread_likes (
   unique (thread_id, user_id)
 );
 
+create table if not exists public.thread_reactions (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references public.threads(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reaction text not null check (
+    reaction in ('like', 'haha', 'sad', 'heart', 'angry')
+  ),
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  unique (thread_id, user_id)
+);
+
 create table if not exists public.replies (
   id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references public.threads(id) on delete cascade,
@@ -688,6 +703,9 @@ create table if not exists public.replies (
   is_accepted_answer boolean not null default false,
   like_count integer not null default 0,
   liked_by jsonb not null default '[]'::jsonb,
+  reaction_count integer not null default 0,
+  reaction_counts jsonb not null default
+    '{"like": 0, "haha": 0, "sad": 0, "heart": 0, "angry": 0}'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -697,7 +715,162 @@ create trigger replies_updated_at
 before insert or update on public.replies
 for each row execute function public.set_updated_at();
 
--- Keep discussion activity counters server-owned so students can create posts
+create table if not exists public.reply_reactions (
+  id uuid primary key default gen_random_uuid(),
+  reply_id uuid not null references public.replies(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reaction text not null check (
+    reaction in ('like', 'haha', 'sad', 'heart', 'angry')
+  ),
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  unique (reply_id, user_id)
+);
+
+drop trigger if exists thread_reactions_updated_at on public.thread_reactions;
+create trigger thread_reactions_updated_at
+before insert or update on public.thread_reactions
+for each row execute function public.set_updated_at();
+
+drop trigger if exists reply_reactions_updated_at on public.reply_reactions;
+create trigger reply_reactions_updated_at
+before insert or update on public.reply_reactions
+for each row execute function public.set_updated_at();
+
+create or replace function public.sync_thread_reaction_summary()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  target_thread_id uuid;
+begin
+  target_thread_id := case when tg_op = 'DELETE' then old.thread_id else new.thread_id end;
+
+  update public.threads
+  set
+    reaction_count = summary.total,
+    reaction_counts = summary.counts
+  from (
+    select
+      count(*)::integer as total,
+      jsonb_build_object(
+        'like', count(*) filter (where reaction = 'like'),
+        'haha', count(*) filter (where reaction = 'haha'),
+        'sad', count(*) filter (where reaction = 'sad'),
+        'heart', count(*) filter (where reaction = 'heart'),
+        'angry', count(*) filter (where reaction = 'angry')
+      ) as counts
+    from public.thread_reactions
+    where thread_id = target_thread_id
+  ) as summary
+  where id = target_thread_id;
+
+  if tg_op = 'UPDATE' and old.thread_id is distinct from new.thread_id then
+    update public.threads
+    set
+      reaction_count = summary.total,
+      reaction_counts = summary.counts
+    from (
+      select
+        count(*)::integer as total,
+        jsonb_build_object(
+          'like', count(*) filter (where reaction = 'like'),
+          'haha', count(*) filter (where reaction = 'haha'),
+          'sad', count(*) filter (where reaction = 'sad'),
+          'heart', count(*) filter (where reaction = 'heart'),
+          'angry', count(*) filter (where reaction = 'angry')
+        ) as counts
+      from public.thread_reactions
+      where thread_id = old.thread_id
+    ) as summary
+    where id = old.thread_id;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.sync_reply_reaction_summary()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  target_reply_id uuid;
+begin
+  target_reply_id := case when tg_op = 'DELETE' then old.reply_id else new.reply_id end;
+
+  update public.replies
+  set
+    reaction_count = summary.total,
+    reaction_counts = summary.counts
+  from (
+    select
+      count(*)::integer as total,
+      jsonb_build_object(
+        'like', count(*) filter (where reaction = 'like'),
+        'haha', count(*) filter (where reaction = 'haha'),
+        'sad', count(*) filter (where reaction = 'sad'),
+        'heart', count(*) filter (where reaction = 'heart'),
+        'angry', count(*) filter (where reaction = 'angry')
+      ) as counts
+    from public.reply_reactions
+    where reply_id = target_reply_id
+  ) as summary
+  where id = target_reply_id;
+
+  if tg_op = 'UPDATE' and old.reply_id is distinct from new.reply_id then
+    update public.replies
+    set
+      reaction_count = summary.total,
+      reaction_counts = summary.counts
+    from (
+      select
+        count(*)::integer as total,
+        jsonb_build_object(
+          'like', count(*) filter (where reaction = 'like'),
+          'haha', count(*) filter (where reaction = 'haha'),
+          'sad', count(*) filter (where reaction = 'sad'),
+          'heart', count(*) filter (where reaction = 'heart'),
+          'angry', count(*) filter (where reaction = 'angry')
+        ) as counts
+      from public.reply_reactions
+      where reply_id = old.reply_id
+    ) as summary
+    where id = old.reply_id;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.sync_thread_reaction_summary()
+from public, anon, authenticated;
+revoke all on function public.sync_reply_reaction_summary()
+from public, anon, authenticated;
+
+drop trigger if exists thread_reactions_sync_summary
+on public.thread_reactions;
+create trigger thread_reactions_sync_summary
+after insert or update or delete on public.thread_reactions
+for each row execute function public.sync_thread_reaction_summary();
+
+drop trigger if exists reply_reactions_sync_summary
+on public.reply_reactions;
+create trigger reply_reactions_sync_summary
+after insert or update or delete on public.reply_reactions
+for each row execute function public.sync_reply_reaction_summary();
+
+-- Keep active discussion counters server-owned so students can create posts
 -- without needing write access to channel or other-thread metadata.
 create or replace function public.sync_discussion_thread_count()
 returns trigger
@@ -706,17 +879,44 @@ security definer
 set search_path = pg_catalog, public
 as $$
 begin
-  if tg_op = 'INSERT' then
-    update public.discussion_channels
-    set thread_count = thread_count + 1, last_activity_at = new.created_at
-    where id = new.channel_id;
-    return new;
+  if tg_op = 'DELETE' then
+    update public.discussion_channels as channel
+    set thread_count = (
+      select count(*)::integer
+      from public.threads as thread
+      where thread.channel_id = channel.id
+        and not thread.is_resolved
+    )
+    where channel.id = old.channel_id;
+    return old;
   end if;
 
-  update public.discussion_channels
-  set thread_count = greatest(thread_count - 1, 0)
-  where id = old.channel_id;
-  return old;
+  update public.discussion_channels as channel
+  set
+    thread_count = (
+      select count(*)::integer
+      from public.threads as thread
+      where thread.channel_id = channel.id
+        and not thread.is_resolved
+    ),
+    last_activity_at = case
+      when tg_op = 'INSERT' then new.created_at
+      else channel.last_activity_at
+    end
+  where channel.id = new.channel_id;
+
+  if tg_op = 'UPDATE' and old.channel_id is distinct from new.channel_id then
+    update public.discussion_channels as channel
+    set thread_count = (
+      select count(*)::integer
+      from public.threads as thread
+      where thread.channel_id = channel.id
+        and not thread.is_resolved
+    )
+    where channel.id = old.channel_id;
+  end if;
+
+  return new;
 end;
 $$;
 
@@ -744,13 +944,33 @@ begin
 end;
 $$;
 
-revoke all on function public.sync_discussion_thread_count() from public;
-revoke all on function public.sync_discussion_reply_count() from public;
+revoke all on function public.sync_discussion_thread_count()
+from public, anon, authenticated;
+revoke all on function public.sync_discussion_reply_count()
+from public, anon, authenticated;
 
 drop trigger if exists threads_sync_channel_count on public.threads;
 create trigger threads_sync_channel_count
 after insert or delete on public.threads
 for each row execute function public.sync_discussion_thread_count();
+
+drop trigger if exists threads_sync_channel_count_on_status on public.threads;
+create trigger threads_sync_channel_count_on_status
+after update of is_resolved, channel_id on public.threads
+for each row
+when (
+  old.is_resolved is distinct from new.is_resolved
+  or old.channel_id is distinct from new.channel_id
+)
+execute function public.sync_discussion_thread_count();
+
+update public.discussion_channels as channel
+set thread_count = (
+  select count(*)::integer
+  from public.threads as thread
+  where thread.channel_id = channel.id
+    and not thread.is_resolved
+);
 
 drop trigger if exists replies_sync_thread_count on public.replies;
 create trigger replies_sync_thread_count
@@ -884,7 +1104,9 @@ alter table public.quiz_answers enable row level security;
 alter table public.discussion_channels enable row level security;
 alter table public.threads enable row level security;
 alter table public.thread_likes enable row level security;
+alter table public.thread_reactions enable row level security;
 alter table public.replies enable row level security;
+alter table public.reply_reactions enable row level security;
 alter table public.files enable row level security;
 alter table public.notifications enable row level security;
 alter table public.notification_settings enable row level security;
@@ -1037,6 +1259,34 @@ create policy "thread likes read own" on public.thread_likes
 create policy "thread likes manage own" on public.thread_likes
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+create policy "thread reactions read own"
+  on public.thread_reactions for select to authenticated
+  using (user_id = (select auth.uid()));
+create policy "thread reactions create own"
+  on public.thread_reactions for insert to authenticated
+  with check (
+    user_id = (select auth.uid())
+    and exists (
+      select 1 from public.threads
+      where threads.id = thread_reactions.thread_id
+        and (select private.is_course_member(threads.course_id))
+    )
+  );
+create policy "thread reactions update own"
+  on public.thread_reactions for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (
+    user_id = (select auth.uid())
+    and exists (
+      select 1 from public.threads
+      where threads.id = thread_reactions.thread_id
+        and (select private.is_course_member(threads.course_id))
+    )
+  );
+create policy "thread reactions delete own"
+  on public.thread_reactions for delete to authenticated
+  using (user_id = (select auth.uid()));
+
 create policy "replies read course members" on public.replies
   for select using (exists (select 1 from public.threads t where t.id = thread_id and (t.course_id is not null)));
 create policy "replies create own" on public.replies
@@ -1046,6 +1296,43 @@ create policy "replies update authors and instructors" on public.replies
   with check (author_id = auth.uid() or exists (select 1 from public.threads t join public.courses c on c.id = t.course_id where t.id = thread_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
 create policy "replies creators delete" on public.replies
   for delete using (author_id = auth.uid());
+
+create policy "reply reactions read own"
+  on public.reply_reactions for select to authenticated
+  using (user_id = (select auth.uid()));
+create policy "reply reactions create own"
+  on public.reply_reactions for insert to authenticated
+  with check (
+    user_id = (select auth.uid())
+    and exists (
+      select 1 from public.replies
+      where replies.id = reply_reactions.reply_id
+        and (select private.is_course_member(replies.course_id))
+    )
+  );
+create policy "reply reactions update own"
+  on public.reply_reactions for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (
+    user_id = (select auth.uid())
+    and exists (
+      select 1 from public.replies
+      where replies.id = reply_reactions.reply_id
+        and (select private.is_course_member(replies.course_id))
+    )
+  );
+create policy "reply reactions delete own"
+  on public.reply_reactions for delete to authenticated
+  using (user_id = (select auth.uid()));
+
+revoke all on public.thread_reactions from anon;
+revoke all on public.reply_reactions from anon;
+grant select, insert, update, delete on public.thread_reactions
+to authenticated;
+grant select, insert, update, delete on public.reply_reactions
+to authenticated;
+grant all on public.thread_reactions to service_role;
+grant all on public.reply_reactions to service_role;
 
 create policy "files read course members" on public.files
   for select using (exists (select 1 from public.courses c where c.id = course_id and (c.is_published or c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));

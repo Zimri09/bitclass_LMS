@@ -10,6 +10,7 @@ import '../../data/repositories/discussion_repository.dart';
 import '../bloc/discussion_bloc.dart';
 import '../bloc/discussion_event.dart';
 import '../bloc/discussion_state.dart';
+import '../widgets/reaction_control.dart';
 
 /// Screen showing thread details with replies
 class ThreadDetailScreen extends StatelessWidget {
@@ -449,21 +450,18 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
             // Actions
             Row(
               children: [
-                _buildActionButton(
-                  icon: thread.isLikedBy(userId)
-                      ? Icons.thumb_up
-                      : Icons.thumb_up_outlined,
-                  label: '${thread.likeCount}',
-                  color: thread.isLikedBy(userId)
-                      ? AppColors.primary
-                      : AppColors.textSecondary,
-                  onTap: userId.isEmpty
-                      ? () {}
-                      : () {
+                ReactionControl(
+                  reactionCounts: thread.effectiveReactionCounts,
+                  totalCount: thread.totalReactionCount,
+                  selectedReaction: thread.reactionForUser(userId),
+                  onReactionSelected: userId.isEmpty
+                      ? null
+                      : (reaction) {
                           context.read<DiscussionBloc>().add(
-                            ToggleThreadLike(
+                            SetThreadReaction(
                               threadId: thread.id,
                               userId: userId,
+                              reaction: reaction,
                             ),
                           );
                         },
@@ -715,49 +713,23 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
             // Actions
             Row(
               children: [
-                InkWell(
-                  onTap: userId.isEmpty
+                ReactionControl(
+                  reactionCounts: reply.effectiveReactionCounts,
+                  totalCount: reply.totalReactionCount,
+                  selectedReaction: reply.reactionForUser(userId),
+                  onReactionSelected: userId.isEmpty
                       ? null
-                      : () {
+                      : (reaction) {
                           context.read<DiscussionBloc>().add(
-                            ToggleReplyLike(
+                            SetReplyReaction(
                               replyId: reply.id,
                               threadId: thread.id,
                               userId: userId,
+                              reaction: reaction,
                             ),
                           );
                         },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          reply.isLikedBy(userId)
-                              ? Icons.thumb_up
-                              : Icons.thumb_up_outlined,
-                          color: reply.isLikedBy(userId)
-                              ? AppColors.primary
-                              : AppColors.textSecondary,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${reply.likeCount}',
-                          style: TextStyle(
-                            color: reply.isLikedBy(userId)
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  compact: true,
                 ),
                 const Spacer(),
                 // Only show accept button if the current user is the thread author

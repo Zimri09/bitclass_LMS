@@ -151,8 +151,8 @@
   revoke all on function public.get_course_roster(uuid) from public;
   grant execute on function public.get_course_roster(uuid) to authenticated;
 
-  -- Counters are maintained by trusted database triggers. Clients may create
-  -- permitted posts but never need update access to channels or other threads.
+  -- Active discussion counters are maintained by trusted database triggers.
+  -- Clients never need update access to channels or other threads.
   create or replace function public.sync_discussion_thread_count()
   returns trigger
   language plpgsql
@@ -160,19 +160,44 @@
   set search_path = pg_catalog, public
   as $$
   begin
-    if tg_op = 'INSERT' then
-      update public.discussion_channels
-      set
-        thread_count = thread_count + 1,
-        last_activity_at = new.created_at
-      where id = new.channel_id;
-      return new;
+    if tg_op = 'DELETE' then
+      update public.discussion_channels as channel
+      set thread_count = (
+        select count(*)::integer
+        from public.threads as thread
+        where thread.channel_id = channel.id
+          and not thread.is_resolved
+      )
+      where channel.id = old.channel_id;
+      return old;
     end if;
 
-    update public.discussion_channels
-    set thread_count = greatest(thread_count - 1, 0)
-    where id = old.channel_id;
-    return old;
+    update public.discussion_channels as channel
+    set
+      thread_count = (
+        select count(*)::integer
+        from public.threads as thread
+        where thread.channel_id = channel.id
+          and not thread.is_resolved
+      ),
+      last_activity_at = case
+        when tg_op = 'INSERT' then new.created_at
+        else channel.last_activity_at
+      end
+    where channel.id = new.channel_id;
+
+    if tg_op = 'UPDATE' and old.channel_id is distinct from new.channel_id then
+      update public.discussion_channels as channel
+      set thread_count = (
+        select count(*)::integer
+        from public.threads as thread
+        where thread.channel_id = channel.id
+          and not thread.is_resolved
+      )
+      where channel.id = old.channel_id;
+    end if;
+
+    return new;
   end;
   $$;
 
@@ -203,13 +228,33 @@
   end;
   $$;
 
-  revoke all on function public.sync_discussion_thread_count() from public;
-  revoke all on function public.sync_discussion_reply_count() from public;
+  revoke all on function public.sync_discussion_thread_count()
+  from public, anon, authenticated;
+  revoke all on function public.sync_discussion_reply_count()
+  from public, anon, authenticated;
 
   drop trigger if exists threads_sync_channel_count on public.threads;
   create trigger threads_sync_channel_count
   after insert or delete on public.threads
   for each row execute function public.sync_discussion_thread_count();
+
+  drop trigger if exists threads_sync_channel_count_on_status on public.threads;
+  create trigger threads_sync_channel_count_on_status
+  after update of is_resolved, channel_id on public.threads
+  for each row
+  when (
+    old.is_resolved is distinct from new.is_resolved
+    or old.channel_id is distinct from new.channel_id
+  )
+  execute function public.sync_discussion_thread_count();
+
+  update public.discussion_channels as channel
+  set thread_count = (
+    select count(*)::integer
+    from public.threads as thread
+    where thread.channel_id = channel.id
+      and not thread.is_resolved
+  );
 
   drop trigger if exists replies_sync_thread_count on public.replies;
   create trigger replies_sync_thread_count

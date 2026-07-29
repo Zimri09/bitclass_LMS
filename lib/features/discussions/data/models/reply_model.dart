@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'reaction_type.dart';
+
 /// Reply model representing a reply to a discussion thread
 class ReplyModel extends Equatable {
   final String id;
@@ -15,6 +17,9 @@ class ReplyModel extends Equatable {
   final bool isAcceptedAnswer; // Marked as accepted solution
   final int likeCount;
   final List<String> likedBy;
+  final int reactionCount;
+  final Map<String, int> reactionCounts;
+  final String? currentUserReaction;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -32,6 +37,9 @@ class ReplyModel extends Equatable {
     this.isAcceptedAnswer = false,
     this.likeCount = 0,
     this.likedBy = const [],
+    this.reactionCount = 0,
+    this.reactionCounts = const {},
+    this.currentUserReaction,
     required this.createdAt,
     this.updatedAt,
   });
@@ -51,6 +59,9 @@ class ReplyModel extends Equatable {
     isAcceptedAnswer,
     likeCount,
     likedBy,
+    reactionCount,
+    reactionCounts,
+    currentUserReaction,
     createdAt,
     updatedAt,
   ];
@@ -70,6 +81,13 @@ class ReplyModel extends Equatable {
       isAcceptedAnswer: map['isAcceptedAnswer'] as bool? ?? false,
       likeCount: map['likeCount'] as int? ?? 0,
       likedBy: (map['likedBy'] as List<dynamic>?)?.cast<String>() ?? [],
+      reactionCount: map['reactionCount'] as int? ?? 0,
+      reactionCounts:
+          (map['reactionCounts'] as Map<dynamic, dynamic>?)?.map(
+            (key, value) => MapEntry(key.toString(), value as int),
+          ) ??
+          const {},
+      currentUserReaction: map['currentUserReaction'] as String?,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: map['updatedAt'] != null
           ? DateTime.parse(map['updatedAt'] as String)
@@ -92,6 +110,9 @@ class ReplyModel extends Equatable {
       'isAcceptedAnswer': isAcceptedAnswer,
       'likeCount': likeCount,
       'likedBy': likedBy,
+      'reactionCount': reactionCount,
+      'reactionCounts': reactionCounts,
+      'currentUserReaction': currentUserReaction,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
@@ -111,6 +132,10 @@ class ReplyModel extends Equatable {
     bool? isAcceptedAnswer,
     int? likeCount,
     List<String>? likedBy,
+    int? reactionCount,
+    Map<String, int>? reactionCounts,
+    String? currentUserReaction,
+    bool clearCurrentUserReaction = false,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -128,6 +153,11 @@ class ReplyModel extends Equatable {
       isAcceptedAnswer: isAcceptedAnswer ?? this.isAcceptedAnswer,
       likeCount: likeCount ?? this.likeCount,
       likedBy: likedBy ?? this.likedBy,
+      reactionCount: reactionCount ?? this.reactionCount,
+      reactionCounts: reactionCounts ?? this.reactionCounts,
+      currentUserReaction: clearCurrentUserReaction
+          ? null
+          : currentUserReaction ?? this.currentUserReaction,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -135,4 +165,38 @@ class ReplyModel extends Equatable {
 
   /// Check if a user has liked this reply
   bool isLikedBy(String userId) => likedBy.contains(userId);
+
+  ReactionType? get selectedReaction =>
+      ReactionType.fromValue(currentUserReaction);
+
+  Map<String, int> get effectiveReactionCounts {
+    if (reactionCounts.isNotEmpty) return reactionCounts;
+    if (likeCount > 0) return {'like': likeCount};
+    return const {};
+  }
+
+  int get totalReactionCount =>
+      reactionCounts.isEmpty ? likeCount : reactionCount;
+
+  ReactionType? reactionForUser(String userId) {
+    return selectedReaction ??
+        (likedBy.contains(userId) ? ReactionType.like : null);
+  }
+
+  ReplyModel toggleReaction(ReactionType reaction, {String? userId}) {
+    final effectiveCurrentReaction =
+        currentUserReaction ??
+        (userId != null && likedBy.contains(userId) ? 'like' : null);
+    final selection = toggleReactionSelection(
+      counts: effectiveReactionCounts,
+      currentReaction: effectiveCurrentReaction,
+      selected: reaction,
+    );
+    return copyWith(
+      reactionCount: selection.total,
+      reactionCounts: selection.counts,
+      currentUserReaction: selection.currentReaction,
+      clearCurrentUserReaction: selection.currentReaction == null,
+    );
+  }
 }

@@ -17,8 +17,8 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
     on<LoadThreadDetail>(_onLoadThreadDetail);
     on<CreateThread>(_onCreateThread);
     on<CreateReply>(_onCreateReply);
-    on<ToggleThreadLike>(_onToggleThreadLike);
-    on<ToggleReplyLike>(_onToggleReplyLike);
+    on<SetThreadReaction>(_onSetThreadReaction);
+    on<SetReplyReaction>(_onSetReplyReaction);
     on<ToggleThreadResolved>(_onToggleThreadResolved);
     on<MarkAsAcceptedAnswer>(_onMarkAsAcceptedAnswer);
   }
@@ -134,14 +134,28 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
     }
   }
 
-  Future<void> _onToggleThreadLike(
-    ToggleThreadLike event,
+  Future<void> _onSetThreadReaction(
+    SetThreadReaction event,
     Emitter<DiscussionState> emit,
   ) async {
+    final previousState = state;
+    if (previousState is ThreadDetailLoaded &&
+        previousState.thread.id == event.threadId) {
+      emit(
+        previousState.copyWith(
+          thread: previousState.thread.toggleReaction(
+            event.reaction,
+            userId: event.userId,
+          ),
+        ),
+      );
+    }
+
     try {
-      final updated = await discussionRepository.toggleThreadLike(
+      final updated = await discussionRepository.setThreadReaction(
         event.threadId,
         event.userId,
+        event.reaction,
       );
 
       final currentState = state;
@@ -150,19 +164,31 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
         emit(currentState.copyWith(thread: updated));
       }
     } catch (e) {
-      emit(DiscussionError(message: 'Failed to update like: $e'));
+      if (previousState is ThreadDetailLoaded) emit(previousState);
+      emit(DiscussionError(message: 'Failed to update reaction: $e'));
     }
   }
 
-  Future<void> _onToggleReplyLike(
-    ToggleReplyLike event,
+  Future<void> _onSetReplyReaction(
+    SetReplyReaction event,
     Emitter<DiscussionState> emit,
   ) async {
+    final previousState = state;
+    if (previousState is ThreadDetailLoaded) {
+      final replies = previousState.replies.map((reply) {
+        return reply.id == event.replyId
+            ? reply.toggleReaction(event.reaction, userId: event.userId)
+            : reply;
+      }).toList();
+      emit(previousState.copyWith(replies: replies));
+    }
+
     try {
-      final updated = await discussionRepository.toggleReplyLike(
+      final updated = await discussionRepository.setReplyReaction(
         event.replyId,
         event.threadId,
         event.userId,
+        event.reaction,
       );
 
       final currentState = state;
@@ -173,7 +199,8 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
         emit(currentState.copyWith(replies: replies));
       }
     } catch (e) {
-      emit(DiscussionError(message: 'Failed to update like: $e'));
+      if (previousState is ThreadDetailLoaded) emit(previousState);
+      emit(DiscussionError(message: 'Failed to update reaction: $e'));
     }
   }
 

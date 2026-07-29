@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../data/models/reaction_type.dart';
+
 /// Discussion Bloc Events
 abstract class DiscussionEvent extends Equatable {
   const DiscussionEvent();
@@ -96,31 +98,38 @@ class CreateReply extends DiscussionEvent {
   ];
 }
 
-/// Toggle like on a thread
-class ToggleThreadLike extends DiscussionEvent {
+/// Add, change, or remove the current user's thread reaction.
+class SetThreadReaction extends DiscussionEvent {
   final String threadId;
   final String userId;
+  final ReactionType reaction;
 
-  const ToggleThreadLike({required this.threadId, required this.userId});
-
-  @override
-  List<Object?> get props => [threadId, userId];
-}
-
-/// Toggle like on a reply
-class ToggleReplyLike extends DiscussionEvent {
-  final String replyId;
-  final String threadId;
-  final String userId;
-
-  const ToggleReplyLike({
-    required this.replyId,
+  const SetThreadReaction({
     required this.threadId,
     required this.userId,
+    required this.reaction,
   });
 
   @override
-  List<Object?> get props => [replyId, threadId, userId];
+  List<Object?> get props => [threadId, userId, reaction];
+}
+
+/// Add, change, or remove the current user's reply reaction.
+class SetReplyReaction extends DiscussionEvent {
+  final String replyId;
+  final String threadId;
+  final String userId;
+  final ReactionType reaction;
+
+  const SetReplyReaction({
+    required this.replyId,
+    required this.threadId,
+    required this.userId,
+    required this.reaction,
+  });
+
+  @override
+  List<Object?> get props => [replyId, threadId, userId, reaction];
 }
 
 /// Mark thread as resolved

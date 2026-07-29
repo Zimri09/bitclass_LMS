@@ -11,7 +11,8 @@ class DiscussionRepository {
   static const String _channelsTable = 'discussion_channels';
   static const String _threadsTable = 'threads';
   static const String _repliesTable = 'replies';
-  static const String _threadLikesTable = 'thread_likes';
+  static const String _threadReactionsTable = 'thread_reactions';
+  static const String _replyReactionsTable = 'reply_reactions';
 
   final SupabaseClient? _supabase;
 
@@ -61,6 +62,16 @@ class DiscussionRepository {
       'replyCount': row['reply_count'],
       'likeCount': row['like_count'],
       'likedBy': row['liked_by'] ?? const [],
+      'reactionCount': row['reaction_count'] ?? row['like_count'] ?? 0,
+      'reactionCounts':
+          row['reaction_counts'] ??
+          {
+            'like': row['like_count'] ?? 0,
+            'haha': 0,
+            'sad': 0,
+            'heart': 0,
+            'angry': 0,
+          },
       'createdAt': row['created_at']?.toString(),
       'updatedAt': row['updated_at']?.toString(),
       'lastReplyAt': row['last_reply_at']?.toString(),
@@ -82,6 +93,16 @@ class DiscussionRepository {
       'isAcceptedAnswer': row['is_accepted_answer'],
       'likeCount': row['like_count'],
       'likedBy': row['liked_by'] ?? const [],
+      'reactionCount': row['reaction_count'] ?? row['like_count'] ?? 0,
+      'reactionCounts':
+          row['reaction_counts'] ??
+          {
+            'like': row['like_count'] ?? 0,
+            'haha': 0,
+            'sad': 0,
+            'heart': 0,
+            'angry': 0,
+          },
       'createdAt': row['created_at']?.toString(),
       'updatedAt': row['updated_at']?.toString(),
     };
@@ -93,6 +114,62 @@ class DiscussionRepository {
       ThreadModel.fromMap(_rowToThreadMap(row));
   ReplyModel _replyFromRow(Map<String, dynamic> row) =>
       ReplyModel.fromMap(_rowToReplyMap(row));
+
+  Future<Map<String, String>> _getCurrentUserReactions({
+    required String table,
+    required String itemColumn,
+    required List<String> itemIds,
+  }) async {
+    final userId = _supabase?.auth.currentUser?.id;
+    if (userId == null || itemIds.isEmpty) return const {};
+
+    final rows = await _supabase!
+        .from(table)
+        .select('$itemColumn, reaction')
+        .eq('user_id', userId)
+        .inFilter(itemColumn, itemIds);
+
+    return {
+      for (final row in (rows as List<dynamic>).cast<Map<String, dynamic>>())
+        row[itemColumn] as String: row['reaction'] as String,
+    };
+  }
+
+  Future<List<ThreadModel>> _hydrateThreadReactions(
+    List<ThreadModel> threads,
+  ) async {
+    final currentReactions = await _getCurrentUserReactions(
+      table: _threadReactionsTable,
+      itemColumn: 'thread_id',
+      itemIds: threads.map((thread) => thread.id).toList(),
+    );
+    return threads
+        .map(
+          (thread) => currentReactions[thread.id] == null
+              ? thread
+              : thread.copyWith(
+                  currentUserReaction: currentReactions[thread.id],
+                ),
+        )
+        .toList();
+  }
+
+  Future<List<ReplyModel>> _hydrateReplyReactions(
+    List<ReplyModel> replies,
+  ) async {
+    final currentReactions = await _getCurrentUserReactions(
+      table: _replyReactionsTable,
+      itemColumn: 'reply_id',
+      itemIds: replies.map((reply) => reply.id).toList(),
+    );
+    return replies
+        .map(
+          (reply) => currentReactions[reply.id] == null
+              ? reply
+              : reply.copyWith(currentUserReaction: currentReactions[reply.id]),
+        )
+        .toList();
+  }
 
   RealtimeChannel? subscribeToCourseChannels({
     required String courseId,
@@ -545,8 +622,9 @@ class DiscussionRepository {
       return _channels.values.where((c) => c.courseId == courseId).toList()
         ..sort((a, b) {
           if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
-          if (a.isAnnouncement != b.isAnnouncement)
+          if (a.isAnnouncement != b.isAnnouncement) {
             return a.isAnnouncement ? -1 : 1;
+          }
           return a.name.compareTo(b.name);
         });
     }
@@ -636,10 +714,11 @@ class DiscussionRepository {
           .eq('channel_id', channelId)
           .order('is_pinned', ascending: false)
           .order('last_reply_at', ascending: false);
-      return (rows as List<dynamic>)
+      final threads = (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()
           .map(_threadFromRow)
           .toList();
+      return _hydrateThreadReactions(threads);
     } catch (e) {
       if (kDebugMode) {
         log('Error fetching threads: $e', name: 'DiscussionRepository');
@@ -666,7 +745,8 @@ class DiscussionRepository {
           .eq('id', threadId)
           .maybeSingle();
       if (row == null) return null;
-      return _threadFromRow(row);
+      final thread = _threadFromRow(row);
+      return (await _hydrateThreadReactions([thread])).single;
     } catch (e) {
       if (kDebugMode) {
         log('Error fetching thread: $e', name: 'DiscussionRepository');
@@ -684,7 +764,7 @@ class DiscussionRepository {
       final channel = _channels[thread.channelId];
       if (channel != null) {
         _channels[thread.channelId] = channel.copyWith(
-          threadCount: channel.threadCount + 1,
+          threadCount: channel.threadCount + (thread.isResolved ? 0 : 1),
           lastActivityAt: DateTime.now(),
         );
       }
@@ -725,6 +805,14 @@ class DiscussionRepository {
           throw Exception('Only the thread creator can delete this thread.');
         }
         entry.value.removeAt(index);
+        final channel = _channels[entry.key];
+        if (channel != null) {
+          _channels[entry.key] = channel.copyWith(
+            threadCount: entry.value
+                .where((thread) => !thread.isResolved)
+                .length,
+          );
+        }
         _repliesByThread.remove(threadId);
         return;
       }
@@ -743,21 +831,15 @@ class DiscussionRepository {
     }
   }
 
-  Future<ThreadModel> toggleThreadLike(String threadId, String userId) async {
+  Future<ThreadModel> setThreadReaction(
+    String threadId,
+    String userId,
+    ReactionType reaction,
+  ) async {
     final thread = await getThread(threadId);
     if (thread == null) throw Exception('Thread not found');
-
-    final likedBy = List<String>.from(thread.likedBy);
-    if (likedBy.contains(userId)) {
-      likedBy.remove(userId);
-    } else {
-      likedBy.add(userId);
-    }
-
-    final updated = thread.copyWith(
-      likedBy: likedBy,
-      likeCount: likedBy.length,
-    );
+    final currentReaction = thread.reactionForUser(userId);
+    final updated = thread.toggleReaction(reaction, userId: userId);
 
     if (EnvironmentConfig.isDemoMode) {
       for (final channelId in _threadsByChannel.keys) {
@@ -771,17 +853,26 @@ class DiscussionRepository {
       throw Exception('Thread not found');
     }
 
-    await _supabase!
-        .from(_threadsTable)
-        .update({'liked_by': likedBy, 'like_count': likedBy.length})
-        .eq('id', threadId);
+    if (_supabase!.auth.currentUser?.id != userId) {
+      throw Exception('You can only manage your own reaction.');
+    }
 
-    await _supabase!.from(_threadLikesTable).upsert({
-      'thread_id': threadId,
-      'user_id': userId,
-    });
+    if (currentReaction == reaction) {
+      await _supabase
+          .from(_threadReactionsTable)
+          .delete()
+          .eq('thread_id', threadId)
+          .eq('user_id', userId);
+    } else {
+      await _supabase.from(_threadReactionsTable).upsert({
+        'thread_id': threadId,
+        'user_id': userId,
+        'reaction': reaction.value,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'thread_id,user_id');
+    }
 
-    return updated;
+    return await getThread(threadId) ?? updated;
   }
 
   Future<ThreadModel> toggleThreadResolved(String threadId) async {
@@ -795,6 +886,12 @@ class DiscussionRepository {
         final index = threads.indexWhere((t) => t.id == threadId);
         if (index >= 0) {
           threads[index] = updated;
+          final channel = _channels[channelId];
+          if (channel != null) {
+            _channels[channelId] = channel.copyWith(
+              threadCount: threads.where((thread) => !thread.isResolved).length,
+            );
+          }
           return updated;
         }
       }
@@ -813,10 +910,12 @@ class DiscussionRepository {
       await Future.delayed(const Duration(milliseconds: 300));
       final replies = _repliesByThread[threadId] ?? [];
       return replies.toList()..sort((a, b) {
-        if (a.isAcceptedAnswer != b.isAcceptedAnswer)
+        if (a.isAcceptedAnswer != b.isAcceptedAnswer) {
           return a.isAcceptedAnswer ? -1 : 1;
-        if (a.isInstructorAnswer != b.isInstructorAnswer)
+        }
+        if (a.isInstructorAnswer != b.isInstructorAnswer) {
           return a.isInstructorAnswer ? -1 : 1;
+        }
         return a.createdAt.compareTo(b.createdAt);
       });
     }
@@ -827,10 +926,11 @@ class DiscussionRepository {
           .select()
           .eq('thread_id', threadId)
           .order('created_at', ascending: true);
-      return (rows as List<dynamic>)
+      final replies = (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()
           .map(_replyFromRow)
           .toList();
+      return _hydrateReplyReactions(replies);
     } catch (e) {
       if (kDebugMode) {
         log('Error fetching replies: $e', name: 'DiscussionRepository');
@@ -932,23 +1032,19 @@ class DiscussionRepository {
     }
   }
 
-  Future<ReplyModel> toggleReplyLike(
+  Future<ReplyModel> setReplyReaction(
     String replyId,
     String threadId,
     String userId,
+    ReactionType reaction,
   ) async {
     final replies = await getRepliesForThread(threadId);
     final reply = replies.firstWhere(
       (r) => r.id == replyId,
       orElse: () => throw Exception('Reply not found'),
     );
-    final likedBy = List<String>.from(reply.likedBy);
-    if (likedBy.contains(userId)) {
-      likedBy.remove(userId);
-    } else {
-      likedBy.add(userId);
-    }
-    final updated = reply.copyWith(likedBy: likedBy, likeCount: likedBy.length);
+    final currentReaction = reply.reactionForUser(userId);
+    final updated = reply.toggleReaction(reaction, userId: userId);
 
     if (EnvironmentConfig.isDemoMode) {
       final demoReplies = _repliesByThread[threadId];
@@ -962,12 +1058,30 @@ class DiscussionRepository {
       throw Exception('Reply not found');
     }
 
-    await _supabase!
-        .from(_repliesTable)
-        .update({'liked_by': likedBy, 'like_count': likedBy.length})
-        .eq('id', replyId);
+    if (_supabase!.auth.currentUser?.id != userId) {
+      throw Exception('You can only manage your own reaction.');
+    }
 
-    return updated;
+    if (currentReaction == reaction) {
+      await _supabase
+          .from(_replyReactionsTable)
+          .delete()
+          .eq('reply_id', replyId)
+          .eq('user_id', userId);
+    } else {
+      await _supabase.from(_replyReactionsTable).upsert({
+        'reply_id': replyId,
+        'user_id': userId,
+        'reaction': reaction.value,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'reply_id,user_id');
+    }
+
+    final refreshed = await getRepliesForThread(threadId);
+    return refreshed.firstWhere(
+      (candidate) => candidate.id == replyId,
+      orElse: () => updated,
+    );
   }
 
   Future<ReplyModel> markAsAcceptedAnswer(

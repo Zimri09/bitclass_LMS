@@ -390,13 +390,13 @@ class _ThreadListViewState extends State<ThreadListView> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.thumb_up_outlined,
+                        Icons.add_reaction_outlined,
                         color: AppColors.textSecondary.withValues(alpha: 0.7),
                         size: 14,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${thread.likeCount}',
+                        '${thread.totalReactionCount}',
                         style: TextStyle(
                           color: AppColors.textSecondary.withValues(alpha: 0.7),
                           fontSize: 12,
