@@ -578,6 +578,13 @@ class AuthRepository {
 
   Exception _handleOtpException(String? message) {
     final text = message?.toLowerCase() ?? '';
+    if (text.contains('expired or is invalid') ||
+        text.contains('expired or invalid')) {
+      return Exception(
+        'This verification code is invalid or has expired. '
+        'Use the latest code or request a new one.',
+      );
+    }
     if (text.contains('expired')) {
       return Exception(
         'This verification code has expired. Request a new one.',
