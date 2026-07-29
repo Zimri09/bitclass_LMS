@@ -535,17 +535,11 @@ create policy "replies: members create"
     )
   );
 
-create policy "replies: authors and managers update"
+create policy "replies update own"
   on public.replies for update to authenticated
-  using (
-    author_id = (select auth.uid())
-    or (select private.can_manage_course(course_id))
-  )
+  using (author_id = (select auth.uid()))
   with check (
-    (
-      author_id = (select auth.uid())
-      or (select private.can_manage_course(course_id))
-    )
+    author_id = (select auth.uid())
     and exists (
       select 1
       from public.threads

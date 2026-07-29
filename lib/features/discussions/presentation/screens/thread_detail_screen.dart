@@ -57,8 +57,10 @@ class _ThreadDetailPage extends StatefulWidget {
 
 class _ThreadDetailPageState extends State<_ThreadDetailPage> {
   final TextEditingController _replyController = TextEditingController();
+  final TextEditingController _editReplyController = TextEditingController();
   final FocusNode _replyFocusNode = FocusNode();
   final Set<String> _hiddenReplyIds = {};
+  String? _editingReplyId;
   late final DiscussionRepository _discussionRepository;
   RealtimeChannel? _realtimeChannel;
 
@@ -68,13 +70,15 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
     _discussionRepository = context.read<DiscussionRepository>();
     _realtimeChannel = _discussionRepository.subscribeToThreadDetail(
       threadId: widget.threadId,
-      onChanged: _reloadThread,
+      onThreadChanged: _handleThreadRealtimeChange,
+      onReplyChanged: _handleReplyRealtimeChange,
     );
   }
 
   @override
   void dispose() {
     _replyController.dispose();
+    _editReplyController.dispose();
     _replyFocusNode.dispose();
     _discussionRepository.removeRealtimeChannel(_realtimeChannel);
     super.dispose();
@@ -83,9 +87,65 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
   void _reloadThread() {
     if (mounted) {
       context.read<DiscussionBloc>().add(
-        LoadThreadDetail(threadId: widget.threadId),
+        RefreshThreadDetail(threadId: widget.threadId),
       );
     }
+  }
+
+  void _handleThreadRealtimeChange(PostgresChangePayload payload) {
+    if (!mounted) return;
+    if (payload.eventType == PostgresChangeEvent.update &&
+        payload.newRecord.isNotEmpty) {
+      context.read<DiscussionBloc>().add(
+        ApplyThreadRealtimeUpdate(record: payload.newRecord),
+      );
+      return;
+    }
+    _reloadThread();
+  }
+
+  void _handleReplyRealtimeChange(PostgresChangePayload payload) {
+    if (!mounted) return;
+    if (payload.eventType == PostgresChangeEvent.update &&
+        payload.newRecord.isNotEmpty) {
+      context.read<DiscussionBloc>().add(
+        ApplyReplyRealtimeUpdate(record: payload.newRecord),
+      );
+      return;
+    }
+    _reloadThread();
+  }
+
+  void _startEditingReply(ReplyModel reply) {
+    setState(() {
+      _editingReplyId = reply.id;
+      _editReplyController.text = reply.content;
+      _editReplyController.selection = TextSelection.collapsed(
+        offset: _editReplyController.text.length,
+      );
+    });
+  }
+
+  void _cancelEditingReply() {
+    setState(() {
+      _editingReplyId = null;
+      _editReplyController.clear();
+    });
+  }
+
+  void _saveEditedReply(ReplyModel reply, String userId) {
+    final content = _editReplyController.text.trim();
+    if (reply.authorId != userId || content.isEmpty) return;
+
+    context.read<DiscussionBloc>().add(
+      EditReply(
+        replyId: reply.id,
+        threadId: reply.threadId,
+        authorId: userId,
+        content: content,
+      ),
+    );
+    _cancelEditingReply();
   }
 
   /// Get the current authenticated user, or null
@@ -200,53 +260,60 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
   Widget build(BuildContext context) {
     return BlocConsumer<DiscussionBloc, DiscussionState>(
       listener: (context, state) {
-          if (state is ReplyCreated) {
-            _replyController.clear();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Reply posted!'),
-                backgroundColor: AppColors.success,
-              ),
-            );
-          } else if (state is DiscussionError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppColors.error,
-              ),
-            );
-          }
+        if (state is ReplyCreated) {
+          _replyController.clear();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Reply posted!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        } else if (state is ThreadDetailLoaded && state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.actionError!),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        } else if (state is DiscussionError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       },
       builder: (context, state) {
         return Scaffold(
-            appBar: AppBar(
-              title: Text(
-                state is ThreadDetailLoaded ? state.thread.title : 'Thread',
-              ),
-              actions: [
-                if (state is ThreadDetailLoaded) ...[
-                  IconButton(
-                    icon: Icon(
-                      state.thread.isResolved
-                          ? Icons.check_circle
-                          : Icons.check_circle_outline,
-                      color: state.thread.isResolved
-                          ? AppColors.success
-                          : AppColors.textSecondary,
-                    ),
-                    onPressed: () {
-                      context.read<DiscussionBloc>().add(
-                        ToggleThreadResolved(threadId: widget.threadId),
-                      );
-                    },
-                    tooltip: state.thread.isResolved
-                        ? 'Mark as unresolved'
-                        : 'Mark as resolved',
-                  ),
-                ],
-              ],
+          appBar: AppBar(
+            title: Text(
+              state is ThreadDetailLoaded ? state.thread.title : 'Thread',
             ),
-            body: _buildBody(context, state),
+            actions: [
+              if (state is ThreadDetailLoaded) ...[
+                IconButton(
+                  icon: Icon(
+                    state.thread.isResolved
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                    color: state.thread.isResolved
+                        ? AppColors.success
+                        : AppColors.textSecondary,
+                  ),
+                  onPressed: () {
+                    context.read<DiscussionBloc>().add(
+                      ToggleThreadResolved(threadId: widget.threadId),
+                    );
+                  },
+                  tooltip: state.thread.isResolved
+                      ? 'Mark as unresolved'
+                      : 'Mark as resolved',
+                ),
+              ],
+            ],
+          ),
+          body: _buildBody(context, state),
         );
       },
     );
@@ -254,9 +321,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
 
   Widget _buildBody(BuildContext context, DiscussionState state) {
     if (state is ThreadDetailLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
+      return Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
 
     if (state is DiscussionError) {
@@ -558,19 +623,15 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
     UserModel? user,
   ) {
     final userId = user?.id ?? '';
-    final isAccepted = reply.isAcceptedAnswer;
     final isInstructor = reply.isInstructorAnswer;
+    final isEditing = _editingReplyId == reply.id;
 
     return Card(
-      color: isAccepted
-          ? AppColors.success.withValues(alpha: 0.1)
-          : AppColors.surface,
+      color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: isAccepted
-            ? BorderSide(color: AppColors.success, width: 1)
-            : BorderSide.none,
+        side: BorderSide.none,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -619,8 +680,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color:
-                                    AppColors.warning.withValues(alpha: 0.2),
+                                color: AppColors.warning.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -636,7 +696,9 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                         ],
                       ),
                       Text(
-                        _formatDate(reply.createdAt),
+                        reply.editedAt == null
+                            ? _formatDate(reply.createdAt)
+                            : '${_formatDate(reply.createdAt)} - Edited',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 11,
@@ -645,42 +707,28 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                     ],
                   ),
                 ),
-                if (isAccepted)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check, color: AppColors.success, size: 14),
-                        SizedBox(width: 4),
-                        Text(
-                          'Accepted',
-                          style: TextStyle(
-                            color: AppColors.success,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 if (reply.authorId == userId)
                   PopupMenuButton<String>(
                     tooltip: 'Reply options',
                     icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
                     onSelected: (value) {
-                      if (value == 'delete') {
+                      if (value == 'edit') {
+                        _startEditingReply(reply);
+                      } else if (value == 'delete') {
                         _deleteReply(reply, userId);
                       }
                     },
                     itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined),
+                            SizedBox(width: 12),
+                            Text('Edit Reply'),
+                          ],
+                        ),
+                      ),
                       PopupMenuItem<String>(
                         value: 'delete',
                         child: Row(
@@ -699,14 +747,52 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
             const SizedBox(height: 12),
 
             // Content
-            Text(
-              reply.content,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-                height: 1.5,
+            if (isEditing)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _editReplyController,
+                    autofocus: true,
+                    minLines: 2,
+                    maxLines: null,
+                    style: TextStyle(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Edit your reply',
+                      filled: true,
+                      fillColor: AppColors.surfaceLight,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: _cancelEditingReply,
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => _saveEditedReply(reply, userId),
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              Text(
+                reply.content,
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
               ),
-            ),
 
             const SizedBox(height: 12),
 
@@ -731,28 +817,6 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                         },
                   compact: true,
                 ),
-                const Spacer(),
-                // Only show accept button if the current user is the thread author
-                if (!isAccepted &&
-                    !thread.isLocked &&
-                    userId.isNotEmpty &&
-                    thread.authorId == userId)
-                  TextButton.icon(
-                    onPressed: () {
-                      context.read<DiscussionBloc>().add(
-                        MarkAsAcceptedAnswer(
-                          replyId: reply.id,
-                          threadId: thread.id,
-                        ),
-                      );
-                    },
-                    icon: Icon(Icons.check_circle_outline, size: 16),
-                    label: const Text('Accept'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                      textStyle: TextStyle(fontSize: 12),
-                    ),
-                  ),
               ],
             ),
           ],
@@ -823,8 +887,9 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                         if (user == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content:
-                                  const Text('You must be logged in to reply'),
+                              content: const Text(
+                                'You must be logged in to reply',
+                              ),
                               backgroundColor: AppColors.error,
                             ),
                           );

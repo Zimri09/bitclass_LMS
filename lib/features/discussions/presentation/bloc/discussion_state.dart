@@ -49,25 +49,40 @@ class ThreadDetailLoaded extends DiscussionState {
   final ThreadModel thread;
   final List<ReplyModel> replies;
   final bool isSubmittingReply;
+  final String? actionError;
+  final int actionRevision;
 
   const ThreadDetailLoaded({
     required this.thread,
     required this.replies,
     this.isSubmittingReply = false,
+    this.actionError,
+    this.actionRevision = 0,
   });
 
   @override
-  List<Object?> get props => [thread, replies, isSubmittingReply];
+  List<Object?> get props => [
+    thread,
+    replies,
+    isSubmittingReply,
+    actionError,
+    actionRevision,
+  ];
 
   ThreadDetailLoaded copyWith({
     ThreadModel? thread,
     List<ReplyModel>? replies,
     bool? isSubmittingReply,
+    String? actionError,
+    bool clearActionError = false,
+    int? actionRevision,
   }) {
     return ThreadDetailLoaded(
       thread: thread ?? this.thread,
       replies: replies ?? this.replies,
       isSubmittingReply: isSubmittingReply ?? this.isSubmittingReply,
+      actionError: clearActionError ? null : actionError ?? this.actionError,
+      actionRevision: actionRevision ?? this.actionRevision,
     );
   }
 }

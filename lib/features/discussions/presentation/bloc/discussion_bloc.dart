@@ -15,12 +15,79 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
     on<LoadChannels>(_onLoadChannels);
     on<LoadThreads>(_onLoadThreads);
     on<LoadThreadDetail>(_onLoadThreadDetail);
+    on<RefreshThreadDetail>(_onRefreshThreadDetail);
+    on<ApplyThreadRealtimeUpdate>(_onApplyThreadRealtimeUpdate);
+    on<ApplyReplyRealtimeUpdate>(_onApplyReplyRealtimeUpdate);
     on<CreateThread>(_onCreateThread);
     on<CreateReply>(_onCreateReply);
+    on<EditReply>(_onEditReply);
     on<SetThreadReaction>(_onSetThreadReaction);
     on<SetReplyReaction>(_onSetReplyReaction);
     on<ToggleThreadResolved>(_onToggleThreadResolved);
-    on<MarkAsAcceptedAnswer>(_onMarkAsAcceptedAnswer);
+  }
+
+  void _onApplyThreadRealtimeUpdate(
+    ApplyThreadRealtimeUpdate event,
+    Emitter<DiscussionState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! ThreadDetailLoaded) return;
+    if (event.record['id'] != currentState.thread.id) return;
+
+    emit(
+      currentState.copyWith(
+        thread: discussionRepository.mergeThreadRealtimeRecord(
+          currentState.thread,
+          event.record,
+        ),
+        clearActionError: true,
+      ),
+    );
+  }
+
+  void _onApplyReplyRealtimeUpdate(
+    ApplyReplyRealtimeUpdate event,
+    Emitter<DiscussionState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! ThreadDetailLoaded) return;
+    final replyId = event.record['id'];
+    final index = currentState.replies.indexWhere(
+      (reply) => reply.id == replyId,
+    );
+    if (index < 0) return;
+
+    final replies = List<ReplyModel>.of(currentState.replies);
+    replies[index] = discussionRepository.mergeReplyRealtimeRecord(
+      replies[index],
+      event.record,
+    );
+    emit(currentState.copyWith(replies: replies, clearActionError: true));
+  }
+
+  Future<void> _onRefreshThreadDetail(
+    RefreshThreadDetail event,
+    Emitter<DiscussionState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! ThreadDetailLoaded) return;
+
+    try {
+      final thread = await discussionRepository.getThread(event.threadId);
+      if (thread == null) return;
+      final replies = await discussionRepository.getRepliesForThread(
+        event.threadId,
+      );
+      emit(
+        currentState.copyWith(
+          thread: thread,
+          replies: replies,
+          clearActionError: true,
+        ),
+      );
+    } catch (_) {
+      // Realtime refresh failures should not replace usable discussion content.
+    }
   }
 
   Future<void> _onLoadChannels(
@@ -141,31 +208,33 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
     final previousState = state;
     if (previousState is ThreadDetailLoaded &&
         previousState.thread.id == event.threadId) {
+      final remove =
+          previousState.thread.reactionForUser(event.userId) == event.reaction;
       emit(
         previousState.copyWith(
           thread: previousState.thread.toggleReaction(
             event.reaction,
             userId: event.userId,
           ),
+          clearActionError: true,
         ),
       );
-    }
 
-    try {
-      final updated = await discussionRepository.setThreadReaction(
-        event.threadId,
-        event.userId,
-        event.reaction,
-      );
-
-      final currentState = state;
-      if (currentState is ThreadDetailLoaded &&
-          currentState.thread.id == event.threadId) {
-        emit(currentState.copyWith(thread: updated));
+      try {
+        await discussionRepository.setThreadReaction(
+          event.threadId,
+          event.userId,
+          event.reaction,
+          remove: remove,
+        );
+      } catch (e) {
+        emit(
+          previousState.copyWith(
+            actionError: 'Failed to update reaction: $e',
+            actionRevision: previousState.actionRevision + 1,
+          ),
+        );
       }
-    } catch (e) {
-      if (previousState is ThreadDetailLoaded) emit(previousState);
-      emit(DiscussionError(message: 'Failed to update reaction: $e'));
     }
   }
 
@@ -175,32 +244,81 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
   ) async {
     final previousState = state;
     if (previousState is ThreadDetailLoaded) {
+      final target = previousState.replies
+          .where((reply) => reply.id == event.replyId)
+          .firstOrNull;
+      if (target == null) return;
+      final remove = target.reactionForUser(event.userId) == event.reaction;
       final replies = previousState.replies.map((reply) {
         return reply.id == event.replyId
             ? reply.toggleReaction(event.reaction, userId: event.userId)
             : reply;
       }).toList();
-      emit(previousState.copyWith(replies: replies));
+      emit(previousState.copyWith(replies: replies, clearActionError: true));
+
+      try {
+        await discussionRepository.setReplyReaction(
+          event.replyId,
+          event.threadId,
+          event.userId,
+          event.reaction,
+          remove: remove,
+        );
+      } catch (e) {
+        emit(
+          previousState.copyWith(
+            actionError: 'Failed to update reaction: $e',
+            actionRevision: previousState.actionRevision + 1,
+          ),
+        );
+      }
     }
+  }
+
+  Future<void> _onEditReply(
+    EditReply event,
+    Emitter<DiscussionState> emit,
+  ) async {
+    final previousState = state;
+    if (previousState is! ThreadDetailLoaded) return;
+
+    final target = previousState.replies
+        .where((reply) => reply.id == event.replyId)
+        .firstOrNull;
+    if (target == null || target.authorId != event.authorId) return;
+
+    final editedAt = DateTime.now().toUtc();
+    final optimisticReplies = previousState.replies.map((reply) {
+      return reply.id == event.replyId
+          ? reply.copyWith(
+              content: event.content,
+              editedAt: editedAt,
+              updatedAt: editedAt,
+            )
+          : reply;
+    }).toList();
+    emit(
+      previousState.copyWith(
+        replies: optimisticReplies,
+        clearActionError: true,
+      ),
+    );
 
     try {
-      final updated = await discussionRepository.setReplyReaction(
-        event.replyId,
-        event.threadId,
-        event.userId,
-        event.reaction,
+      await discussionRepository.editReply(
+        replyId: event.replyId,
+        threadId: event.threadId,
+        authorId: event.authorId,
+        content: event.content,
+        editedAt: editedAt,
       );
-
-      final currentState = state;
-      if (currentState is ThreadDetailLoaded) {
-        final replies = currentState.replies.map((r) {
-          return r.id == event.replyId ? updated : r;
-        }).toList();
-        emit(currentState.copyWith(replies: replies));
-      }
     } catch (e) {
-      if (previousState is ThreadDetailLoaded) emit(previousState);
-      emit(DiscussionError(message: 'Failed to update reaction: $e'));
+      emit(
+        previousState.copyWith(
+          actionError: 'Failed to edit reply: $e',
+          actionRevision: previousState.actionRevision + 1,
+        ),
+      );
     }
   }
 
@@ -220,23 +338,6 @@ class DiscussionBloc extends Bloc<DiscussionEvent, DiscussionState> {
       }
     } catch (e) {
       emit(DiscussionError(message: 'Failed to update thread: $e'));
-    }
-  }
-
-  Future<void> _onMarkAsAcceptedAnswer(
-    MarkAsAcceptedAnswer event,
-    Emitter<DiscussionState> emit,
-  ) async {
-    try {
-      await discussionRepository.markAsAcceptedAnswer(
-        event.replyId,
-        event.threadId,
-      );
-
-      // Reload thread detail to get updated state
-      add(LoadThreadDetail(threadId: event.threadId));
-    } catch (e) {
-      emit(DiscussionError(message: 'Failed to mark as answer: $e'));
     }
   }
 }

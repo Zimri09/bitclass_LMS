@@ -93,6 +93,23 @@ void main() {
     expect(angry.effectiveReactionCounts['angry'], 1);
   });
 
+  test('ReplyModel preserves an explicit edit marker', () {
+    final editedAt = DateTime.utc(2026, 7, 29, 12);
+    final reply = ReplyModel(
+      id: 'reply-1',
+      threadId: 'thread-1',
+      channelId: 'channel-1',
+      courseId: 'course-1',
+      content: 'Updated reply',
+      authorId: 'author-2',
+      authorName: 'Responder',
+      createdAt: DateTime.utc(2026, 7, 29),
+      editedAt: editedAt,
+    );
+
+    expect(ReplyModel.fromMap(reply.toMap()).editedAt, editedAt);
+  });
+
   testWidgets('reaction control exposes all options and returns a selection', (
     tester,
   ) async {
@@ -114,7 +131,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('React'));
+    await tester.longPress(find.text('React'));
     await tester.pumpAndSettle();
 
     for (final reaction in ReactionType.values) {
@@ -124,6 +141,28 @@ void main() {
     await tester.tap(find.text('Haha'));
     await tester.pumpAndSettle();
     expect(selected, ReactionType.haha);
+  });
+
+  testWidgets('short tap applies the quick Like reaction', (tester) async {
+    ReactionType? selected;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReactionControl(
+            reactionCounts: const {},
+            totalCount: 0,
+            selectedReaction: null,
+            onReactionSelected: (reaction) => selected = reaction,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('React'));
+    await tester.pump();
+
+    expect(selected, ReactionType.like);
   });
 
   testWidgets('reaction total opens the count breakdown', (tester) async {

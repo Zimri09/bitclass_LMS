@@ -14,7 +14,6 @@ class ReplyModel extends Equatable {
   final String authorName;
   final String? authorAvatarUrl;
   final bool isInstructorAnswer; // Marked as instructor's answer
-  final bool isAcceptedAnswer; // Marked as accepted solution
   final int likeCount;
   final List<String> likedBy;
   final int reactionCount;
@@ -22,6 +21,7 @@ class ReplyModel extends Equatable {
   final String? currentUserReaction;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final DateTime? editedAt;
 
   const ReplyModel({
     required this.id,
@@ -34,7 +34,6 @@ class ReplyModel extends Equatable {
     required this.authorName,
     this.authorAvatarUrl,
     this.isInstructorAnswer = false,
-    this.isAcceptedAnswer = false,
     this.likeCount = 0,
     this.likedBy = const [],
     this.reactionCount = 0,
@@ -42,6 +41,7 @@ class ReplyModel extends Equatable {
     this.currentUserReaction,
     required this.createdAt,
     this.updatedAt,
+    this.editedAt,
   });
 
   @override
@@ -56,7 +56,6 @@ class ReplyModel extends Equatable {
     authorName,
     authorAvatarUrl,
     isInstructorAnswer,
-    isAcceptedAnswer,
     likeCount,
     likedBy,
     reactionCount,
@@ -64,6 +63,7 @@ class ReplyModel extends Equatable {
     currentUserReaction,
     createdAt,
     updatedAt,
+    editedAt,
   ];
 
   factory ReplyModel.fromMap(Map<String, dynamic> map) {
@@ -78,7 +78,6 @@ class ReplyModel extends Equatable {
       authorName: map['authorName'] as String,
       authorAvatarUrl: map['authorAvatarUrl'] as String?,
       isInstructorAnswer: map['isInstructorAnswer'] as bool? ?? false,
-      isAcceptedAnswer: map['isAcceptedAnswer'] as bool? ?? false,
       likeCount: map['likeCount'] as int? ?? 0,
       likedBy: (map['likedBy'] as List<dynamic>?)?.cast<String>() ?? [],
       reactionCount: map['reactionCount'] as int? ?? 0,
@@ -91,6 +90,9 @@ class ReplyModel extends Equatable {
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: map['updatedAt'] != null
           ? DateTime.parse(map['updatedAt'] as String)
+          : null,
+      editedAt: map['editedAt'] != null
+          ? DateTime.parse(map['editedAt'] as String)
           : null,
     );
   }
@@ -107,7 +109,6 @@ class ReplyModel extends Equatable {
       'authorName': authorName,
       'authorAvatarUrl': authorAvatarUrl,
       'isInstructorAnswer': isInstructorAnswer,
-      'isAcceptedAnswer': isAcceptedAnswer,
       'likeCount': likeCount,
       'likedBy': likedBy,
       'reactionCount': reactionCount,
@@ -115,6 +116,7 @@ class ReplyModel extends Equatable {
       'currentUserReaction': currentUserReaction,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'editedAt': editedAt?.toIso8601String(),
     };
   }
 
@@ -129,7 +131,6 @@ class ReplyModel extends Equatable {
     String? authorName,
     String? authorAvatarUrl,
     bool? isInstructorAnswer,
-    bool? isAcceptedAnswer,
     int? likeCount,
     List<String>? likedBy,
     int? reactionCount,
@@ -138,6 +139,7 @@ class ReplyModel extends Equatable {
     bool clearCurrentUserReaction = false,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? editedAt,
   }) {
     return ReplyModel(
       id: id ?? this.id,
@@ -150,7 +152,6 @@ class ReplyModel extends Equatable {
       authorName: authorName ?? this.authorName,
       authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
       isInstructorAnswer: isInstructorAnswer ?? this.isInstructorAnswer,
-      isAcceptedAnswer: isAcceptedAnswer ?? this.isAcceptedAnswer,
       likeCount: likeCount ?? this.likeCount,
       likedBy: likedBy ?? this.likedBy,
       reactionCount: reactionCount ?? this.reactionCount,
@@ -160,6 +161,7 @@ class ReplyModel extends Equatable {
           : currentUserReaction ?? this.currentUserReaction,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      editedAt: editedAt ?? this.editedAt,
     );
   }
 

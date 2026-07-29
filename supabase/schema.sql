@@ -700,14 +700,14 @@ create table if not exists public.replies (
   author_avatar_url text,
   content text not null,
   is_instructor_answer boolean not null default false,
-  is_accepted_answer boolean not null default false,
   like_count integer not null default 0,
   liked_by jsonb not null default '[]'::jsonb,
   reaction_count integer not null default 0,
   reaction_counts jsonb not null default
     '{"like": 0, "haha": 0, "sad": 0, "heart": 0, "angry": 0}'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now())
+  updated_at timestamptz not null default timezone('utc', now()),
+  edited_at timestamptz
 );
 
 drop trigger if exists replies_updated_at on public.replies;
@@ -1291,9 +1291,10 @@ create policy "replies read course members" on public.replies
   for select using (exists (select 1 from public.threads t where t.id = thread_id and (t.course_id is not null)));
 create policy "replies create own" on public.replies
   for insert with check (author_id = auth.uid());
-create policy "replies update authors and instructors" on public.replies
-  for update using (author_id = auth.uid() or exists (select 1 from public.threads t join public.courses c on c.id = t.course_id where t.id = thread_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
-  with check (author_id = auth.uid() or exists (select 1 from public.threads t join public.courses c on c.id = t.course_id where t.id = thread_id and (c.instructor_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+create policy "replies update own" on public.replies
+  for update to authenticated
+  using (author_id = (select auth.uid()))
+  with check (author_id = (select auth.uid()));
 create policy "replies creators delete" on public.replies
   for delete using (author_id = auth.uid());
 

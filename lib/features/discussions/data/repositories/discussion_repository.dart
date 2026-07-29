@@ -90,7 +90,6 @@ class DiscussionRepository {
       'authorName': row['author_name'],
       'authorAvatarUrl': row['author_avatar_url'],
       'isInstructorAnswer': row['is_instructor_answer'],
-      'isAcceptedAnswer': row['is_accepted_answer'],
       'likeCount': row['like_count'],
       'likedBy': row['liked_by'] ?? const [],
       'reactionCount': row['reaction_count'] ?? row['like_count'] ?? 0,
@@ -105,6 +104,7 @@ class DiscussionRepository {
           },
       'createdAt': row['created_at']?.toString(),
       'updatedAt': row['updated_at']?.toString(),
+      'editedAt': row['edited_at']?.toString(),
     };
   }
 
@@ -114,6 +114,22 @@ class DiscussionRepository {
       ThreadModel.fromMap(_rowToThreadMap(row));
   ReplyModel _replyFromRow(Map<String, dynamic> row) =>
       ReplyModel.fromMap(_rowToReplyMap(row));
+
+  ThreadModel mergeThreadRealtimeRecord(
+    ThreadModel current,
+    Map<String, dynamic> row,
+  ) {
+    final updated = _threadFromRow(row);
+    return updated.copyWith(currentUserReaction: current.currentUserReaction);
+  }
+
+  ReplyModel mergeReplyRealtimeRecord(
+    ReplyModel current,
+    Map<String, dynamic> row,
+  ) {
+    final updated = _replyFromRow(row);
+    return updated.copyWith(currentUserReaction: current.currentUserReaction);
+  }
 
   Future<Map<String, String>> _getCurrentUserReactions({
     required String table,
@@ -221,7 +237,8 @@ class DiscussionRepository {
 
   RealtimeChannel? subscribeToThreadDetail({
     required String threadId,
-    required VoidCallback onChanged,
+    required ValueChanged<PostgresChangePayload> onThreadChanged,
+    required ValueChanged<PostgresChangePayload> onReplyChanged,
   }) {
     if (EnvironmentConfig.isDemoMode) return null;
 
@@ -238,7 +255,7 @@ class DiscussionRepository {
             column: 'id',
             value: threadId,
           ),
-          callback: (_) => onChanged(),
+          callback: onThreadChanged,
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
@@ -249,7 +266,7 @@ class DiscussionRepository {
             column: 'thread_id',
             value: threadId,
           ),
-          callback: (_) => onChanged(),
+          callback: onReplyChanged,
         )
         .subscribe();
   }
@@ -452,7 +469,8 @@ class DiscussionRepository {
         threadId: 'thread-3',
         channelId: 'channel-c1-general',
         courseId: 'course-1',
-        content: 'I\'m in! Saturday afternoon works for me. Let\'s do it on Discord?',
+        content:
+            'I\'m in! Saturday afternoon works for me. Let\'s do it on Discord?',
         authorId: 'student-1',
         authorName: 'Alice Johnson',
         likeCount: 1,
@@ -474,7 +492,6 @@ class DiscussionRepository {
         authorId: 'demo-instructor-1',
         authorName: 'John Doe',
         isInstructorAnswer: true,
-        isAcceptedAnswer: true,
         likeCount: 5,
         likedBy: ['student-3', 'student-1'],
         createdAt: DateTime.now().subtract(const Duration(days: 4, hours: 6)),
@@ -484,7 +501,8 @@ class DiscussionRepository {
         threadId: 'thread-4',
         channelId: 'channel-c1-help',
         courseId: 'course-1',
-        content: 'The SingleChildScrollView worked perfectly! Thank you so much! 🙏',
+        content:
+            'The SingleChildScrollView worked perfectly! Thank you so much! 🙏',
         authorId: 'student-3',
         authorName: 'Charlie Davis',
         likeCount: 1,
@@ -831,23 +849,22 @@ class DiscussionRepository {
     }
   }
 
-  Future<ThreadModel> setThreadReaction(
+  Future<void> setThreadReaction(
     String threadId,
     String userId,
-    ReactionType reaction,
-  ) async {
-    final thread = await getThread(threadId);
-    if (thread == null) throw Exception('Thread not found');
-    final currentReaction = thread.reactionForUser(userId);
-    final updated = thread.toggleReaction(reaction, userId: userId);
-
+    ReactionType reaction, {
+    required bool remove,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
       for (final channelId in _threadsByChannel.keys) {
         final threads = _threadsByChannel[channelId]!;
         final index = threads.indexWhere((t) => t.id == threadId);
         if (index >= 0) {
-          threads[index] = updated;
-          return updated;
+          threads[index] = threads[index].toggleReaction(
+            reaction,
+            userId: userId,
+          );
+          return;
         }
       }
       throw Exception('Thread not found');
@@ -857,7 +874,7 @@ class DiscussionRepository {
       throw Exception('You can only manage your own reaction.');
     }
 
-    if (currentReaction == reaction) {
+    if (remove) {
       await _supabase
           .from(_threadReactionsTable)
           .delete()
@@ -871,8 +888,6 @@ class DiscussionRepository {
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'thread_id,user_id');
     }
-
-    return await getThread(threadId) ?? updated;
   }
 
   Future<ThreadModel> toggleThreadResolved(String threadId) async {
@@ -910,9 +925,6 @@ class DiscussionRepository {
       await Future.delayed(const Duration(milliseconds: 300));
       final replies = _repliesByThread[threadId] ?? [];
       return replies.toList()..sort((a, b) {
-        if (a.isAcceptedAnswer != b.isAcceptedAnswer) {
-          return a.isAcceptedAnswer ? -1 : 1;
-        }
         if (a.isInstructorAnswer != b.isInstructorAnswer) {
           return a.isInstructorAnswer ? -1 : 1;
         }
@@ -977,12 +989,13 @@ class DiscussionRepository {
       'author_name': reply.authorName,
       'author_avatar_url': reply.authorAvatarUrl,
       'is_instructor_answer': reply.isInstructorAnswer,
-      'is_accepted_answer': reply.isAcceptedAnswer,
       'like_count': reply.likeCount,
       'liked_by': reply.likedBy,
       'created_at': reply.createdAt.toIso8601String(),
       if (reply.updatedAt != null)
         'updated_at': reply.updatedAt!.toIso8601String(),
+      if (reply.editedAt != null)
+        'edited_at': reply.editedAt!.toIso8601String(),
     });
 
     return reply;
@@ -1032,27 +1045,70 @@ class DiscussionRepository {
     }
   }
 
-  Future<ReplyModel> setReplyReaction(
+  Future<void> editReply({
+    required String replyId,
+    required String threadId,
+    required String authorId,
+    required String content,
+    required DateTime editedAt,
+  }) async {
+    final trimmedContent = content.trim();
+    if (trimmedContent.isEmpty) {
+      throw Exception('Reply cannot be empty.');
+    }
+
+    if (EnvironmentConfig.isDemoMode) {
+      final replies = _repliesByThread[threadId];
+      final index = replies?.indexWhere((reply) => reply.id == replyId) ?? -1;
+      if (replies == null || index < 0) throw Exception('Reply not found.');
+      if (replies[index].authorId != authorId) {
+        throw Exception('You can only edit your own replies.');
+      }
+      replies[index] = replies[index].copyWith(
+        content: trimmedContent,
+        editedAt: editedAt,
+        updatedAt: editedAt,
+      );
+      return;
+    }
+
+    if (_supabase!.auth.currentUser?.id != authorId) {
+      throw Exception('You can only edit your own replies.');
+    }
+
+    final updatedRows = await _supabase
+        .from(_repliesTable)
+        .update({
+          'content': trimmedContent,
+          'edited_at': editedAt.toIso8601String(),
+        })
+        .eq('id', replyId)
+        .eq('thread_id', threadId)
+        .eq('author_id', authorId)
+        .select('id');
+
+    if ((updatedRows as List<dynamic>).isEmpty) {
+      throw Exception('You can only edit your own replies.');
+    }
+  }
+
+  Future<void> setReplyReaction(
     String replyId,
     String threadId,
     String userId,
-    ReactionType reaction,
-  ) async {
-    final replies = await getRepliesForThread(threadId);
-    final reply = replies.firstWhere(
-      (r) => r.id == replyId,
-      orElse: () => throw Exception('Reply not found'),
-    );
-    final currentReaction = reply.reactionForUser(userId);
-    final updated = reply.toggleReaction(reaction, userId: userId);
-
+    ReactionType reaction, {
+    required bool remove,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
       final demoReplies = _repliesByThread[threadId];
       if (demoReplies != null) {
         final index = demoReplies.indexWhere((r) => r.id == replyId);
         if (index >= 0) {
-          demoReplies[index] = updated;
-          return updated;
+          demoReplies[index] = demoReplies[index].toggleReaction(
+            reaction,
+            userId: userId,
+          );
+          return;
         }
       }
       throw Exception('Reply not found');
@@ -1062,7 +1118,7 @@ class DiscussionRepository {
       throw Exception('You can only manage your own reaction.');
     }
 
-    if (currentReaction == reaction) {
+    if (remove) {
       await _supabase
           .from(_replyReactionsTable)
           .delete()
@@ -1076,62 +1132,5 @@ class DiscussionRepository {
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'reply_id,user_id');
     }
-
-    final refreshed = await getRepliesForThread(threadId);
-    return refreshed.firstWhere(
-      (candidate) => candidate.id == replyId,
-      orElse: () => updated,
-    );
-  }
-
-  Future<ReplyModel> markAsAcceptedAnswer(
-    String replyId,
-    String threadId,
-  ) async {
-    final replies = await getRepliesForThread(threadId);
-    final target = replies.firstWhere(
-      (r) => r.id == replyId,
-      orElse: () => throw Exception('Reply not found'),
-    );
-    final updatedReplies = replies.map((reply) {
-      if (reply.isAcceptedAnswer && reply.id != replyId) {
-        return reply.copyWith(isAcceptedAnswer: false);
-      }
-      return reply;
-    }).toList();
-    final updated = target.copyWith(isAcceptedAnswer: true);
-
-    if (EnvironmentConfig.isDemoMode) {
-      final demoReplies = _repliesByThread[threadId];
-      if (demoReplies != null) {
-        for (var i = 0; i < demoReplies.length; i++) {
-          if (demoReplies[i].isAcceptedAnswer && demoReplies[i].id != replyId) {
-            demoReplies[i] = demoReplies[i].copyWith(isAcceptedAnswer: false);
-          }
-        }
-        final index = demoReplies.indexWhere((r) => r.id == replyId);
-        if (index >= 0) {
-          demoReplies[index] = updated;
-        }
-      }
-      await toggleThreadResolved(threadId);
-      return updated;
-    }
-
-    for (final reply in updatedReplies.where(
-      (reply) => reply.isAcceptedAnswer && reply.id != replyId,
-    )) {
-      await _supabase!
-          .from(_repliesTable)
-          .update({'is_accepted_answer': false})
-          .eq('id', reply.id);
-    }
-
-    await _supabase!
-        .from(_repliesTable)
-        .update({'is_accepted_answer': true})
-        .eq('id', replyId);
-    await toggleThreadResolved(threadId);
-    return updated;
   }
 }

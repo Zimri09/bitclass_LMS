@@ -40,6 +40,36 @@ class LoadThreadDetail extends DiscussionEvent {
   List<Object?> get props => [threadId];
 }
 
+/// Refresh thread data without replacing the visible page with a loader.
+class RefreshThreadDetail extends DiscussionEvent {
+  final String threadId;
+
+  const RefreshThreadDetail({required this.threadId});
+
+  @override
+  List<Object?> get props => [threadId];
+}
+
+/// Merge a Realtime thread update into the currently visible thread.
+class ApplyThreadRealtimeUpdate extends DiscussionEvent {
+  final Map<String, dynamic> record;
+
+  const ApplyThreadRealtimeUpdate({required this.record});
+
+  @override
+  List<Object?> get props => [record];
+}
+
+/// Merge a Realtime reply update into only the affected visible reply.
+class ApplyReplyRealtimeUpdate extends DiscussionEvent {
+  final Map<String, dynamic> record;
+
+  const ApplyReplyRealtimeUpdate({required this.record});
+
+  @override
+  List<Object?> get props => [record];
+}
+
 /// Create a new thread
 class CreateThread extends DiscussionEvent {
   final String channelId;
@@ -98,6 +128,24 @@ class CreateReply extends DiscussionEvent {
   ];
 }
 
+/// Edit a reply owned by the current user.
+class EditReply extends DiscussionEvent {
+  final String replyId;
+  final String threadId;
+  final String authorId;
+  final String content;
+
+  const EditReply({
+    required this.replyId,
+    required this.threadId,
+    required this.authorId,
+    required this.content,
+  });
+
+  @override
+  List<Object?> get props => [replyId, threadId, authorId, content];
+}
+
 /// Add, change, or remove the current user's thread reaction.
 class SetThreadReaction extends DiscussionEvent {
   final String threadId;
@@ -140,15 +188,4 @@ class ToggleThreadResolved extends DiscussionEvent {
 
   @override
   List<Object?> get props => [threadId];
-}
-
-/// Mark reply as accepted answer
-class MarkAsAcceptedAnswer extends DiscussionEvent {
-  final String replyId;
-  final String threadId;
-
-  const MarkAsAcceptedAnswer({required this.replyId, required this.threadId});
-
-  @override
-  List<Object?> get props => [replyId, threadId];
 }
