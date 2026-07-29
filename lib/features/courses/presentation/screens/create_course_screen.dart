@@ -592,22 +592,21 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                               ),
                               const SizedBox(height: 20),
 
-                              // Description
+                              // Program
                               TextFormField(
                                 controller: _descriptionController,
-                                maxLines: 6,
+                                maxLines: 2,
                                 decoration: const InputDecoration(
-                                  labelText: 'Course Description',
-                                  hintText:
-                                      'Describe what students will learn in this course...',
-                                  alignLabelWithHint: true,
+                                  labelText: 'Course Program',
+                                  hintText: 'e.g., BSCS 3A',
+                                  prefixIcon: Icon(Icons.school_outlined),
                                 ),
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
-                                    return 'Please enter a course description';
+                                    return 'Please enter the course program';
                                   }
-                                  if (value.length < 20) {
-                                    return 'Description must be at least 20 characters';
+                                  if (value.trim().length < 2) {
+                                    return 'Program must be at least 2 characters';
                                   }
                                   return null;
                                 },

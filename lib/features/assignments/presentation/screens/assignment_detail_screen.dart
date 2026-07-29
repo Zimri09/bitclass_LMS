@@ -473,6 +473,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
     final isSubmitting = state.isSubmitting;
     final isSubmitted = state.submission?.isSubmitted == true;
+    final submissionsClosed =
+        state.assignment.isPastDue && !state.assignment.allowLateSubmission;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -501,7 +503,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
             Expanded(
               flex: 2,
               child: FilledButton.icon(
-                onPressed: isSubmitting ? null : () => _submitAssignment(state),
+                onPressed: isSubmitting || submissionsClosed
+                    ? null
+                    : () => _submitAssignment(state),
                 icon: isSubmitting
                     ? const SizedBox(
                         width: 18,
@@ -511,8 +515,20 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                           color: Colors.white,
                         ),
                       )
-                    : Icon(isSubmitted ? Icons.refresh : Icons.send),
-                label: Text(isSubmitted ? 'Resubmit' : 'Submit'),
+                    : Icon(
+                        submissionsClosed
+                            ? Icons.lock_outline
+                            : isSubmitted
+                            ? Icons.refresh
+                            : Icons.send,
+                      ),
+                label: Text(
+                  submissionsClosed
+                      ? 'Submissions Closed'
+                      : isSubmitted
+                      ? 'Resubmit'
+                      : 'Submit',
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.secondary,
                   foregroundColor: Colors.black,

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/config/environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/glow_card.dart';
@@ -224,8 +223,9 @@ class _ProfileBodyState extends State<_ProfileBody> {
           Stack(
             children: [
               Container(
-                width: 100,
-                height: 100,
+                width: 104,
+                height: 104,
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.surface,
@@ -251,52 +251,44 @@ class _ProfileBodyState extends State<_ProfileBody> {
                       )
                     : user.avatarUrl != null
                     ? ClipOval(
-                        child: Image.network(
-                          user.avatarUrl!,
-                          fit: BoxFit.cover,
-                          width: 100,
-                          height: 100,
-                        ),
-                      )
-                    : Center(
-                        child: Text(
-                          user.displayNameOrEmail[0].toUpperCase(),
-                          style: GoogleFonts.inter(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
+                        child: SizedBox.expand(
+                          child: Image.network(
+                            user.avatarUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _initialAvatar(user),
                           ),
                         ),
-                      ),
+                      )
+                    : _initialAvatar(user),
               ),
-              if (EnvironmentConfig.isDemoMode)
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: GestureDetector(
-                    onTap: isUploading
-                        ? null
-                        : () => _showAvatarOptions(context),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.background,
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.camera_alt,
-                        size: 15,
-                        color: Colors.white,
-                      ),
-                    ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: IconButton.filled(
+                  onPressed: isUploading
+                      ? null
+                      : () => context
+                            .read<ProfileCubit>()
+                            .selectAndUploadAvatar(),
+                  icon: const Icon(Icons.edit, size: 16),
+                  tooltip: 'Choose JPG profile photo',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    fixedSize: const Size(34, 34),
+                    padding: EdgeInsets.zero,
+                    side: BorderSide(color: AppColors.background, width: 2),
                   ),
                 ),
+              ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'JPG images only',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textMuted,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -342,6 +334,19 @@ class _ProfileBodyState extends State<_ProfileBody> {
   }
 
   // ─── View Mode ───────────────────────────────────────────────────────────────
+
+  Widget _initialAvatar(UserModel user) {
+    return Center(
+      child: Text(
+        user.displayNameOrEmail[0].toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 40,
+          fontWeight: FontWeight.bold,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
 
   Widget _buildDetailsCard(
     BuildContext context,
@@ -637,104 +642,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
   }
 
   // ─── Avatar Options ──────────────────────────────────────────────────────────
-
-  void _showAvatarOptions(BuildContext ctx) {
-    final cubit = ctx.read<ProfileCubit>();
-    showModalBottomSheet(
-      context: ctx,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      backgroundColor: AppColors.surface,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.textMuted,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text('Update Profile Photo', style: AppTextStyles.h3),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _avatarOption(
-                    icon: Icons.camera_alt,
-                    label: 'Camera',
-                    onTap: () {
-                      Navigator.pop(context);
-                      cubit.uploadAvatar('camera');
-                    },
-                  ),
-                  _avatarOption(
-                    icon: Icons.photo_library,
-                    label: 'Gallery',
-                    onTap: () {
-                      Navigator.pop(context);
-                      cubit.uploadAvatar('gallery');
-                    },
-                  ),
-                  _avatarOption(
-                    icon: Icons.delete_outline,
-                    label: 'Remove',
-                    color: AppColors.error,
-                    onTap: () {
-                      Navigator.pop(context);
-                      cubit.removeAvatar();
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _avatarOption({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    final c = color ?? AppColors.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: c.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: c, size: 26),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: AppTextStyles.bodySmall.copyWith(color: c),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 

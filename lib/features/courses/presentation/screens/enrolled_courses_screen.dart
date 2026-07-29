@@ -119,6 +119,7 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: _EnrolledCourseCard(
                         data: _enrolledCourses![index],
+                        onUnenrolled: _loadEnrollments,
                       ),
                     ),
                     childCount: _enrolledCourses!.length,
@@ -142,8 +143,12 @@ class _EnrolledCourseData {
 
 class _EnrolledCourseCard extends StatelessWidget {
   final _EnrolledCourseData data;
+  final Future<void> Function() onUnenrolled;
 
-  const _EnrolledCourseCard({required this.data});
+  const _EnrolledCourseCard({
+    required this.data,
+    required this.onUnenrolled,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -151,15 +156,84 @@ class _EnrolledCourseCard extends StatelessWidget {
 
     return ClassroomCourseCard(
       course: course,
-      subtitle: '${data.enrollment.completedLessons} of ${data.enrollment.totalLessons} lessons complete',
       statusLabel: data.enrollment.progress >= 1 ? 'Completed' : 'In progress',
       statusColor: data.enrollment.progress >= 1
           ? AppColors.success
           : AppColors.primary,
       onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
+      trailing: IconButton(
+        icon: const Icon(Icons.more_vert, color: Colors.white),
+        tooltip: 'Class options',
+        onPressed: () => _showClassOptions(context),
+      ),
       footer: [
         Icon(Icons.play_circle_outline, size: 20, color: AppColors.primary),
       ],
     );
+  }
+
+  void _showClassOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+        leading: Icon(Icons.exit_to_app, color: AppColors.error),
+        title: Text(
+          'Unenroll',
+          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.error),
+        ),
+        onTap: () {
+          Navigator.pop(sheetContext);
+          _confirmUnenroll(context);
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmUnenroll(BuildContext context) async {
+    final course = data.course;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Unenroll from class?'),
+        content: Text(
+          'You will lose access to "${course.title}" and its course content.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Unenroll'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await context.read<CourseRepository>().unenrollFromCourse(course.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unenrolled from ${course.title}'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      await onUnenrolled();
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to unenroll: $error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }

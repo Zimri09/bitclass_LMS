@@ -15,6 +15,7 @@ import '../../../lessons/presentation/widgets/course_syllabus_widget.dart';
 import '../../../quizzes/data/models/models.dart';
 import '../../../quizzes/data/repositories/quiz_repository.dart';
 import '../../data/models/course_model.dart';
+import '../../data/repositories/course_repository.dart';
 import '../bloc/course_bloc.dart';
 
 /// Course detail screen showing course information and enrollment options
@@ -83,9 +84,15 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           }
 
           if (state is CourseDetailLoaded) {
-            return _CourseDetailContent(
-              course: state.course,
-              enrollment: state.enrollment,
+            return StreamBuilder<CourseModel?>(
+              stream: context
+                  .read<CourseRepository>()
+                  .watchCourse(state.course.id),
+              initialData: state.course,
+              builder: (context, snapshot) => _CourseDetailContent(
+                course: snapshot.data ?? state.course,
+                enrollment: state.enrollment,
+              ),
             );
           }
 
@@ -164,10 +171,46 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               ),
           ],
           flexibleSpace: FlexibleSpaceBar(
-            background: CourseBannerWidget(
-              thumbnailUrl: course.thumbnailUrl,
-              borderRadius: BorderRadius.zero,
-              darkenOpacity: 0.3,
+            background: Stack(
+              fit: StackFit.expand,
+              children: [
+                CourseBannerWidget(
+                  thumbnailUrl: course.thumbnailUrl,
+                  borderRadius: BorderRadius.zero,
+                  darkenOpacity: 0.38,
+                ),
+                Positioned(
+                  left: 24,
+                  right: 24,
+                  bottom: 18,
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundImage:
+                            course.instructorAvatarUrl?.isNotEmpty == true
+                            ? NetworkImage(course.instructorAvatarUrl!)
+                            : null,
+                        child: course.instructorAvatarUrl?.isNotEmpty == true
+                            ? null
+                            : const Icon(Icons.school_outlined),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          course.instructorName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -228,8 +271,8 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               if (!isInstructor || isOwnCourse) _buildActionButton(context),
               const SizedBox(height: 32),
 
-              // Description
-              Text('About this course', style: AppTextStyles.h3),
+              // Program
+              Text('Course Program', style: AppTextStyles.h3),
               const SizedBox(height: 12),
               GlowCard(
                 glowColor: AppColors.primary,
@@ -706,11 +749,15 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
   }
 
   Widget _buildCourseSyllabus() {
-    // Use the real CourseSyllabusWidget to show modules and lessons
+    final authState = context.read<AuthBloc>().state;
+    final isCourseOwner =
+        authState is AuthAuthenticated && authState.user.id == course.instructorId;
+
     return CourseSyllabusWidget(
       key: ValueKey('syllabus-$_syllabusRefreshKey'),
       courseId: course.id,
       showHeader: true,
+      showStudentProgress: !isCourseOwner,
     );
   }
 

@@ -196,6 +196,7 @@ class CourseRepository {
       'category': row['category'],
       'instructorId': row['instructor_id'],
       'instructorName': row['instructor_name'],
+      'instructorAvatarUrl': row['instructor_avatar_url'],
       'thumbnailUrl': row['thumbnail_url'],
       'enrollmentCount': row['enrollment_count'],
       'lessonCount': row['lesson_count'],
@@ -421,6 +422,28 @@ class CourseRepository {
     return _courseFromRow(row, row['id'] as String);
   }
 
+  /// Emits the current course record and later profile-synchronization updates.
+  Stream<CourseModel?> watchCourse(String courseId) {
+    if (EnvironmentConfig.isDemoMode) {
+      final matchingCourses = _demoCourses
+          .where((course) => course.id == courseId)
+          .toList();
+      return Stream.value(
+        matchingCourses.isEmpty ? null : matchingCourses.first,
+      );
+    }
+
+    return _supabase!
+        .from(_coursesTable)
+        .stream(primaryKey: ['id'])
+        .eq('id', courseId)
+        .map(
+          (rows) => rows.isEmpty
+              ? null
+              : _courseFromRow(rows.first, rows.first['id'] as String),
+        );
+  }
+
   /// Create a new course
   Future<CourseModel> createCourse({
     required String title,
@@ -585,6 +608,7 @@ class CourseRepository {
         category: updates['category'] as String? ?? current.category,
         instructorId: current.instructorId,
         instructorName: current.instructorName,
+        instructorAvatarUrl: current.instructorAvatarUrl,
         thumbnailUrl:
             updates['thumbnailUrl'] as String? ?? current.thumbnailUrl,
         enrollmentCount: current.enrollmentCount,
@@ -745,9 +769,13 @@ class CourseRepository {
   }
 
   /// Unenroll from a course
-  Future<void> unenrollFromCourse(String courseId, String enrollmentId) async {
+  Future<void> unenrollFromCourse(String courseId) async {
     if (EnvironmentConfig.isDemoMode) {
-      _demoEnrollments.removeWhere((e) => e.id == enrollmentId);
+      _demoEnrollments.removeWhere(
+        (enrollment) =>
+            enrollment.courseId == courseId &&
+            enrollment.userId == _demoStudentUserId,
+      );
       final courseIndex = _demoCourses.indexWhere((c) => c.id == courseId);
       if (courseIndex != -1) {
         final current = _demoCourses[courseIndex];
@@ -758,6 +786,7 @@ class CourseRepository {
           category: current.category,
           instructorId: current.instructorId,
           instructorName: current.instructorName,
+          instructorAvatarUrl: current.instructorAvatarUrl,
           thumbnailUrl: current.thumbnailUrl,
           enrollmentCount: (current.enrollmentCount - 1).clamp(0, 99999),
           lessonCount: current.lessonCount,
@@ -769,16 +798,9 @@ class CourseRepository {
       return;
     }
 
-    await _supabase!.from(_enrollmentsTable).delete().eq('id', enrollmentId);
-
-    final course = await getCourse(courseId);
-    if (course != null) {
-      await _supabase!
-          .from(_coursesTable)
-          .update({
-            'enrollment_count': (course.enrollmentCount - 1).clamp(0, 999999),
-          })
-          .eq('id', courseId);
-    }
+    await _supabase!.rpc(
+      'unenroll_from_course',
+      params: {'target_course_id': courseId},
+    );
   }
 }

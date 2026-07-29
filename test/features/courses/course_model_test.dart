@@ -10,6 +10,7 @@ void main() {
         description: 'Learn Flutter from scratch',
         instructorId: 'instructor-1',
         instructorName: 'Prof. Smith',
+        instructorAvatarUrl: 'https://example.com/instructor.jpg',
         category: 'Mobile Development',
         thumbnailUrl: 'https://example.com/thumb.jpg',
         lessonCount: 10,
@@ -21,6 +22,7 @@ void main() {
       expect(course.id, 'course-1');
       expect(course.title, 'Flutter Development');
       expect(course.instructorName, 'Prof. Smith');
+      expect(course.instructorAvatarUrl, 'https://example.com/instructor.jpg');
       expect(course.category, 'Mobile Development');
       expect(course.lessonCount, 10);
       expect(course.enrollmentCount, 50);

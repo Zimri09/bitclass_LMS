@@ -14,11 +14,13 @@ import '../bloc/lesson_bloc.dart';
 class CourseSyllabusWidget extends StatefulWidget {
   final String courseId;
   final bool showHeader;
+  final bool showStudentProgress;
 
   const CourseSyllabusWidget({
     super.key,
     required this.courseId,
     this.showHeader = true,
+    this.showStudentProgress = true,
   });
 
   @override
@@ -41,7 +43,8 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
   void _loadModulesAndLessons() {
     final authState = context.read<AuthBloc>().state;
     final userId = authState is AuthAuthenticated &&
-            authState.user.role != 'instructor'
+            authState.user.isStudent &&
+            widget.showStudentProgress
         ? authState.user.id
         : null;
 
@@ -117,8 +120,10 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
     final lessonsByModule = state.lessonsByModule;
     final progressByLesson = state.progressByLesson;
     final authState = context.read<AuthBloc>().state;
-    final isInstructor =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+    final showProgress =
+        widget.showStudentProgress &&
+        authState is AuthAuthenticated &&
+        authState.user.isStudent;
 
     // Collect all lessons
     final allLessons = lessonsByModule.values.expand((l) => l).toList();
@@ -178,7 +183,7 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                if (!isInstructor)
+                if (showProgress)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,

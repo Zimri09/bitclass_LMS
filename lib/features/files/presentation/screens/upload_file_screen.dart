@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/file_repository.dart';
 import '../bloc/bloc.dart';
@@ -166,6 +167,13 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   // ── Upload ───────────────────────────────────────────────────────────────
 
   void _uploadFile(BuildContext blocContext) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated ||
+        authState.user.role != 'instructor') {
+      _showError('Only instructors can upload files.');
+      return;
+    }
+
     if (_pickedFile == null || _pickedBytes == null) {
       _showError('Please select a file first.');
       return;
@@ -205,6 +213,22 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    final canUpload =
+        authState is AuthAuthenticated && authState.user.role == 'instructor';
+
+    if (!canUpload) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Upload File')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('Only instructors can upload files to a course.'),
+          ),
+        ),
+      );
+    }
+
     return BlocProvider(
       create: (context) =>
           FileBloc(fileRepository: context.read<FileRepository>()),

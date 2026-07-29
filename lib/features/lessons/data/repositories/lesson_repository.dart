@@ -3312,6 +3312,85 @@ class _UploadWidgetState extends State<UploadWidget> {
     return _progressFromRow(row, row['id'] as String);
   }
 
+  /// Mark a previously completed lesson as incomplete without losing access data.
+  Future<LessonProgressModel> markLessonIncomplete({
+    required String courseId,
+    required String lessonId,
+    required String enrollmentId,
+    required String userId,
+  }) async {
+    final now = DateTime.now();
+
+    if (EnvironmentConfig.isDemoMode) {
+      final existingIndex = _demoProgress.indexWhere(
+        (progress) => progress.lessonId == lessonId && progress.userId == userId,
+      );
+
+      if (existingIndex != -1) {
+        final existing = _demoProgress[existingIndex];
+        final updated = LessonProgressModel(
+          id: existing.id,
+          lessonId: existing.lessonId,
+          enrollmentId: existing.enrollmentId,
+          userId: existing.userId,
+          isCompleted: false,
+          lastAccessedAt: now,
+          savedState: existing.savedState,
+        );
+        _demoProgress[existingIndex] = updated;
+        return updated;
+      }
+    }
+
+    final data = {
+      'lesson_id': lessonId,
+      'enrollment_id': enrollmentId,
+      'user_id': userId,
+      'is_completed': false,
+      'completed_at': null,
+      'last_accessed_at': now.toIso8601String(),
+    };
+    final existing = EnvironmentConfig.isDemoMode
+        ? null
+        : await getLessonProgress(lessonId, userId);
+
+    if (existing != null) {
+      await _supabase!
+          .from(_lessonProgressTable)
+          .update(data)
+          .eq('id', existing.id);
+      return LessonProgressModel(
+        id: existing.id,
+        lessonId: existing.lessonId,
+        enrollmentId: existing.enrollmentId,
+        userId: existing.userId,
+        isCompleted: false,
+        lastAccessedAt: now,
+        savedState: existing.savedState,
+      );
+    }
+
+    if (EnvironmentConfig.isDemoMode) {
+      final progress = LessonProgressModel(
+        id: 'progress-${DateTime.now().millisecondsSinceEpoch}',
+        lessonId: lessonId,
+        enrollmentId: enrollmentId,
+        userId: userId,
+        isCompleted: false,
+        lastAccessedAt: now,
+      );
+      _demoProgress.add(progress);
+      return progress;
+    }
+
+    final row = await _supabase!
+        .from(_lessonProgressTable)
+        .insert(data)
+        .select()
+        .single();
+    return _progressFromRow(row, row['id'] as String);
+  }
+
   /// Update lesson access time
   Future<void> updateLessonAccess({
     required String courseId,

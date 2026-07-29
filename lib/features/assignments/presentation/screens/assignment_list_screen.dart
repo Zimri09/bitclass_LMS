@@ -3,7 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../courses/data/repositories/course_repository.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/assignment_repository.dart';
 import '../bloc/assignment_bloc.dart';
@@ -22,6 +25,7 @@ class AssignmentListScreen extends StatefulWidget {
 
 class _AssignmentListScreenState extends State<AssignmentListScreen> {
   late AssignmentBloc _assignmentBloc;
+  bool _canManageAssignments = false;
 
   @override
   void initState() {
@@ -29,7 +33,29 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
     _assignmentBloc = AssignmentBloc(
       assignmentRepository: context.read<AssignmentRepository>(),
     );
+    _loadManagementPermission();
     _loadAssignments();
+  }
+
+  Future<void> _loadManagementPermission() async {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated ||
+        authState.user.role != 'instructor') {
+      return;
+    }
+
+    try {
+      final course = await context.read<CourseRepository>().getCourse(
+        widget.courseId,
+      );
+      if (mounted) {
+        setState(() {
+          _canManageAssignments = course?.instructorId == authState.user.id;
+        });
+      }
+    } catch (_) {
+      // RLS remains the authority; hide management controls when uncertain.
+    }
   }
 
   void _loadAssignments() {
@@ -56,6 +82,14 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
             icon: Icon(Icons.arrow_back),
             onPressed: () => context.pop(),
           ),
+          actions: [
+            if (_canManageAssignments)
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'Create assignment',
+                onPressed: _createAssignment,
+              ),
+          ],
         ),
         body: BlocBuilder<AssignmentBloc, AssignmentState>(
           builder: (context, state) {
@@ -117,9 +151,19 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Assignments will appear here when published',
+            _canManageAssignments
+                ? 'Create an assignment to get started'
+                : 'Assignments will appear here when published',
             style: TextStyle(color: AppColors.textSecondary),
           ),
+          if (_canManageAssignments) ...[
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _createAssignment,
+              icon: const Icon(Icons.add),
+              label: const Text('Create Assignment'),
+            ),
+          ],
         ],
       ),
     );
@@ -141,18 +185,95 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                 '/courses/${widget.courseId}/assignments/${assignment.id}',
               );
             },
+            onEdit: _canManageAssignments
+                ? () => _editAssignment(assignment.id)
+                : null,
+            onDelete: _canManageAssignments
+                ? () => _confirmDeleteAssignment(assignment)
+                : null,
+            onGrade: _canManageAssignments
+                ? () => context.push(
+                    AppRoutes.gradeAssignmentPath(
+                      widget.courseId,
+                      assignment.id,
+                    ),
+                  )
+                : null,
           );
         },
       ),
     );
+  }
+
+  Future<void> _createAssignment() async {
+    await context.push(AppRoutes.createAssignmentPath(widget.courseId));
+    if (mounted) _loadAssignments();
+  }
+
+  Future<void> _editAssignment(String assignmentId) async {
+    await context.push(
+      AppRoutes.editAssignmentPath(widget.courseId, assignmentId),
+    );
+    if (mounted) _loadAssignments();
+  }
+
+  Future<void> _confirmDeleteAssignment(AssignmentModel assignment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete assignment?'),
+        content: Text(
+          '"${assignment.title}" and all student submissions will be permanently removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await context.read<AssignmentRepository>().deleteAssignment(assignment.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Assignment deleted.')),
+      );
+      _loadAssignments();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Unable to delete this assignment.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }
 
 class _AssignmentCard extends StatelessWidget {
   final AssignmentModel assignment;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onGrade;
 
-  const _AssignmentCard({required this.assignment, required this.onTap});
+  const _AssignmentCard({
+    required this.assignment,
+    required this.onTap,
+    this.onEdit,
+    this.onDelete,
+    this.onGrade,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -214,7 +335,37 @@ class _AssignmentCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  if (onEdit != null)
+                    PopupMenuButton<String>(
+                      onSelected: (action) {
+                        if (action == 'edit') {
+                          onEdit!();
+                        } else if (action == 'grade') {
+                          onGrade!();
+                        } else if (action == 'delete') {
+                          onDelete!();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit assignment'),
+                        ),
+                        PopupMenuItem(
+                          value: 'grade',
+                          child: Text('Grade submissions'),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text(
+                            'Delete assignment',
+                            style: TextStyle(color: AppColors.error),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Icon(Icons.chevron_right, color: AppColors.textMuted),
                 ],
               ),
               const SizedBox(height: 16),

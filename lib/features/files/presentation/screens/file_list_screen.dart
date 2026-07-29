@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/file_repository.dart';
 import '../bloc/bloc.dart';
@@ -23,6 +24,11 @@ class _FileListScreenState extends State<FileListScreen> {
   FileType? _selectedFilter;
   int _reloadKey = 0;
 
+  bool get _canUpload {
+    final authState = context.read<AuthBloc>().state;
+    return authState is AuthAuthenticated && authState.user.role == 'instructor';
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -41,11 +47,12 @@ class _FileListScreenState extends State<FileListScreen> {
         appBar: AppBar(
           title: const Text('Course Materials'),
           actions: [
-            IconButton(
-              icon: Icon(Icons.upload_file),
-              onPressed: _openUpload,
-              tooltip: 'Upload File',
-            ),
+            if (_canUpload)
+              IconButton(
+                icon: Icon(Icons.upload_file),
+                onPressed: _openUpload,
+                tooltip: 'Upload File',
+              ),
           ],
         ),
         body: Column(
@@ -248,7 +255,7 @@ class _FileListScreenState extends State<FileListScreen> {
                 : 'Upload course materials to get started',
             style: TextStyle(color: AppColors.textMuted, fontSize: 14),
           ),
-          if (!hasFilter) ...[
+          if (!hasFilter && _canUpload) ...[
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _openUpload,
@@ -262,6 +269,13 @@ class _FileListScreenState extends State<FileListScreen> {
   }
 
   Future<void> _openUpload() async {
+    if (!_canUpload) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only instructors can upload files.')),
+      );
+      return;
+    }
+
     await context.push('/courses/${widget.courseId}/files/upload');
     if (mounted) {
       setState(() => _reloadKey++);

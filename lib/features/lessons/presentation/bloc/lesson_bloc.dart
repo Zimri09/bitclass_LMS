@@ -189,6 +189,24 @@ class MarkLessonComplete extends LessonEvent {
   List<Object?> get props => [courseId, lessonId, enrollmentId, userId];
 }
 
+/// Mark a lesson as incomplete.
+class MarkLessonIncomplete extends LessonEvent {
+  final String courseId;
+  final String lessonId;
+  final String enrollmentId;
+  final String userId;
+
+  const MarkLessonIncomplete({
+    required this.courseId,
+    required this.lessonId,
+    required this.enrollmentId,
+    required this.userId,
+  });
+
+  @override
+  List<Object?> get props => [courseId, lessonId, enrollmentId, userId];
+}
+
 /// Navigate to next lesson
 class LoadNextLesson extends LessonEvent {
   final String courseId;
@@ -358,12 +376,12 @@ class LessonDeleted extends LessonState {
   List<Object?> get props => [lessonId];
 }
 
-/// Lesson marked as complete
-class LessonCompleted extends LessonState {
+/// A lesson completion state was updated.
+class LessonCompletionUpdated extends LessonState {
   final LessonProgressModel progress;
   final String? nextLessonId;
 
-  const LessonCompleted({required this.progress, this.nextLessonId});
+  const LessonCompletionUpdated({required this.progress, this.nextLessonId});
 
   @override
   List<Object?> get props => [progress, nextLessonId];
@@ -399,6 +417,7 @@ class LessonBloc extends Bloc<LessonEvent, LessonState> {
     on<DeleteLesson>(_onDeleteLesson);
     on<ToggleLessonPublish>(_onToggleLessonPublish);
     on<MarkLessonComplete>(_onMarkLessonComplete);
+    on<MarkLessonIncomplete>(_onMarkLessonIncomplete);
     on<LoadNextLesson>(_onLoadNextLesson);
     on<LoadPreviousLesson>(_onLoadPreviousLesson);
   }
@@ -644,7 +663,34 @@ class LessonBloc extends Bloc<LessonEvent, LessonState> {
         event.lessonId,
       );
 
-      emit(LessonCompleted(progress: progress, nextLessonId: adjacent['next']));
+      emit(
+        LessonCompletionUpdated(progress: progress, nextLessonId: adjacent['next']),
+      );
+    } catch (e) {
+      emit(LessonError(e.toString().replaceFirst('Exception: ', '')));
+    }
+  }
+
+  Future<void> _onMarkLessonIncomplete(
+    MarkLessonIncomplete event,
+    Emitter<LessonState> emit,
+  ) async {
+    try {
+      final progress = await _lessonRepository.markLessonIncomplete(
+        courseId: event.courseId,
+        lessonId: event.lessonId,
+        enrollmentId: event.enrollmentId,
+        userId: event.userId,
+      );
+
+      final adjacent = await _lessonRepository.getAdjacentLessons(
+        event.courseId,
+        event.lessonId,
+      );
+
+      emit(
+        LessonCompletionUpdated(progress: progress, nextLessonId: adjacent['next']),
+      );
     } catch (e) {
       emit(LessonError(e.toString().replaceFirst('Exception: ', '')));
     }

@@ -90,6 +90,8 @@ class AppRoutes {
       '/courses/$courseId/lessons/$lessonId/edit';
   static String editAssignmentPath(String courseId, String assignmentId) =>
       '/courses/$courseId/assignments/$assignmentId/edit';
+  static String createAssignmentPath(String courseId) =>
+      '/courses/$courseId/assignments/create';
   static String submitAssignmentPath(String courseId, String assignmentId) =>
       '/courses/$courseId/assignments/$assignmentId/submit';
   static String gradeAssignmentPath(String courseId, String assignmentId) =>

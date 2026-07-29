@@ -469,12 +469,15 @@ class _CourseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClassroomCourseCard(
       course: course,
-      subtitle: course.description,
       onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
       footer: [
         Icon(Icons.people_outline, size: 18, color: AppColors.textMuted),
         const SizedBox(width: 4),
         Text('${course.enrollmentCount}', style: AppTextStyles.caption),
+        const SizedBox(width: 14),
+        Icon(Icons.menu_book_outlined, size: 18, color: AppColors.textMuted),
+        const SizedBox(width: 4),
+        Text('${course.lessonCount}', style: AppTextStyles.caption),
       ],
     );
   }

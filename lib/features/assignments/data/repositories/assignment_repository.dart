@@ -747,14 +747,24 @@ class _CounterPageState extends State<CounterPage> {
     required String userDisplayName,
     required String code,
   }) async {
+    final assignment = await getAssignment(assignmentId);
+    if (assignment == null || assignment.courseId != courseId) {
+      throw Exception('Assignment not found for this course.');
+    }
+    if (!assignment.isPublished) {
+      throw Exception('This assignment is not available for submission.');
+    }
+
+    final isLate =
+        assignment.dueDate != null && DateTime.now().isAfter(assignment.dueDate!);
+    if (isLate && !assignment.allowLateSubmission) {
+      throw Exception('The deadline has passed and late submissions are closed.');
+    }
+
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
 
       final normalizedUserId = _normalizeDemoUserId(userId);
-      final assignment = _assignments[assignmentId];
-      final isLate =
-          assignment?.dueDate != null &&
-          DateTime.now().isAfter(assignment!.dueDate!);
       final existingSubmission =
           _submissionsByUser[normalizedUserId]?[assignmentId];
 
@@ -794,11 +804,7 @@ class _CounterPageState extends State<CounterPage> {
       return submission;
     }
 
-    final assignment = await getAssignment(assignmentId);
     final existing = await getUserSubmission(assignmentId, userId);
-    final isLate =
-        assignment?.dueDate != null &&
-        DateTime.now().isAfter(assignment!.dueDate!);
 
     final submission = SubmissionModel(
       id: existing?.id ?? 'submission-${DateTime.now().millisecondsSinceEpoch}',

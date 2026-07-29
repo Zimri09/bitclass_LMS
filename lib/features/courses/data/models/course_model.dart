@@ -8,6 +8,7 @@ class CourseModel extends Equatable {
   final String category;
   final String instructorId;
   final String instructorName;
+  final String? instructorAvatarUrl;
   final String? thumbnailUrl;
   final int enrollmentCount;
   final int lessonCount;
@@ -24,6 +25,7 @@ class CourseModel extends Equatable {
     required this.category,
     required this.instructorId,
     required this.instructorName,
+    this.instructorAvatarUrl,
     this.thumbnailUrl,
     this.enrollmentCount = 0,
     this.lessonCount = 0,
@@ -42,6 +44,7 @@ class CourseModel extends Equatable {
       category: map['category'] as String,
       instructorId: map['instructorId'] as String,
       instructorName: map['instructorName'] as String? ?? 'Unknown',
+      instructorAvatarUrl: map['instructorAvatarUrl'] as String?,
       thumbnailUrl: map['thumbnailUrl'] as String?,
       enrollmentCount: map['enrollmentCount'] as int? ?? 0,
       lessonCount: map['lessonCount'] as int? ?? 0,
@@ -64,6 +67,7 @@ class CourseModel extends Equatable {
       'category': category,
       'instructorId': instructorId,
       'instructorName': instructorName,
+      'instructorAvatarUrl': instructorAvatarUrl,
       'thumbnailUrl': thumbnailUrl,
       'enrollmentCount': enrollmentCount,
       'lessonCount': lessonCount,
@@ -90,6 +94,7 @@ class CourseModel extends Equatable {
     String? category,
     String? instructorId,
     String? instructorName,
+    String? instructorAvatarUrl,
     String? thumbnailUrl,
     int? enrollmentCount,
     int? lessonCount,
@@ -105,6 +110,7 @@ class CourseModel extends Equatable {
       category: category ?? this.category,
       instructorId: instructorId ?? this.instructorId,
       instructorName: instructorName ?? this.instructorName,
+      instructorAvatarUrl: instructorAvatarUrl ?? this.instructorAvatarUrl,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       enrollmentCount: enrollmentCount ?? this.enrollmentCount,
       lessonCount: lessonCount ?? this.lessonCount,
@@ -123,6 +129,7 @@ class CourseModel extends Equatable {
     category,
     instructorId,
     instructorName,
+    instructorAvatarUrl,
     thumbnailUrl,
     enrollmentCount,
     lessonCount,

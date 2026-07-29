@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../features/courses/data/models/course_model.dart';
+import '../../features/courses/data/repositories/course_repository.dart';
 import 'course_banner.dart';
 
 /// A shared class card for both the teaching and learning views.
 class ClassroomCourseCard extends StatelessWidget {
   final CourseModel course;
-  final String subtitle;
   final String? statusLabel;
   final Color? statusColor;
   final Widget? trailing;
@@ -18,7 +19,6 @@ class ClassroomCourseCard extends StatelessWidget {
   const ClassroomCourseCard({
     super.key,
     required this.course,
-    required this.subtitle,
     required this.onTap,
     this.statusLabel,
     this.statusColor,
@@ -28,6 +28,16 @@ class ClassroomCourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<CourseModel?>(
+      stream: context.read<CourseRepository>().watchCourse(course.id),
+      initialData: course,
+      builder: (context, snapshot) =>
+          _buildCard(context, snapshot.data ?? course),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, CourseModel currentCourse) {
+    final hasAvatar = currentCourse.instructorAvatarUrl?.isNotEmpty == true;
     final colors = AppColors.of(context);
     final status = statusLabel;
     final badgeColor = statusColor ?? AppColors.primary;
@@ -47,14 +57,14 @@ class ClassroomCourseCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                height: 156,
+                height: 180,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     CourseBannerWidget(
-                      thumbnailUrl: course.thumbnailUrl,
+                      thumbnailUrl: currentCourse.thumbnailUrl,
                       width: double.infinity,
-                      height: 156,
+                      height: 180,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(18),
                       ),
@@ -83,7 +93,7 @@ class ClassroomCourseCard extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  course.title,
+                                  currentCourse.title,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: AppTextStyles.h3.copyWith(
@@ -98,7 +108,7 @@ class ClassroomCourseCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            subtitle,
+                            currentCourse.description,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.bodyMedium.copyWith(
@@ -110,7 +120,7 @@ class ClassroomCourseCard extends StatelessWidget {
                             spacing: 8,
                             runSpacing: 6,
                             children: [
-                              _BannerLabel(label: course.category),
+                              _BannerLabel(label: currentCourse.category),
                               if (status != null)
                                 _BannerLabel(
                                   label: status,
@@ -133,22 +143,27 @@ class ClassroomCourseCard extends StatelessWidget {
                       backgroundColor: AppColors.primary.withValues(
                         alpha: 0.14,
                       ),
-                      child: Icon(
-                        Icons.school_outlined,
-                        size: 20,
-                        color: AppColors.primary,
-                      ),
+                      backgroundImage: hasAvatar
+                          ? NetworkImage(currentCourse.instructorAvatarUrl!)
+                          : null,
+                      child: hasAvatar
+                          ? null
+                          : Icon(
+                              Icons.school_outlined,
+                              size: 20,
+                              color: AppColors.primary,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        course.instructorName,
+                        currentCourse.instructorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: colors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     ...footer,

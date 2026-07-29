@@ -34,6 +34,7 @@ class _LessonScreenState extends State<LessonScreen> {
   late LessonBloc _lessonBloc;
   late Future<List<CourseFile>> _attachments;
   final ScrollController _scrollController = ScrollController();
+  bool _canManageLesson = false;
 
   bool get _isInstructor {
     final authState = context.read<AuthBloc>().state;
@@ -59,7 +60,29 @@ class _LessonScreenState extends State<LessonScreen> {
       widget.courseId,
       widget.lessonId,
     );
+    _loadManagementPermission();
     _loadLesson();
+  }
+
+  Future<void> _loadManagementPermission() async {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated ||
+        authState.user.role != 'instructor') {
+      return;
+    }
+
+    try {
+      final course = await context.read<CourseRepository>().getCourse(
+        widget.courseId,
+      );
+      if (mounted) {
+        setState(() {
+          _canManageLesson = course?.instructorId == authState.user.id;
+        });
+      }
+    } catch (_) {
+      // RLS remains the authority; hide controls if ownership cannot be loaded.
+    }
   }
 
   void _loadLesson() {
@@ -98,15 +121,27 @@ class _LessonScreenState extends State<LessonScreen> {
       value: _lessonBloc,
       child: BlocConsumer<LessonBloc, LessonState>(
         listener: (context, state) {
-          if (state is LessonCompleted) {
+          if (state is LessonCompletionUpdated) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text('Lesson marked as complete!'),
+                content: Text(
+                  state.progress.isCompleted
+                      ? 'Lesson marked as complete!'
+                      : 'Lesson marked as incomplete.',
+                ),
                 backgroundColor: AppColors.success,
               ),
             );
             // Reload to update completion status
             _loadLesson();
+          } else if (state is LessonDeleted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Lesson deleted.'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+            context.go(AppRoutes.courseDetailPath(widget.courseId));
           } else if (state is LessonError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -148,11 +183,41 @@ class _LessonScreenState extends State<LessonScreen> {
       ),
       actions: [
         if (state is LessonDetailLoaded) ...[
-          // Lesson info
           IconButton(
             icon: Icon(Icons.info_outline),
             onPressed: () => _showLessonInfo(context, state.lesson),
           ),
+          if (_canManageLesson)
+            PopupMenuButton<String>(
+              onSelected: (action) {
+                if (action == 'edit') {
+                  _editLesson();
+                } else if (action == 'delete') {
+                  _confirmDeleteLesson();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: ListTile(
+                    leading: Icon(Icons.edit_outlined),
+                    title: Text('Edit lesson'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline, color: AppColors.error),
+                    title: Text(
+                      'Delete lesson',
+                      style: TextStyle(color: AppColors.error),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
         ],
       ],
     );
@@ -603,7 +668,7 @@ class _LessonScreenState extends State<LessonScreen> {
               currentLessonId: state.lesson.id,
             )
           : null,
-      onMarkComplete: _isInstructor ? null : () => _markComplete(),
+      onMarkComplete: _isInstructor ? null : () => _setLessonCompletion(isCompleted),
       isCompleted: isCompleted,
       isLoading: false,
     );
@@ -625,7 +690,45 @@ class _LessonScreenState extends State<LessonScreen> {
     context.go(AppRoutes.courseDetailPath(widget.courseId));
   }
 
-  Future<void> _markComplete() async {
+  Future<void> _editLesson() async {
+    final updated = await context.push<bool>(
+      AppRoutes.editLessonPath(widget.courseId, widget.lessonId),
+    );
+    if (updated == true && mounted) {
+      _loadLesson();
+    }
+  }
+
+  Future<void> _confirmDeleteLesson() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete lesson?'),
+        content: const Text(
+          'This will permanently remove the lesson and its student progress.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      _lessonBloc.add(
+        DeleteLesson(courseId: widget.courseId, lessonId: widget.lessonId),
+      );
+    }
+  }
+
+  Future<void> _setLessonCompletion(bool isCurrentlyCompleted) async {
     if (_isInstructor) {
       return;
     }
@@ -646,7 +749,7 @@ class _LessonScreenState extends State<LessonScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
-              'Enroll in this course before marking lessons complete.',
+              'Enroll in this course before updating lesson completion.',
             ),
             backgroundColor: AppColors.error,
           ),
@@ -654,20 +757,31 @@ class _LessonScreenState extends State<LessonScreen> {
         return;
       }
 
-      _lessonBloc.add(
-        MarkLessonComplete(
-          courseId: widget.courseId,
-          lessonId: widget.lessonId,
-          enrollmentId: enrollment.id,
-          userId: userId,
-        ),
-      );
+      if (isCurrentlyCompleted) {
+        _lessonBloc.add(
+          MarkLessonIncomplete(
+            courseId: widget.courseId,
+            lessonId: widget.lessonId,
+            enrollmentId: enrollment.id,
+            userId: userId,
+          ),
+        );
+      } else {
+        _lessonBloc.add(
+          MarkLessonComplete(
+            courseId: widget.courseId,
+            lessonId: widget.lessonId,
+            enrollmentId: enrollment.id,
+            userId: userId,
+          ),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-            'Unable to confirm course enrollment. Please try again.',
+            'Unable to update lesson completion. Please try again.',
           ),
           backgroundColor: AppColors.error,
         ),

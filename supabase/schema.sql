@@ -84,12 +84,18 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
   display_name text,
+  first_name text,
+  last_name text,
   avatar_url text,
   bio text,
   role user_role not null default 'student',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.profiles
+  add column if not exists first_name text,
+  add column if not exists last_name text;
 
 drop trigger if exists profiles_updated_at on public.profiles;
 create trigger profiles_updated_at
@@ -127,11 +133,26 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, display_name, role)
+  insert into public.profiles (
+    id, email, display_name, first_name, last_name, role
+  )
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
+    coalesce(
+      new.raw_user_meta_data->>'display_name',
+      nullif(
+        trim(concat_ws(
+          ' ',
+          new.raw_user_meta_data->>'first_name',
+          new.raw_user_meta_data->>'last_name'
+        )),
+        ''
+      ),
+      split_part(new.email, '@', 1)
+    ),
+    new.raw_user_meta_data->>'first_name',
+    new.raw_user_meta_data->>'last_name',
     case
       when new.raw_user_meta_data->>'role' = 'instructor'
         then 'instructor'::user_role
@@ -141,6 +162,8 @@ begin
   on conflict (id) do update set
     email = excluded.email,
     display_name = coalesce(excluded.display_name, public.profiles.display_name),
+    first_name = coalesce(excluded.first_name, public.profiles.first_name),
+    last_name = coalesce(excluded.last_name, public.profiles.last_name),
     updated_at = timezone('utc', now());
   return new;
 end;
@@ -158,6 +181,7 @@ create table if not exists public.courses (
   category text not null,
   instructor_id uuid not null references public.profiles(id) on delete cascade,
   instructor_name text not null,
+  instructor_avatar_url text,
   thumbnail_url text,
   course_code text,
   enrollment_count integer not null default 0,
@@ -169,7 +193,8 @@ create table if not exists public.courses (
 
 -- Existing projects created before course-code support need this too.
 alter table public.courses
-  add column if not exists course_code text;
+  add column if not exists course_code text,
+  add column if not exists instructor_avatar_url text;
 
 create unique index if not exists courses_course_code_unique_idx
   on public.courses (course_code)
@@ -179,6 +204,85 @@ drop trigger if exists courses_updated_at on public.courses;
 create trigger courses_updated_at
 before update on public.courses
 for each row execute function public.set_updated_at();
+
+create or replace function private.profile_display_name(profile_row public.profiles)
+returns text
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select coalesce(
+    nullif(trim(concat_ws(' ', profile_row.first_name, profile_row.last_name)), ''),
+    nullif(trim(profile_row.display_name), ''),
+    'Instructor'
+  );
+$$;
+
+create or replace function private.set_course_instructor_profile()
+returns trigger
+language plpgsql
+set search_path = public, private, pg_temp
+as $$
+declare
+  instructor_profile public.profiles;
+begin
+  select * into instructor_profile
+  from public.profiles
+  where id = new.instructor_id;
+
+  if not found then
+    raise exception 'Instructor profile not found';
+  end if;
+
+  new.instructor_name := private.profile_display_name(instructor_profile);
+  new.instructor_avatar_url := instructor_profile.avatar_url;
+  return new;
+end;
+$$;
+
+drop trigger if exists courses_set_instructor_profile on public.courses;
+create trigger courses_set_instructor_profile
+  before insert or update of instructor_id on public.courses
+  for each row execute function private.set_course_instructor_profile();
+
+create or replace function private.sync_instructor_courses_from_profile()
+returns trigger
+language plpgsql
+set search_path = public, private, pg_temp
+as $$
+begin
+  update public.courses
+  set
+    instructor_name = private.profile_display_name(new),
+    instructor_avatar_url = new.avatar_url,
+    updated_at = timezone('utc', now())
+  where instructor_id = new.id
+    and (
+      instructor_name is distinct from private.profile_display_name(new)
+      or instructor_avatar_url is distinct from new.avatar_url
+    );
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_sync_instructor_courses on public.profiles;
+create trigger profiles_sync_instructor_courses
+  after update of first_name, last_name, display_name, avatar_url on public.profiles
+  for each row execute function private.sync_instructor_courses_from_profile();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'courses'
+  ) then
+    alter publication supabase_realtime add table public.courses;
+  end if;
+end;
+$$;
 
 create table if not exists public.modules (
   id uuid primary key default gen_random_uuid(),
@@ -220,6 +324,53 @@ drop trigger if exists lessons_updated_at on public.lessons;
 create trigger lessons_updated_at
 before update on public.lessons
 for each row execute function public.set_updated_at();
+
+create or replace function public.sync_course_lesson_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  affected_course_id uuid;
+begin
+  if tg_op = 'DELETE' then
+    affected_course_id := old.course_id;
+  else
+    affected_course_id := new.course_id;
+  end if;
+
+  update public.courses
+  set lesson_count = (
+        select count(*)
+        from public.lessons
+        where course_id = affected_course_id
+      ),
+      updated_at = timezone('utc', now())
+  where id = affected_course_id;
+
+  if tg_op = 'UPDATE' and old.course_id is distinct from new.course_id then
+    update public.courses
+    set lesson_count = (
+          select count(*)
+          from public.lessons
+          where course_id = old.course_id
+        ),
+        updated_at = timezone('utc', now())
+    where id = old.course_id;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists lessons_sync_course_lesson_count on public.lessons;
+create trigger lessons_sync_course_lesson_count
+after insert or delete or update of course_id on public.lessons
+for each row execute function public.sync_course_lesson_count();
 
 create table if not exists public.enrollments (
   id uuid primary key default gen_random_uuid(),
@@ -794,3 +945,33 @@ $$;
 
 revoke all on function public.join_course_by_code(text) from public;
 grant execute on function public.join_course_by_code(text) to authenticated;
+
+create or replace function public.unenroll_from_course(target_course_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if (select auth.uid()) is null then
+    raise exception 'You must be signed in to unenroll.';
+  end if;
+
+  delete from public.enrollments
+  where course_id = target_course_id
+    and user_id = (select auth.uid());
+
+  if not found then
+    raise exception 'You are not enrolled in this class.';
+  end if;
+
+  update public.courses
+  set
+    enrollment_count = greatest(enrollment_count - 1, 0),
+    updated_at = timezone('utc', now())
+  where id = target_course_id;
+end;
+$$;
+
+revoke all on function public.unenroll_from_course(uuid) from public;
+grant execute on function public.unenroll_from_course(uuid) to authenticated;

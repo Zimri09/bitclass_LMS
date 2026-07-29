@@ -356,7 +356,9 @@ class LessonNavigationBar extends StatelessWidget {
                                 : Icons.check_circle_outline,
                             size: 18,
                           ),
-                    label: Text(isCompleted ? 'Completed' : 'Mark Complete'),
+                    label: Text(
+                      isCompleted ? 'Mark Incomplete' : 'Mark Complete',
+                    ),
                     style: FilledButton.styleFrom(
                       backgroundColor: isCompleted
                           ? AppColors.success
@@ -431,7 +433,9 @@ class LessonNavigationBar extends StatelessWidget {
                               : Icons.check_circle_outline,
                           size: 18,
                         ),
-                  label: Text(isCompleted ? 'Completed' : 'Mark Complete'),
+                  label: Text(
+                    isCompleted ? 'Mark Incomplete' : 'Mark Complete',
+                  ),
                   style: FilledButton.styleFrom(
                     backgroundColor: isCompleted
                         ? AppColors.success

@@ -131,7 +131,6 @@ class _InstructorCourseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClassroomCourseCard(
       course: course,
-      subtitle: course.description,
       statusLabel: course.isPublished ? 'Published' : 'Draft',
       statusColor: course.isPublished ? AppColors.success : AppColors.warning,
       onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),

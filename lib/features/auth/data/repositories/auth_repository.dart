@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
 import '../models/user_model.dart';
@@ -18,6 +20,7 @@ class EmailConfirmationRequiredException implements Exception {
 /// Repository handling authentication and user profile operations
 class AuthRepository {
   static const String _profilesTable = 'profiles';
+  static const String _avatarsBucket = 'avatars';
 
   final SupabaseClient? _supabase;
 
@@ -253,6 +256,55 @@ class AuthRepository {
     } on PostgrestException catch (e) {
       throw _handlePostgrestException(e);
     }
+  }
+
+  /// Uploads a JPG avatar to the current user's storage folder.
+  Future<UserModel> uploadProfileAvatar(Uint8List imageBytes) async {
+    if (!_isJpg(imageBytes)) {
+      throw const FormatException('Please select a JPG image file.');
+    }
+    if (EnvironmentConfig.isDemoMode) {
+      throw UnsupportedError('Avatar uploads require a connected account.');
+    }
+
+    final user = currentUser;
+    if (user == null) {
+      throw Exception('No authenticated user');
+    }
+
+    // A new path prevents clients from receiving a stale CDN-cached avatar.
+    final objectPath = '${user.id}/${const Uuid().v4()}.jpg';
+
+    try {
+      await _supabase!.storage.from(_avatarsBucket).uploadBinary(
+        objectPath,
+        imageBytes,
+        fileOptions: const FileOptions(
+          contentType: 'image/jpeg',
+          upsert: false,
+        ),
+      );
+
+      final publicUrl = _supabase!.storage
+          .from(_avatarsBucket)
+          .getPublicUrl(objectPath);
+
+      try {
+        return await updateProfile(avatarUrl: publicUrl);
+      } catch (_) {
+        await _supabase!.storage.from(_avatarsBucket).remove([objectPath]);
+        rethrow;
+      }
+    } on StorageException catch (e) {
+      throw Exception('Avatar upload failed: ${e.message}');
+    }
+  }
+
+  static bool _isJpg(Uint8List bytes) {
+    return bytes.length >= 3 &&
+        bytes[0] == 0xff &&
+        bytes[1] == 0xd8 &&
+        bytes[2] == 0xff;
   }
 
   /// Delete user account
