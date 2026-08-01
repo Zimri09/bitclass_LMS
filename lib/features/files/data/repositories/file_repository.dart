@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../models/models.dart';
 
 /// Repository handling file upload operations.
@@ -124,6 +125,9 @@ class FileRepository {
     required CourseFile file,
     ValueChanged<double>? onProgress,
   }) async {
+    if (file.isExternalLink) {
+      throw Exception('Web links cannot be downloaded. Use Open Link instead.');
+    }
     final existing = await getOfflineFile(userId, file.id);
     if (existing != null) return existing;
 
@@ -333,6 +337,7 @@ class FileRepository {
       'description': row['description'],
       'url': row['public_url'],
       'thumbnailUrl': row['thumbnail_url'],
+      'resourceKind': row['resource_kind'] ?? 'file',
       'type': row['file_type'],
       'mimeType': row['mime_type'],
       'sizeBytes': row['size_bytes'],
@@ -440,6 +445,100 @@ class FileRepository {
           (rows) =>
               rows.cast<Map<String, dynamic>>().map(_fileFromRow).toList(),
         );
+  }
+
+  /// Saves an external HTTP(S) link as a course or lesson resource.
+  Future<CourseFile> createUrlResource({
+    required String courseId,
+    String? lessonId,
+    required String name,
+    required String url,
+    required String description,
+    required String uploaderId,
+    required String uploaderName,
+  }) async {
+    final displayName = name.trim();
+    if (displayName.isEmpty) {
+      throw Exception('Please enter a name for this web link.');
+    }
+    final canonicalUrl = normalizeWebUrl(url).toString();
+    final fileId = const Uuid().v4();
+
+    if (EnvironmentConfig.isDemoMode) {
+      final duplicate = _demoFiles.any(
+        (file) =>
+            file.courseId == courseId &&
+            file.lessonId == lessonId &&
+            file.isExternalLink &&
+            file.url == canonicalUrl,
+      );
+      if (duplicate) {
+        throw Exception('This URL has already been added here.');
+      }
+
+      final resource = CourseFile(
+        id: fileId,
+        courseId: courseId,
+        lessonId: lessonId,
+        uploaderId: uploaderId,
+        uploaderName: uploaderName,
+        name: displayName,
+        description: description.trim(),
+        url: canonicalUrl,
+        resourceKind: CourseResourceKind.url,
+        type: FileType.other,
+        mimeType: 'text/uri-list',
+        sizeBytes: 0,
+        createdAt: DateTime.now(),
+      );
+      _demoFiles.add(resource);
+      return resource;
+    }
+
+    var duplicateQuery = _supabase!
+        .from(_filesTable)
+        .select('id')
+        .eq('course_id', courseId)
+        .eq('resource_kind', CourseResourceKind.url.name)
+        .eq('public_url', canonicalUrl);
+    duplicateQuery = lessonId == null
+        ? duplicateQuery.isFilter('lesson_id', null)
+        : duplicateQuery.eq('lesson_id', lessonId);
+    final duplicateRows = await duplicateQuery.limit(1);
+    if ((duplicateRows as List<dynamic>).isNotEmpty) {
+      throw Exception('This URL has already been added here.');
+    }
+
+    try {
+      final row = await _supabase
+          .from(_filesTable)
+          .insert({
+            'id': fileId,
+            'course_id': courseId,
+            'lesson_id': lessonId,
+            'uploader_id': uploaderId,
+            'uploader_name': uploaderName,
+            'name': displayName,
+            'description': description.trim(),
+            'resource_kind': CourseResourceKind.url.name,
+            'bucket': null,
+            'storage_path': null,
+            'public_url': canonicalUrl,
+            'thumbnail_url': null,
+            'file_type': FileType.other.name,
+            'mime_type': 'text/uri-list',
+            'size_bytes': 0,
+            'download_count': 0,
+          })
+          .select()
+          .single();
+      return _fileFromRow(row);
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        throw Exception('This URL has already been added here.');
+      }
+      rethrow;
+    }
   }
 
   /// Upload a file with real data
@@ -704,22 +803,25 @@ class FileRepository {
       throw Exception('The learning material could not be found.');
     }
 
+    final isExternalLink = row['resource_kind'] == CourseResourceKind.url.name;
     final bucket = row['bucket'] as String? ?? _storageBucket;
     final storagePath = row['storage_path'] as String?;
-    if (storagePath == null || storagePath.isEmpty) {
+    if (!isExternalLink && (storagePath == null || storagePath.isEmpty)) {
       throw Exception('The learning material has an invalid storage path.');
     }
 
-    try {
-      await _supabase!.storage.from(bucket).remove([storagePath]);
-    } catch (error) {
-      throw Exception(
-        'Could not delete the file from storage. The learning material was '
-        'kept so you can retry. ($error)',
-      );
+    if (!isExternalLink) {
+      try {
+        await _supabase!.storage.from(bucket).remove([storagePath!]);
+      } catch (error) {
+        throw Exception(
+          'Could not delete the file from storage. The learning material was '
+          'kept so you can retry. ($error)',
+        );
+      }
     }
 
-    final deletedRows = await _supabase
+    final deletedRows = await _supabase!
         .from(_filesTable)
         .delete()
         .eq('course_id', courseId)

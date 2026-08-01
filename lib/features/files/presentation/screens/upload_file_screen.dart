@@ -11,10 +11,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/environment.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/file_repository.dart';
 import '../bloc/bloc.dart';
+
+enum _UploadSource { device, url }
 
 /// Screen for uploading files to a course
 class UploadFileScreen extends StatefulWidget {
@@ -33,17 +36,20 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fileNameController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _urlController = TextEditingController();
 
   fp.PlatformFile? _pickedFile;
   Uint8List? _pickedBytes;
 
   bool _isPickingFile = false;
   bool _isUploading = false;
+  _UploadSource _source = _UploadSource.device;
 
   @override
   void dispose() {
     _fileNameController.dispose();
     _descriptionController.dispose();
+    _urlController.dispose();
     super.dispose();
   }
 
@@ -171,6 +177,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   // ── Upload ───────────────────────────────────────────────────────────────
 
   void _uploadFile(BuildContext blocContext) {
+    if (_isUploading) return;
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthAuthenticated ||
         authState.user.role != 'instructor') {
@@ -198,6 +205,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         user?.email ??
         'Unknown User';
 
+    setState(() => _isUploading = true);
     blocContext.read<FileBloc>().add(
       UploadFile(
         courseId: widget.courseId,
@@ -211,6 +219,63 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         fileData: _pickedBytes,
       ),
     );
+  }
+
+  Future<void> _saveUrlResource() async {
+    if (_isUploading) return;
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated ||
+        authState.user.role != 'instructor') {
+      _showError('Only instructors can add learning materials.');
+      return;
+    }
+    if (!_formKey.currentState!.validate()) return;
+
+    final user = EnvironmentConfig.isDemoMode
+        ? null
+        : Supabase.instance.client.auth.currentUser;
+    if (!EnvironmentConfig.isDemoMode && user == null) {
+      _showError('Please sign in before adding a web link.');
+      return;
+    }
+
+    final canonicalUrl = normalizeWebUrl(_urlController.text).toString();
+    final uploaderId = user?.id ?? 'demo-instructor';
+    final uploaderName =
+        user?.userMetadata?['full_name'] as String? ??
+        user?.email ??
+        'Unknown User';
+
+    setState(() => _isUploading = true);
+    try {
+      await context.read<FileRepository>().createUrlResource(
+        courseId: widget.courseId,
+        lessonId: widget.lessonId,
+        name: _fileNameController.text,
+        url: canonicalUrl,
+        description: _descriptionController.text,
+        uploaderId: uploaderId,
+        uploaderName: uploaderName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Web link saved successfully.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      context.pop();
+    } catch (error) {
+      if (!mounted) return;
+      _showError(
+        userFriendlyErrorMessage(
+          error,
+          fallback: 'The web link could not be saved. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
@@ -288,8 +353,8 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
             appBar: AppBar(
               title: Text(
                 widget.lessonId == null
-                    ? 'Upload File'
-                    : 'Attach File to Lesson',
+                    ? 'Add Learning Material'
+                    : 'Attach Resource to Lesson',
               ),
             ),
             body: SingleChildScrollView(
@@ -299,16 +364,28 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildDropZone(),
+                    _buildSourceSelector(),
+                    const SizedBox(height: 20),
+                    if (_source == _UploadSource.device)
+                      _buildDropZone()
+                    else
+                      _buildUrlInput(),
                     const SizedBox(height: 24),
 
                     _buildInputSection(
-                      label: 'File Name',
+                      label: _source == _UploadSource.url
+                          ? 'Link Title'
+                          : 'File Name',
                       child: TextFormField(
                         controller: _fileNameController,
-                        enabled: _pickedFile != null && !_isUploading,
+                        enabled:
+                            !_isUploading &&
+                            (_source == _UploadSource.url ||
+                                _pickedFile != null),
                         decoration: InputDecoration(
-                          hintText: _pickedFile == null
+                          hintText: _source == _UploadSource.url
+                              ? 'Enter link title'
+                              : _pickedFile == null
                               ? 'Select a file first'
                               : 'Enter display name',
                           hintStyle: TextStyle(color: AppColors.textMuted),
@@ -318,14 +395,19 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
                           ),
-                          suffixText: _ext.isNotEmpty ? '.$_ext' : null,
+                          suffixText:
+                              _source == _UploadSource.device && _ext.isNotEmpty
+                              ? '.$_ext'
+                              : null,
                           suffixStyle: TextStyle(
                             color: AppColors.textSecondary,
                           ),
                         ),
                         style: TextStyle(color: AppColors.textPrimary),
                         validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Please enter a file name'
+                            ? _source == _UploadSource.url
+                                  ? 'Please enter a link title'
+                                  : 'Please enter a file name'
                             : null,
                       ),
                     ),
@@ -338,7 +420,9 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                         maxLines: 3,
                         enabled: !_isUploading,
                         decoration: InputDecoration(
-                          hintText: 'Describe what this file contains...',
+                          hintText: _source == _UploadSource.url
+                              ? 'Describe what this link contains...'
+                              : 'Describe what this file contains...',
                           hintStyle: TextStyle(color: AppColors.textMuted),
                           filled: true,
                           fillColor: AppColors.surface,
@@ -360,9 +444,14 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: (_isUploading || _pickedFile == null)
+                        onPressed:
+                            _isUploading ||
+                                (_source == _UploadSource.device &&
+                                    _pickedFile == null)
                             ? null
-                            : () => _uploadFile(context),
+                            : _source == _UploadSource.device
+                            ? () => _uploadFile(context)
+                            : _saveUrlResource,
                         icon: _isUploading
                             ? const SizedBox(
                                 width: 20,
@@ -371,9 +460,19 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.cloud_upload),
+                            : Icon(
+                                _source == _UploadSource.device
+                                    ? Icons.cloud_upload
+                                    : Icons.add_link,
+                              ),
                         label: Text(
-                          _isUploading ? 'Uploading...' : 'Upload File',
+                          _isUploading
+                              ? _source == _UploadSource.device
+                                    ? 'Uploading...'
+                                    : 'Saving...'
+                              : _source == _UploadSource.device
+                              ? 'Upload File'
+                              : 'Save Web Link',
                         ),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -396,6 +495,46 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   }
 
   // ── Widgets ───────────────────────────────────────────────────────────────
+
+  Widget _buildSourceSelector() {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<_UploadSource>(
+        segments: const [
+          ButtonSegment(
+            value: _UploadSource.device,
+            icon: Icon(Icons.upload_file),
+            label: Text('Device File'),
+          ),
+          ButtonSegment(
+            value: _UploadSource.url,
+            icon: Icon(Icons.link),
+            label: Text('Web Link'),
+          ),
+        ],
+        selected: {_source},
+        onSelectionChanged: _isUploading
+            ? null
+            : (selection) => setState(() => _source = selection.first),
+      ),
+    );
+  }
+
+  Widget _buildUrlInput() {
+    return TextFormField(
+      controller: _urlController,
+      enabled: !_isUploading,
+      keyboardType: TextInputType.url,
+      textInputAction: TextInputAction.next,
+      autocorrect: false,
+      decoration: const InputDecoration(
+        labelText: 'Web address',
+        hintText: 'https://example.com/resource',
+        prefixIcon: Icon(Icons.language),
+      ),
+      validator: validateWebUrl,
+    );
+  }
 
   Widget _buildDropZone() {
     final hasFile = _pickedFile != null;

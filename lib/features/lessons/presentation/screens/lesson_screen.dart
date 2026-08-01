@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../../../../shared/widgets/lesson_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../courses/data/repositories/course_repository.dart';
@@ -412,7 +413,7 @@ class _LessonScreenState extends State<LessonScreen> {
     // Check lesson type for different rendering
     switch (lesson.type) {
       case LessonType.video:
-        return _buildVideoLesson(content);
+        return _buildVideoLesson(lesson, content);
       case LessonType.quiz:
         return _buildQuizLesson(lesson);
       case LessonType.code:
@@ -470,7 +471,11 @@ class _LessonScreenState extends State<LessonScreen> {
               ...attachments.map(
                 (file) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.insert_drive_file_outlined),
+                  leading: Icon(
+                    file.isExternalLink
+                        ? Icons.link
+                        : Icons.insert_drive_file_outlined,
+                  ),
                   title: Text(
                     file.name,
                     maxLines: 1,
@@ -495,32 +500,68 @@ class _LessonScreenState extends State<LessonScreen> {
   }
 
   Future<void> _openAttachment(CourseFile file) async {
+    final fileRepository = context.read<FileRepository>();
     try {
+      final uri = file.isExternalLink
+          ? normalizeWebUrl(file.url)
+          : Uri.parse(file.url);
       final opened = await launchUrl(
-        Uri.parse(file.url),
+        uri,
         mode: LaunchMode.externalApplication,
       );
-      if (!opened) throw StateError('No application can open this file.');
+      if (!opened) throw StateError('No application can open this resource.');
 
-      try {
-        await context.read<FileRepository>().recordDownload(
-          widget.courseId,
-          file.id,
-        );
-      } catch (_) {
-        // A read-only student can still open the attachment.
+      if (!file.isExternalLink) {
+        try {
+          await fileRepository.recordDownload(
+            widget.courseId,
+            file.id,
+          );
+        } catch (_) {
+          // A read-only student can still open the attachment.
+        }
       }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open this attachment.')),
+        const SnackBar(
+          content: Text(
+            'This resource cannot be opened. Check the link and try again.',
+          ),
+        ),
       );
     }
   }
 
-  Widget _buildVideoLesson(String content) {
-    // For now, show video URL with a placeholder
-    // In production, integrate with video player
+  Future<void> _openLessonUrl(String value) async {
+    try {
+      final opened = await launchUrl(
+        normalizeWebUrl(value),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw StateError('No application can open this video.');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This video link cannot be opened. Check the URL and try again.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildVideoLesson(LessonModel lesson, String content) {
+    final videoUrl = lesson.videoUrl?.trim();
+    var videoLabel = 'External video link';
+    if (videoUrl != null && videoUrl.isNotEmpty) {
+      try {
+        videoLabel = normalizeWebUrl(videoUrl).host;
+      } on FormatException {
+        // Keep legacy invalid links visible without breaking the lesson screen.
+      }
+    }
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -542,7 +583,9 @@ class _LessonScreenState extends State<LessonScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Video Player',
+                    videoUrl == null || videoUrl.isEmpty
+                        ? 'No video link added'
+                        : 'Video resource',
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -551,12 +594,22 @@ class _LessonScreenState extends State<LessonScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Video content will be displayed here',
+                    videoUrl == null || videoUrl.isEmpty
+                        ? 'The instructor has not added a video URL.'
+                        : videoLabel,
                     style: TextStyle(
                       fontSize: 14,
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (videoUrl != null && videoUrl.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: () => _openLessonUrl(videoUrl),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Open Video'),
+                    ),
+                  ],
                 ],
               ),
             ),

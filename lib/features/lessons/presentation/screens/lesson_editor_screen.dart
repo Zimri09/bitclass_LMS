@@ -7,7 +7,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../data/models/lesson_model.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 
@@ -107,19 +107,26 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   }
 
   Future<void> _saveLesson({bool attachAfterSave = false}) async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
-
-    if (attachAfterSave && !_isPublished) {
-      final shouldPublish = await _confirmPublishBeforeAttaching();
-      if (shouldPublish != true || !mounted) return;
-      setState(() => _isPublished = true);
-    }
 
     setState(() => _isSaving = true);
     try {
+      if (attachAfterSave && !_isPublished) {
+        final shouldPublish = await _confirmPublishBeforeAttaching();
+        if (shouldPublish != true || !mounted) return;
+        setState(() => _isPublished = true);
+      }
+
       final repo = context.read<LessonRepository>();
       final now = DateTime.now();
       String? savedLessonId = widget.lessonId;
+      final rawVideoUrl = _lessonType == LessonType.video
+          ? _videoUrlController.text.trim()
+          : '';
+      final videoUrl = rawVideoUrl.isEmpty
+          ? null
+          : normalizeWebUrl(rawVideoUrl).toString();
 
       if (widget.lessonId == null) {
         final lesson = await repo.createLesson(
@@ -136,9 +143,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           content: _contentController.text.trim().isEmpty
               ? null
               : _contentController.text.trim(),
-          videoUrl: _videoUrlController.text.trim().isEmpty
-              ? null
-              : _videoUrlController.text.trim(),
+          videoUrl: videoUrl,
           durationMinutes: int.tryParse(_durationController.text) ?? 10,
           isPublished: _isPublished,
         );
@@ -153,9 +158,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           'content': _contentController.text.trim().isEmpty
               ? null
               : _contentController.text.trim(),
-          'videoUrl': _videoUrlController.text.trim().isEmpty
-              ? null
-              : _videoUrlController.text.trim(),
+          'videoUrl': videoUrl,
           'durationMinutes': int.tryParse(_durationController.text) ?? 10,
           'isPublished': _isPublished,
           'updatedAt': now.toIso8601String(),
@@ -205,8 +208,8 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
       builder: (context) => AlertDialog(
         title: const Text('Publish lesson?'),
         content: const Text(
-          'Students can only see attachments in published lessons. '
-          'Publish this lesson and continue to attach the file?',
+          'Students can only see resources in published lessons. '
+          'Publish this lesson and continue to attach a file or web link?',
         ),
         actions: [
           TextButton(
@@ -245,7 +248,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               child: const Text('Save'),
             ),
             IconButton(
-              tooltip: 'Publish and attach a file',
+              tooltip: 'Publish and attach a file or web link',
               onPressed: _isSaving
                   ? null
                   : () => _saveLesson(attachAfterSave: true),
@@ -390,6 +393,10 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                       hintText: 'YouTube, Vimeo, or direct video URL',
                       prefixIcon: Icon(Icons.video_library),
                     ),
+                    keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.next,
+                    autocorrect: false,
+                    validator: validateWebUrl,
                   ),
                   const SizedBox(height: 16),
                 ],

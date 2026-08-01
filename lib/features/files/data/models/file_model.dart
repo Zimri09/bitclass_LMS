@@ -1,6 +1,8 @@
 /// Types of files that can be uploaded
 enum FileType { document, image, video, audio, code, archive, other }
 
+enum CourseResourceKind { file, url }
+
 /// Model representing an uploaded file/course material
 class CourseFile {
   final String id;
@@ -12,6 +14,7 @@ class CourseFile {
   final String description;
   final String url;
   final String? thumbnailUrl;
+  final CourseResourceKind resourceKind;
   final FileType type;
   final String mimeType;
   final int sizeBytes;
@@ -29,6 +32,7 @@ class CourseFile {
     this.description = '',
     required this.url,
     this.thumbnailUrl,
+    this.resourceKind = CourseResourceKind.file,
     required this.type,
     required this.mimeType,
     required this.sizeBytes,
@@ -39,6 +43,7 @@ class CourseFile {
 
   /// Get human readable file size
   String get formattedSize {
+    if (resourceKind == CourseResourceKind.url) return 'Web link';
     if (sizeBytes < 1024) {
       return '$sizeBytes B';
     } else if (sizeBytes < 1024 * 1024) {
@@ -49,6 +54,8 @@ class CourseFile {
       return '${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
     }
   }
+
+  bool get isExternalLink => resourceKind == CourseResourceKind.url;
 
   /// Get file extension from name
   String get extension {
@@ -131,6 +138,10 @@ class CourseFile {
       description: json['description'] as String? ?? '',
       url: json['url'] as String,
       thumbnailUrl: json['thumbnailUrl'] as String?,
+      resourceKind: CourseResourceKind.values.firstWhere(
+        (kind) => kind.name == json['resourceKind'],
+        orElse: () => CourseResourceKind.file,
+      ),
       type: FileType.values.firstWhere(
         (t) => t.name == json['type'],
         orElse: () => FileType.other,
@@ -156,6 +167,7 @@ class CourseFile {
       'description': description,
       'url': url,
       'thumbnailUrl': thumbnailUrl,
+      'resourceKind': resourceKind.name,
       'type': type.name,
       'mimeType': mimeType,
       'sizeBytes': sizeBytes,
@@ -183,6 +195,7 @@ class CourseFile {
     String? description,
     String? url,
     String? thumbnailUrl,
+    CourseResourceKind? resourceKind,
     FileType? type,
     String? mimeType,
     int? sizeBytes,
@@ -200,6 +213,7 @@ class CourseFile {
       description: description ?? this.description,
       url: url ?? this.url,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      resourceKind: resourceKind ?? this.resourceKind,
       type: type ?? this.type,
       mimeType: mimeType ?? this.mimeType,
       sizeBytes: sizeBytes ?? this.sizeBytes,

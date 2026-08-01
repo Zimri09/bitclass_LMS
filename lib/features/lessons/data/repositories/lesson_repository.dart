@@ -3150,7 +3150,7 @@ class _UploadWidgetState extends State<UploadWidget> {
 
     final attachmentRows = await _supabase!
         .from(_filesTable)
-        .select('id, bucket, storage_path')
+        .select('id, resource_kind, bucket, storage_path')
         .eq('course_id', courseId)
         .eq('lesson_id', lessonId);
     final attachments = (attachmentRows as List<dynamic>)
@@ -3159,6 +3159,7 @@ class _UploadWidgetState extends State<UploadWidget> {
     if (attachments.isNotEmpty) {
       final pathsByBucket = <String, List<String>>{};
       for (final attachment in attachments) {
+        if (attachment['resource_kind'] == 'url') continue;
         final bucket = attachment['bucket'] as String?;
         final storagePath = attachment['storage_path'] as String?;
         if (bucket == null ||

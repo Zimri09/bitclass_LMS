@@ -18,8 +18,10 @@ create table if not exists public.files (
   uploader_name text        not null,
   name          text        not null,
   description   text        not null default '',
-  bucket        text        not null default 'bitclass_storage',
-  storage_path  text        not null,
+  resource_kind text        not null default 'file'
+    check (resource_kind in ('file', 'url')),
+  bucket        text        default 'bitclass_storage',
+  storage_path  text,
   public_url    text        not null,
   thumbnail_url text,
   file_type     file_type   not null default 'other',
@@ -34,6 +36,13 @@ create index if not exists files_course_idx    on public.files (course_id);
 create index if not exists files_lesson_idx    on public.files (lesson_id);
 create index if not exists files_uploader_idx  on public.files (uploader_id);
 create index if not exists files_created_idx   on public.files (created_at desc);
+create unique index if not exists files_unique_url_resource_idx
+  on public.files (
+    course_id,
+    coalesce(lesson_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    public_url
+  )
+  where resource_kind = 'url';
 
 drop trigger if exists files_updated_at on public.files;
 create trigger files_updated_at

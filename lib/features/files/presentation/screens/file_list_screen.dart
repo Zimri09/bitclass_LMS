@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
@@ -317,7 +319,9 @@ class _FileListScreenState extends State<FileListScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  _getTypeIcon(file.type),
+                  file.isExternalLink
+                      ? Icons.link
+                      : _getTypeIcon(file.type),
                   color: _getTypeColor(file.type),
                   size: 24,
                 ),
@@ -422,20 +426,22 @@ class _FileListScreenState extends State<FileListScreen> {
                             fontSize: 12,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.download,
-                          size: 12,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${file.downloadCount}',
-                          style: TextStyle(
+                        if (!file.isExternalLink) ...[
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.download,
+                            size: 12,
                             color: AppColors.textMuted,
-                            fontSize: 12,
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${file.downloadCount}',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 12),
                         Text(
                           _formatDate(file.createdAt),
@@ -483,7 +489,19 @@ class _FileListScreenState extends State<FileListScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            if (isDownloading)
+            if (file.isExternalLink)
+              ListTile(
+                leading: Icon(Icons.open_in_new, color: AppColors.textPrimary),
+                title: Text(
+                  'Open Link',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openExternalLink(file);
+                },
+              )
+            else if (isDownloading)
               ListTile(
                 leading: SizedBox.square(
                   dimension: 24,
@@ -652,6 +670,27 @@ class _FileListScreenState extends State<FileListScreen> {
         ),
       );
       await _loadOfflineFiles();
+    }
+  }
+
+  Future<void> _openExternalLink(CourseFile file) async {
+    try {
+      final uri = normalizeWebUrl(file.url);
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw StateError('No application accepted this URL.');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'This link cannot be opened. Check the URL and try again.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
