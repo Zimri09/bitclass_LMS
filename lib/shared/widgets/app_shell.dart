@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/router/back_navigation_controller.dart';
+import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../../core/router/app_routes.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 
 /// Responsive breakpoints
@@ -50,6 +52,8 @@ class AppDrawerButton extends StatelessWidget {
 class _AppShellState extends State<AppShell> {
   bool _isExpanded = true;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _backNavigation = BackNavigationController();
+  String? _lastObservedPath;
 
   @override
   Widget build(BuildContext context) {
@@ -57,14 +61,64 @@ class _AppShellState extends State<AppShell> {
     final isInstructor =
         authState is AuthAuthenticated && authState.user.role == 'instructor';
     final width = MediaQuery.sizeOf(context).width;
-
-    if (width < _Breakpoints.mobile) {
-      return _buildMobileLayout(context, isInstructor);
-    } else if (width < _Breakpoints.tablet) {
-      return _buildTabletLayout(context, isInstructor);
-    } else {
-      return _buildDesktopLayout(context, isInstructor);
+    final currentPath = GoRouterState.of(context).matchedLocation;
+    if (_lastObservedPath != currentPath) {
+      _lastObservedPath = currentPath;
+      _backNavigation.reset();
     }
+
+    final layout = width < _Breakpoints.mobile
+        ? _buildMobileLayout(context, isInstructor)
+        : width < _Breakpoints.tablet
+        ? _buildTabletLayout(context, isInstructor)
+        : _buildDesktopLayout(context, isInstructor);
+    final canPop = GoRouter.of(context).canPop();
+
+    return PopScope<Object?>(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          _backNavigation.reset();
+          return;
+        }
+        _handleRootBack(context);
+      },
+      child: layout,
+    );
+  }
+
+  void _handleRootBack(BuildContext context) {
+    final currentPath = GoRouterState.of(context).matchedLocation;
+    final action = _backNavigation.handle(
+      isHome:
+          currentPath == AppRoutes.dashboard || currentPath == AppRoutes.courses,
+    );
+
+    switch (action) {
+      case RootBackAction.navigateHome:
+        context.go(AppRoutes.dashboard);
+      case RootBackAction.promptExit:
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit BitClass.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+      case RootBackAction.exitApp:
+        SystemNavigator.pop();
+    }
+  }
+
+  void _openDestination(
+    BuildContext context, {
+    required String currentPath,
+    required String destination,
+  }) {
+    _backNavigation.reset();
+    if (currentPath == destination) return;
+    context.push(destination);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -137,7 +191,11 @@ class _AppShellState extends State<AppShell> {
         child: InkWell(
           onTap: () {
             Navigator.of(context).pop(); // close drawer
-            context.go(item.path);
+            _openDestination(
+              context,
+              currentPath: currentPath,
+              destination: item.path,
+            );
           },
           borderRadius: BorderRadius.circular(8),
           child: Container(
@@ -374,7 +432,11 @@ class _AppShellState extends State<AppShell> {
         color: isActive ? colors.surface : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
-          onTap: () => context.go(item.path),
+          onTap: () => _openDestination(
+            context,
+            currentPath: currentPath,
+            destination: item.path,
+          ),
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: EdgeInsets.symmetric(

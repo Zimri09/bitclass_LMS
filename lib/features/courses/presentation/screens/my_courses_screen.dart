@@ -114,7 +114,7 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
               title: Text('Teaching', style: AppTextStyles.h3),
               actions: [
                 TextButton.icon(
-                  onPressed: () => context.go(AppRoutes.createCourse),
+                  onPressed: () => context.push(AppRoutes.createCourse),
                   icon: const Icon(Icons.add),
                   label: const Text('Create class'),
                 ),
@@ -134,7 +134,7 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
                   title: 'No classes yet',
                   subtitle: 'Create your first class to start teaching',
                   action: ElevatedButton.icon(
-                    onPressed: () => context.go(AppRoutes.createCourse),
+                    onPressed: () => context.push(AppRoutes.createCourse),
                     icon: const Icon(Icons.add),
                     label: const Text('Create class'),
                   ),
@@ -177,7 +177,7 @@ class _InstructorCourseCard extends StatelessWidget {
       course: course,
       statusLabel: course.isPublished ? 'Published' : 'Draft',
       statusColor: course.isPublished ? AppColors.success : AppColors.warning,
-      onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
+      onTap: () => context.push(AppRoutes.courseDetailPath(course.id)),
       trailing: PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, color: Colors.white),
         onSelected: (value) => _handleAction(context, value),

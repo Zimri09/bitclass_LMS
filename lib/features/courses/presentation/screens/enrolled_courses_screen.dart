@@ -80,7 +80,7 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
               title: Text('Classes', style: AppTextStyles.h3),
               actions: [
                 TextButton.icon(
-                  onPressed: () => context.go(AppRoutes.courses),
+                  onPressed: () => context.push(AppRoutes.courses),
                   icon: Icon(Icons.explore),
                   label: const Text('Browse'),
                 ),
@@ -102,7 +102,7 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
                   title: 'No classes yet',
                   subtitle: 'Join a class with the code from your instructor',
                   action: ElevatedButton.icon(
-                    onPressed: () => context.go(AppRoutes.courses),
+                    onPressed: () => context.push(AppRoutes.courses),
                     icon: Icon(Icons.explore),
                     label: const Text('Join a Class'),
                   ),
@@ -156,7 +156,7 @@ class _EnrolledCourseCard extends StatelessWidget {
       statusColor: data.enrollment.progress >= 1
           ? AppColors.success
           : AppColors.primary,
-      onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
+      onTap: () => context.push(AppRoutes.courseDetailPath(course.id)),
       trailing: IconButton(
         icon: const Icon(Icons.more_vert, color: Colors.white),
         tooltip: 'Class options',

@@ -286,7 +286,7 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
   }
 
   void _navigateToLesson(String lessonId) {
-    context.go('/courses/${widget.courseId}/lessons/$lessonId');
+    context.push('/courses/${widget.courseId}/lessons/$lessonId');
   }
 
   IconData _getLessonTypeIcon(LessonType type) {

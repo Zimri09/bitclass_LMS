@@ -144,7 +144,7 @@ class _LessonScreenState extends State<LessonScreen> {
                 backgroundColor: AppColors.success,
               ),
             );
-            context.go(AppRoutes.courseDetailPath(widget.courseId));
+            _handleBack();
           } else if (state is LessonError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

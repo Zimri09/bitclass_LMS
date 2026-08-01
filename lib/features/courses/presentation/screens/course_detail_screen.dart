@@ -221,6 +221,10 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
           leading: IconButton(
             icon: Icon(Icons.arrow_back),
             onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+                return;
+              }
               final authState = context.read<AuthBloc>().state;
               context.go(
                 authState is AuthAuthenticated &&
@@ -793,7 +797,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     }
 
     return ElevatedButton.icon(
-      onPressed: () => context.go(AppRoutes.courses),
+      onPressed: () => context.push(AppRoutes.courses),
       icon: const Icon(Icons.vpn_key_rounded),
       label: const Text('Join with Course Code'),
       style: ElevatedButton.styleFrom(

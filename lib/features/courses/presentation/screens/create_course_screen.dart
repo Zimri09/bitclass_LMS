@@ -477,7 +477,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                   );
                   // File uploads are optional. Avoid treating a later upload
                   // failure as though the course itself was not created.
-                  context.go(AppRoutes.courseDetailPath(state.course.id));
+                  context.pushReplacement(
+                    AppRoutes.courseDetailPath(state.course.id),
+                  );
                 } else if (state is CourseUpdated) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -485,7 +487,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                       backgroundColor: AppColors.success,
                     ),
                   );
-                  context.go(AppRoutes.courseDetailPath(state.course.id));
+                  context.pushReplacement(
+                    AppRoutes.courseDetailPath(state.course.id),
+                  );
                 } else if (state is CourseError) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -666,7 +670,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                             Expanded(
                               child: OutlinedButton(
                                 onPressed: () =>
-                                    context.go(AppRoutes.myCourses),
+                                    context.canPop()
+                                        ? context.pop()
+                                        : context.go(AppRoutes.myCourses),
                                 child: const Text('Cancel'),
                               ),
                             ),

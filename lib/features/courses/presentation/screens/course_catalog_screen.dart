@@ -78,7 +78,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                 duration: const Duration(seconds: 3),
               ),
             );
-            context.go(AppRoutes.courseDetailPath(state.course.id));
+            context.push(AppRoutes.courseDetailPath(state.course.id));
           } else if (state is CourseError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -504,7 +504,7 @@ class _CourseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClassroomCourseCard(
       course: course,
-      onTap: () => context.go(AppRoutes.courseDetailPath(course.id)),
+      onTap: () => context.push(AppRoutes.courseDetailPath(course.id)),
       footer: [
         Icon(Icons.people_outline, size: 18, color: AppColors.textMuted),
         const SizedBox(width: 4),
