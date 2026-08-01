@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/models.dart';
 
 /// Notification Bloc States
@@ -65,12 +66,13 @@ class NotificationSettingsUpdated extends NotificationState {
 
 /// Error state
 class NotificationError extends NotificationState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const NotificationError({required this.message});
+  const NotificationError({required String message}) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }
 
 /// Notification marked as read

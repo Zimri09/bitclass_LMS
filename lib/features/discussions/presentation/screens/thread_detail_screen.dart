@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/errors/app_error.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
@@ -200,7 +201,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to delete thread: $error'),
+          content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
         ),
       );
@@ -251,7 +252,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
       setState(() => _hiddenReplyIds.remove(reply.id));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to unsend reply: $error'),
+          content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
         ),
       );

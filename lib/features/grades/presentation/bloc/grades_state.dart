@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/models.dart';
 
 /// Grades Bloc States
@@ -28,10 +29,11 @@ class GradesLoaded extends GradesState {
 
 /// Error loading grades
 class GradesError extends GradesState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const GradesError({required this.message});
+  const GradesError({required String message}) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }

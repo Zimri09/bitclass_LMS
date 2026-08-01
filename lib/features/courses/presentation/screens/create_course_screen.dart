@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/errors/app_error.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -74,8 +75,11 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
         setState(() => _isLoadingCourse = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load course: $e'),
+            content: Text(userFriendlyErrorMessage(e)),
             backgroundColor: AppColors.error,
+            action: isNetworkFailure(e)
+                ? SnackBarAction(label: 'Retry', onPressed: _loadExistingCourse)
+                : null,
           ),
         );
       }
@@ -137,8 +141,14 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Failed to upload course image: $e'),
+                  content: Text(userFriendlyErrorMessage(e)),
                   backgroundColor: AppColors.error,
+                  action: isNetworkFailure(e)
+                      ? SnackBarAction(
+                          label: 'Retry',
+                          onPressed: _handleCreateCourse,
+                        )
+                      : null,
                 ),
               );
             }
@@ -173,8 +183,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
               category: _selectedCategory,
               instructorId: authState.user.id,
               instructorName: authState.user.displayNameOrEmail,
-              thumbnailUrl:
-                  _thumbnailBytes == null ? _effectiveThumbnailUrl : null,
+              thumbnailUrl: _thumbnailBytes == null
+                  ? _effectiveThumbnailUrl
+                  : null,
               thumbnailBytes: _thumbnailBytes,
               thumbnailExtension: _thumbnailExtension,
               thumbnailMimeType: _thumbnailMimeType,
@@ -206,7 +217,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to pick image: $e'),
+            content: Text(userFriendlyErrorMessage(e)),
             backgroundColor: AppColors.error,
           ),
         );

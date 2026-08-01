@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/quiz_repository.dart';
 
@@ -263,12 +264,13 @@ class QuizCompleted extends QuizState {
 
 /// Error state
 class QuizError extends QuizState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const QuizError(this.message);
+  const QuizError(String message) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

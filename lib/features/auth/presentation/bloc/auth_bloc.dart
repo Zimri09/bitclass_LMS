@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/config/environment.dart';
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repository.dart';
 
@@ -135,12 +136,13 @@ class AuthAuthenticated extends AuthState {
 class AuthUnauthenticated extends AuthState {}
 
 class AuthError extends AuthState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const AuthError(this.message);
+  const AuthError(String message) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }
 
 enum AuthOtpPurpose { signup, passwordRecovery }
@@ -610,8 +612,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     _passwordRecoveryEmail = null;
   }
 
-  static String _message(Object error) =>
-      error.toString().replaceFirst('Exception: ', '');
+  static String _message(Object error) => userFriendlyErrorMessage(error);
 
   bool _isCurrent(int requestGeneration) =>
       requestGeneration == _requestGeneration;

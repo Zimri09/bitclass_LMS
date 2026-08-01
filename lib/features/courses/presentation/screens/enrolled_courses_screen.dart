@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/classroom_course_card.dart';
@@ -87,7 +88,6 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
               ],
             ),
 
-
             // Content
             if (_isLoading)
               const SliverCourseGridSkeleton()
@@ -131,7 +131,6 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
       ),
     );
   }
-
 }
 
 class _EnrolledCourseData {
@@ -145,10 +144,7 @@ class _EnrolledCourseCard extends StatelessWidget {
   final _EnrolledCourseData data;
   final Future<void> Function() onUnenrolled;
 
-  const _EnrolledCourseCard({
-    required this.data,
-    required this.onUnenrolled,
-  });
+  const _EnrolledCourseCard({required this.data, required this.onUnenrolled});
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +226,7 @@ class _EnrolledCourseCard extends StatelessWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Unable to unenroll: $error'),
+          content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
         ),
       );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/errors/app_error.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 
@@ -525,6 +526,9 @@ class ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNetworkError = isNetworkFailure(message);
+    final displayMessage = userFriendlyErrorMessage(message);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -535,25 +539,29 @@ class ErrorState extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
+                color: AppColors.error.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.3),
+                ),
               ),
               child: Icon(
-                Icons.error_outline,
+                isNetworkError ? Icons.wifi_off_rounded : Icons.error_outline,
                 size: 40,
                 color: AppColors.error,
               ),
             ),
             const SizedBox(height: 24),
             Text(
-              'Something went wrong',
+              isNetworkError
+                  ? 'Connection unavailable'
+                  : 'Something went wrong',
               style: AppTextStyles.h3,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              message,
+              displayMessage,
               style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -564,7 +572,7 @@ class ErrorState extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onRetry,
                 icon: Icon(Icons.refresh),
-                label: const Text('Try Again'),
+                label: const Text('Retry'),
               ),
             ],
           ],

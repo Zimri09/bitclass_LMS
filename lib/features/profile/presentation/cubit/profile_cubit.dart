@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 
@@ -60,7 +61,7 @@ class ProfileCubit extends Cubit<ProfileState> {
       emit(
         state.copyWith(
           status: ProfileStatus.error,
-          errorMessage: 'Failed to update profile: $e',
+          errorMessage: userFriendlyErrorMessage(e),
         ),
       );
     }
@@ -98,7 +99,7 @@ class ProfileCubit extends Cubit<ProfileState> {
           status: ProfileStatus.error,
           errorMessage: e is FormatException
               ? e.message.toString()
-              : 'Failed to upload profile photo: $e',
+              : userFriendlyErrorMessage(e),
         ),
       );
     }

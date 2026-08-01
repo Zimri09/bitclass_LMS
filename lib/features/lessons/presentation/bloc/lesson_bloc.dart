@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 
@@ -389,12 +390,13 @@ class LessonCompletionUpdated extends LessonState {
 
 /// Error state
 class LessonError extends LessonState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const LessonError(this.message);
+  const LessonError(String message) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -440,7 +442,9 @@ class LessonBloc extends Bloc<LessonEvent, LessonState> {
       final progressByLesson = {
         for (final item in progress) item.lessonId: item,
       };
-      final completedLessons = progress.where((item) => item.isCompleted).length;
+      final completedLessons = progress
+          .where((item) => item.isCompleted)
+          .length;
 
       // Group lessons by module
       final lessonsByModule = <String, List<LessonModel>>{};
@@ -664,7 +668,10 @@ class LessonBloc extends Bloc<LessonEvent, LessonState> {
       );
 
       emit(
-        LessonCompletionUpdated(progress: progress, nextLessonId: adjacent['next']),
+        LessonCompletionUpdated(
+          progress: progress,
+          nextLessonId: adjacent['next'],
+        ),
       );
     } catch (e) {
       emit(LessonError(e.toString().replaceFirst('Exception: ', '')));
@@ -689,7 +696,10 @@ class LessonBloc extends Bloc<LessonEvent, LessonState> {
       );
 
       emit(
-        LessonCompletionUpdated(progress: progress, nextLessonId: adjacent['next']),
+        LessonCompletionUpdated(
+          progress: progress,
+          nextLessonId: adjacent['next'],
+        ),
       );
     } catch (e) {
       emit(LessonError(e.toString().replaceFirst('Exception: ', '')));

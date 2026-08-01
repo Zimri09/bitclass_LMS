@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/course_model.dart';
 import '../../data/repositories/course_repository.dart';
 
@@ -187,12 +188,13 @@ class CourseUpdated extends CourseState {
 class CourseDeleted extends CourseState {}
 
 class CourseError extends CourseState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const CourseError(this.message);
+  const CourseError(String message) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }
 
 class CourseJoinedByCode extends CourseState {
@@ -215,13 +217,15 @@ class CourseJoining extends CourseState {
 }
 
 class CourseJoinFailure extends CourseState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
   final List<CourseModel> courses;
 
-  const CourseJoinFailure({required this.message, required this.courses});
+  const CourseJoinFailure({required String message, required this.courses})
+    : _message = message;
 
   @override
-  List<Object?> get props => [message, courses];
+  List<Object?> get props => [_message, courses];
 }
 
 // Bloc

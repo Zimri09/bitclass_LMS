@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/classroom_course_card.dart';
@@ -218,11 +219,7 @@ class _InstructorCourseCard extends StatelessWidget {
     return PopupMenuItem(
       value: value,
       child: Row(
-        children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 8),
-          Text(label),
-        ],
+        children: [Icon(icon, size: 20), const SizedBox(width: 8), Text(label)],
       ),
     );
   }
@@ -277,7 +274,9 @@ class _InstructorCourseCard extends StatelessWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isNowPublished ? 'Class published' : 'Class unpublished'),
+          content: Text(
+            isNowPublished ? 'Class published' : 'Class unpublished',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
@@ -286,7 +285,7 @@ class _InstructorCourseCard extends StatelessWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update: $error'),
+          content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
         ),
       );
@@ -323,7 +322,7 @@ class _InstructorCourseCard extends StatelessWidget {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Failed to delete: $error'),
+                    content: Text(userFriendlyErrorMessage(error)),
                     backgroundColor: AppColors.error,
                   ),
                 );

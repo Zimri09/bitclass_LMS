@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/models.dart';
 
 /// Base class for all file states
@@ -75,11 +76,13 @@ class FileUpdated extends FileState {
 
 /// Error state
 class FileError extends FileState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
   final List<CourseFile> existingFiles;
 
-  const FileError({required this.message, this.existingFiles = const []});
+  const FileError({required String message, this.existingFiles = const []})
+    : _message = message;
 
   @override
-  List<Object?> get props => [message, existingFiles];
+  List<Object?> get props => [_message, existingFiles];
 }

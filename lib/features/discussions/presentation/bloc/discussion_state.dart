@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/models.dart';
 
 /// Discussion Bloc States
@@ -49,7 +50,9 @@ class ThreadDetailLoaded extends DiscussionState {
   final ThreadModel thread;
   final List<ReplyModel> replies;
   final bool isSubmittingReply;
-  final String? actionError;
+  final String? _actionError;
+  String? get actionError =>
+      _actionError == null ? null : userFriendlyErrorMessage(_actionError);
   final int actionRevision;
   final String? createdReplyId;
 
@@ -57,17 +60,17 @@ class ThreadDetailLoaded extends DiscussionState {
     required this.thread,
     required this.replies,
     this.isSubmittingReply = false,
-    this.actionError,
+    String? actionError,
     this.actionRevision = 0,
     this.createdReplyId,
-  });
+  }) : _actionError = actionError;
 
   @override
   List<Object?> get props => [
     thread,
     replies,
     isSubmittingReply,
-    actionError,
+    _actionError,
     actionRevision,
     createdReplyId,
   ];
@@ -86,7 +89,7 @@ class ThreadDetailLoaded extends DiscussionState {
       thread: thread ?? this.thread,
       replies: replies ?? this.replies,
       isSubmittingReply: isSubmittingReply ?? this.isSubmittingReply,
-      actionError: clearActionError ? null : actionError ?? this.actionError,
+      actionError: clearActionError ? null : actionError ?? _actionError,
       actionRevision: actionRevision ?? this.actionRevision,
       createdReplyId: clearCreatedReplyId
           ? null
@@ -107,10 +110,11 @@ class ThreadCreated extends DiscussionState {
 
 /// Error state
 class DiscussionError extends DiscussionState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const DiscussionError({required this.message});
+  const DiscussionError({required String message}) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }

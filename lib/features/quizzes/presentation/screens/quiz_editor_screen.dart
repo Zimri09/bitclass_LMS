@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../data/models/question_model.dart';
@@ -147,7 +148,10 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+      SnackBar(
+        content: Text(userFriendlyErrorMessage(message)),
+        backgroundColor: AppColors.error,
+      ),
     );
   }
 
@@ -390,7 +394,9 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             color: Colors.transparent,
             child: SwitchListTile(
               title: const Text('Shuffle Answers'),
-              subtitle: const Text('Randomize answer options for each question'),
+              subtitle: const Text(
+                'Randomize answer options for each question',
+              ),
               value: _shuffleAnswers,
               onChanged: (value) => setState(() => _shuffleAnswers = value),
               activeThumbColor: AppColors.primary,
@@ -734,7 +740,9 @@ class _QuestionEditorState extends State<_QuestionEditor> {
                       Expanded(
                         child: TextFormField(
                           controller: _pointsController,
-                          decoration: const InputDecoration(labelText: 'Points'),
+                          decoration: const InputDecoration(
+                            labelText: 'Points',
+                          ),
                           keyboardType: TextInputType.number,
                           onChanged: (_) => _updateQuestion(),
                         ),

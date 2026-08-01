@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
+import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
@@ -160,7 +161,10 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   void _showError(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: AppColors.error),
+      SnackBar(
+        content: Text(userFriendlyErrorMessage(msg)),
+        backgroundColor: AppColors.error,
+      ),
     );
   }
 
@@ -248,8 +252,18 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
               setState(() => _isUploading = false);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(state.progress.errorMessage ?? 'Upload failed'),
+                  content: Text(
+                    userFriendlyErrorMessage(
+                      state.progress.errorMessage ?? 'Upload failed',
+                    ),
+                  ),
                   backgroundColor: AppColors.error,
+                  action: isNetworkFailure(state.progress.errorMessage ?? '')
+                      ? SnackBarAction(
+                          label: 'Retry',
+                          onPressed: () => _uploadFile(context),
+                        )
+                      : null,
                 ),
               );
             }
@@ -259,6 +273,12 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
+                action: isNetworkFailure(state.message)
+                    ? SnackBarAction(
+                        label: 'Retry',
+                        onPressed: () => _uploadFile(context),
+                      )
+                    : null,
               ),
             );
           }
@@ -267,7 +287,9 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
           return Scaffold(
             appBar: AppBar(
               title: Text(
-                widget.lessonId == null ? 'Upload File' : 'Attach File to Lesson',
+                widget.lessonId == null
+                    ? 'Upload File'
+                    : 'Attach File to Lesson',
               ),
             ),
             body: SingleChildScrollView(
@@ -286,10 +308,9 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                         controller: _fileNameController,
                         enabled: _pickedFile != null && !_isUploading,
                         decoration: InputDecoration(
-                          hintText:
-                              _pickedFile == null
-                                  ? 'Select a file first'
-                                  : 'Enter display name',
+                          hintText: _pickedFile == null
+                              ? 'Select a file first'
+                              : 'Enter display name',
                           hintStyle: TextStyle(color: AppColors.textMuted),
                           filled: true,
                           fillColor: AppColors.surface,
@@ -297,16 +318,15 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
                           ),
-                          suffixText:
-                              _ext.isNotEmpty ? '.$_ext' : null,
-                          suffixStyle:
-                              TextStyle(color: AppColors.textSecondary),
+                          suffixText: _ext.isNotEmpty ? '.$_ext' : null,
+                          suffixStyle: TextStyle(
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                         style: TextStyle(color: AppColors.textPrimary),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty)
-                                ? 'Please enter a file name'
-                                : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Please enter a file name'
+                            : null,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -340,20 +360,18 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed:
-                            (_isUploading || _pickedFile == null)
-                                ? null
-                                : () => _uploadFile(context),
-                        icon:
-                            _isUploading
-                                ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                                : const Icon(Icons.cloud_upload),
+                        onPressed: (_isUploading || _pickedFile == null)
+                            ? null
+                            : () => _uploadFile(context),
+                        icon: _isUploading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.cloud_upload),
                         label: Text(
                           _isUploading ? 'Uploading...' : 'Upload File',
                         ),
@@ -389,16 +407,14 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
         decoration: BoxDecoration(
-          color:
-              hasFile
-                  ? AppColors.primary.withValues(alpha: 0.07)
-                  : AppColors.surface,
+          color: hasFile
+              ? AppColors.primary.withValues(alpha: 0.07)
+              : AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color:
-                hasFile
-                    ? AppColors.primary
-                    : AppColors.primary.withValues(alpha: 0.3),
+            color: hasFile
+                ? AppColors.primary
+                : AppColors.primary.withValues(alpha: 0.3),
             width: hasFile ? 2 : 1.5,
           ),
         ),
@@ -429,10 +445,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
               const SizedBox(height: 4),
               Text(
                 _formatBytes(_pickedFile!.size),
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 12),
               Row(

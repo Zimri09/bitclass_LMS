@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/errors/app_error.dart';
 import '../../data/models/models.dart';
 
 /// Assignment Bloc States
@@ -123,10 +124,11 @@ class SubmissionGraded extends AssignmentState {
 
 /// Error state
 class AssignmentError extends AssignmentState {
-  final String message;
+  final String _message;
+  String get message => userFriendlyErrorMessage(_message);
 
-  const AssignmentError({required this.message});
+  const AssignmentError({required String message}) : _message = message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [_message];
 }
