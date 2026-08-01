@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bitclass/features/auth/data/models/user_model.dart';
 import 'package:bitclass/features/auth/data/repositories/auth_repository.dart';
@@ -12,6 +13,56 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   group('logout reset', () {
+    test(
+      'cached account remains available when profile refresh is offline',
+      () async {
+        final repository = _FakeAuthRepository()
+          ..sessionSnapshot = _testUser
+          ..profileError = const SocketException('Failed host lookup');
+        final bloc = AuthBloc(authRepository: repository);
+        addTearDown(() async {
+          await bloc.close();
+          await repository.dispose();
+        });
+
+        bloc.add(AuthCheckRequested());
+        final restored =
+            await bloc.stream.firstWhere(
+                  (state) => state is AuthAuthenticated && state.isOffline,
+                )
+                as AuthAuthenticated;
+
+        expect(restored.user, _testUser);
+        expect(restored.isOffline, isTrue);
+      },
+    );
+
+    test(
+      'server profile replaces the offline snapshot after restore',
+      () async {
+        final updatedUser = _testUser.copyWith(firstName: 'Updated');
+        final profileCompleter = Completer<UserModel?>()..complete(updatedUser);
+        final repository = _FakeAuthRepository()
+          ..sessionSnapshot = _testUser
+          ..profileCompleter = profileCompleter;
+        final bloc = AuthBloc(authRepository: repository);
+        addTearDown(() async {
+          await bloc.close();
+          await repository.dispose();
+        });
+
+        bloc.add(AuthCheckRequested());
+        final restored =
+            await bloc.stream.firstWhere(
+                  (state) => state is AuthAuthenticated && !state.isOffline,
+                )
+                as AuthAuthenticated;
+
+        expect(restored.user.firstName, 'Updated');
+        expect(restored.isOffline, isFalse);
+      },
+    );
+
     testWidgets(
       'sign in and sign up remain enabled while logout is finishing',
       (tester) async {
@@ -123,6 +174,9 @@ class _FakeAuthRepository extends AuthRepository {
   final _authController = StreamController<User?>.broadcast();
   Completer<void>? logoutCompleter;
   Completer<UserModel?>? profileCompleter;
+  UserModel? sessionSnapshot;
+  Object? profileError;
+  bool sessionAvailable = true;
 
   factory _FakeAuthRepository() {
     return _FakeAuthRepository._(
@@ -138,12 +192,21 @@ class _FakeAuthRepository extends AuthRepository {
   Stream<User?> get authStateChanges => _authController.stream;
 
   @override
+  bool get hasCurrentSession => sessionAvailable;
+
+  @override
+  Future<UserModel?> restoreSessionSnapshot() async => sessionSnapshot;
+
+  @override
   Future<UserModel?> getCurrentUserProfile() =>
       profileCompleter?.future ?? Future<UserModel?>.value(null);
 
   @override
-  Future<UserModel?> restoreCurrentUserProfile() =>
-      profileCompleter?.future ?? Future<UserModel?>.value(null);
+  Future<UserModel?> restoreCurrentUserProfile() {
+    final error = profileError;
+    if (error != null) return Future<UserModel?>.error(error);
+    return profileCompleter?.future ?? Future<UserModel?>.value(null);
+  }
 
   @override
   Future<void> signOut() => logoutCompleter?.future ?? Future<void>.value();

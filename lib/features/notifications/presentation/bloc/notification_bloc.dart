@@ -75,9 +75,28 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     MarkNotificationRead event,
     Emitter<NotificationState> emit,
   ) async {
+    final previousState = state;
     try {
-      await notificationRepository.markAsRead(event.notificationId);
-      emit(NotificationMarkedRead(notificationId: event.notificationId));
+      final updatedNotification = await notificationRepository.markAsRead(
+        event.notificationId,
+      );
+      if (previousState is NotificationsLoaded) {
+        final notifications = previousState.notifications
+            .map(
+              (notification) => notification.id == event.notificationId
+                  ? updatedNotification
+                  : notification,
+            )
+            .toList(growable: false);
+        emit(
+          NotificationsLoaded(
+            notifications: notifications,
+            unreadCount: notifications.where((item) => !item.isRead).length,
+          ),
+        );
+      } else {
+        emit(NotificationMarkedRead(notificationId: event.notificationId));
+      }
     } catch (e) {
       emit(NotificationError(message: 'Failed to mark notification read: $e'));
     }

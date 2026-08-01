@@ -9,6 +9,7 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/otp_verification_screen.dart';
 import '../../features/auth/presentation/screens/reset_password_screen.dart';
+import '../../features/auth/presentation/screens/startup_screen.dart';
 import '../../features/todos/presentation/screens/todos_list_screen.dart';
 import '../../features/todos/presentation/state/todos_cubit.dart';
 import '../../features/todos/data/repositories/todos_repository.dart';
@@ -41,11 +42,16 @@ class AppRouter {
   AppRouter({required this.authBloc});
 
   late final GoRouter router = GoRouter(
-    initialLocation: AppRoutes.login,
+    initialLocation: AppRoutes.startup,
     debugLogDiagnostics: true,
     refreshListenable: GoRouterRefreshStream(authBloc.stream),
     redirect: _redirect,
     routes: [
+      GoRoute(
+        path: AppRoutes.startup,
+        name: 'startup',
+        builder: (context, state) => const StartupScreen(),
+      ),
       // Auth routes (no shell)
       GoRoute(
         path: AppRoutes.login,
@@ -494,6 +500,7 @@ class AppRouter {
 
   String? _redirect(BuildContext context, GoRouterState state) {
     final authState = authBloc.state;
+    final isStartupRoute = state.matchedLocation == AppRoutes.startup;
     final isAuthRoute =
         state.matchedLocation == AppRoutes.login ||
         state.matchedLocation == AppRoutes.register ||
@@ -501,14 +508,26 @@ class AppRouter {
         state.matchedLocation == AppRoutes.verifyOtp ||
         state.matchedLocation == AppRoutes.resetPassword;
 
-    // If not authenticated and not on an auth route, redirect to login
-    if (authState is! AuthAuthenticated && !isAuthRoute) {
+    final isRestoringSession =
+        authState is AuthInitial ||
+        (authState is AuthLoading &&
+            authState.operation == AuthOperation.checkingSession);
+
+    if (isRestoringSession) {
+      return isStartupRoute ? null : AppRoutes.startup;
+    }
+
+    if (authState is AuthAuthenticated && (isStartupRoute || isAuthRoute)) {
+      return AppRoutes.dashboard;
+    }
+
+    if (authState is! AuthAuthenticated && isStartupRoute) {
       return AppRoutes.login;
     }
 
-    // If authenticated and on an auth route, redirect to dashboard
-    if (authState is AuthAuthenticated && isAuthRoute) {
-      return AppRoutes.dashboard;
+    // If not authenticated and not on an auth route, redirect to login
+    if (authState is! AuthAuthenticated && !isAuthRoute) {
+      return AppRoutes.login;
     }
 
     if (authState is AuthAuthenticated && !_canManageCourse(authState)) {

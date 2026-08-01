@@ -5,6 +5,7 @@ class AppRoutes {
   AppRoutes._();
 
   // Auth routes
+  static const String startup = '/startup';
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
@@ -110,4 +111,46 @@ class AppRoutes {
     path: uploadFilePath(courseId),
     queryParameters: {'lessonId': lessonId},
   ).toString();
+
+  /// Returns a safe, registered in-app destination for a notification.
+  static String? notificationDestination(String? value) {
+    final rawLocation = value?.trim();
+    if (rawLocation == null || rawLocation.isEmpty) return null;
+
+    final uri = Uri.tryParse(rawLocation);
+    if (uri == null ||
+        uri.hasScheme ||
+        uri.hasAuthority ||
+        !rawLocation.startsWith('/') ||
+        uri.pathSegments.contains('..')) {
+      return null;
+    }
+
+    const exactPaths = {
+      dashboard,
+      todos,
+      profile,
+      offlineFiles,
+      courses,
+      myCourses,
+      enrolledCourses,
+      notifications,
+      notificationSettings,
+      grades,
+      settings,
+    };
+    if (exactPaths.contains(uri.path)) return uri.toString();
+
+    final supportedCoursePath = [
+      RegExp(r'^/courses/[^/]+$'),
+      RegExp(r'^/courses/[^/]+/students$'),
+      RegExp(r'^/courses/[^/]+/lessons/[^/]+$'),
+      RegExp(r'^/courses/[^/]+/quizzes/[^/]+(?:/result)?$'),
+      RegExp(r'^/courses/[^/]+/assignments(?:/[^/]+(?:/(?:submit|grade))?)?$'),
+      RegExp(r'^/courses/[^/]+/discussions(?:/[^/]+(?:/threads/[^/]+)?)?$'),
+      RegExp(r'^/courses/[^/]+/files$'),
+    ].any((pattern) => pattern.hasMatch(uri.path));
+
+    return supportedCoursePath ? uri.toString() : null;
+  }
 }

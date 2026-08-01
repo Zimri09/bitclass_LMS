@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
@@ -54,12 +56,21 @@ class _AppShellState extends State<AppShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _backNavigation = BackNavigationController();
   String? _lastObservedPath;
+  Timer? _offlineRetryTimer;
+
+  @override
+  void dispose() {
+    _offlineRetryTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     final isInstructor =
         authState is AuthAuthenticated && authState.user.role == 'instructor';
+    final isOffline = authState is AuthAuthenticated && authState.isOffline;
+    _syncOfflineRetry(isOffline);
     final width = MediaQuery.sizeOf(context).width;
     final currentPath = GoRouterState.of(context).matchedLocation;
     if (_lastObservedPath != currentPath) {
@@ -68,10 +79,10 @@ class _AppShellState extends State<AppShell> {
     }
 
     final layout = width < _Breakpoints.mobile
-        ? _buildMobileLayout(context, isInstructor)
+        ? _buildMobileLayout(context, isInstructor, isOffline)
         : width < _Breakpoints.tablet
-        ? _buildTabletLayout(context, isInstructor)
-        : _buildDesktopLayout(context, isInstructor);
+        ? _buildTabletLayout(context, isInstructor, isOffline)
+        : _buildDesktopLayout(context, isInstructor, isOffline);
     final canPop = GoRouter.of(context).canPop();
 
     return PopScope<Object?>(
@@ -87,11 +98,27 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  void _syncOfflineRetry(bool isOffline) {
+    if (!isOffline) {
+      _offlineRetryTimer?.cancel();
+      _offlineRetryTimer = null;
+      return;
+    }
+    _offlineRetryTimer ??= Timer.periodic(const Duration(seconds: 20), (_) {
+      if (!mounted) return;
+      final authState = context.read<AuthBloc>().state;
+      if (authState is AuthAuthenticated && authState.isOffline) {
+        context.read<AuthBloc>().add(AuthCheckRequested());
+      }
+    });
+  }
+
   void _handleRootBack(BuildContext context) {
     final currentPath = GoRouterState.of(context).matchedLocation;
     final action = _backNavigation.handle(
       isHome:
-          currentPath == AppRoutes.dashboard || currentPath == AppRoutes.courses,
+          currentPath == AppRoutes.dashboard ||
+          currentPath == AppRoutes.courses,
     );
 
     switch (action) {
@@ -111,32 +138,59 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _openDestination(
-    BuildContext context, {
-    required String currentPath,
-    required String destination,
-  }) {
+  void _openDestination(BuildContext context, {required String destination}) {
+    final authState = context.read<AuthBloc>().state;
+    final isOffline = authState is AuthAuthenticated && authState.isOffline;
+    final isOfflineDestination =
+        destination == AppRoutes.dashboard ||
+        destination == AppRoutes.courses ||
+        destination == AppRoutes.offlineFiles;
+    if (isOffline && !isOfflineDestination) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This feature needs an internet connection. Offline Files are still available.',
+            ),
+          ),
+        );
+      return;
+    }
     _backNavigation.reset();
+    final currentPath = GoRouterState.of(context).matchedLocation;
     if (currentPath == destination) return;
     context.push(destination);
+  }
+
+  bool _isDestinationActive(_NavItem item, String currentPath) {
+    if (item.path == AppRoutes.dashboard) {
+      return currentPath == AppRoutes.dashboard ||
+          currentPath == AppRoutes.courses;
+    }
+    return currentPath == item.path || currentPath.startsWith('${item.path}/');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Mobile layout — Google Classroom-style drawer navigation
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildMobileLayout(BuildContext context, bool isInstructor) {
+  Widget _buildMobileLayout(
+    BuildContext context,
+    bool isInstructor,
+    bool isOffline,
+  ) {
     return Scaffold(
       key: _scaffoldKey,
       body: _AppShellDrawerScope(
         scaffoldKey: _scaffoldKey,
         child: widget.child,
       ),
-      drawer: _buildDrawer(context, isInstructor),
+      drawer: _buildDrawer(context, isInstructor, isOffline),
     );
   }
 
-  Widget _buildDrawer(BuildContext context, bool isInstructor) {
+  Widget _buildDrawer(BuildContext context, bool isInstructor, bool isOffline) {
     final currentPath = GoRouterState.of(context).matchedLocation;
     final colors = AppColors.of(context);
 
@@ -154,7 +208,7 @@ class _AppShellState extends State<AppShell> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
-                  ..._getAllNavItems(isInstructor).map(
+                  ..._getAllNavItems(isInstructor, isOffline).map(
                     (item) => _buildDrawerNavItem(
                       context: context,
                       item: item,
@@ -179,8 +233,7 @@ class _AppShellState extends State<AppShell> {
     required _NavItem item,
     required String currentPath,
   }) {
-    final isActive =
-        currentPath == item.path || currentPath.startsWith('${item.path}/');
+    final isActive = _isDestinationActive(item, currentPath);
     final colors = AppColors.of(context);
 
     return Padding(
@@ -190,12 +243,11 @@ class _AppShellState extends State<AppShell> {
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () {
-            Navigator.of(context).pop(); // close drawer
-            _openDestination(
-              context,
-              currentPath: currentPath,
-              destination: item.path,
-            );
+            _scaffoldKey.currentState?.closeDrawer();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _openDestination(this.context, destination: item.path);
+            });
           },
           borderRadius: BorderRadius.circular(8),
           child: Container(
@@ -243,13 +295,22 @@ class _AppShellState extends State<AppShell> {
   // Tablet layout — collapsed rail sidebar (72px)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildTabletLayout(BuildContext context, bool isInstructor) {
+  Widget _buildTabletLayout(
+    BuildContext context,
+    bool isInstructor,
+    bool isOffline,
+  ) {
     return Scaffold(
       body: Row(
         children: [
           SizedBox(
             width: 72,
-            child: _buildSidebar(context, isInstructor, expanded: false),
+            child: _buildSidebar(
+              context,
+              isInstructor,
+              isOffline,
+              expanded: false,
+            ),
           ),
           Expanded(child: widget.child),
         ],
@@ -261,14 +322,23 @@ class _AppShellState extends State<AppShell> {
   // Desktop layout — expandable sidebar
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildDesktopLayout(BuildContext context, bool isInstructor) {
+  Widget _buildDesktopLayout(
+    BuildContext context,
+    bool isInstructor,
+    bool isOffline,
+  ) {
     return Scaffold(
       body: Row(
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             width: _isExpanded ? 260 : 72,
-            child: _buildSidebar(context, isInstructor, expanded: _isExpanded),
+            child: _buildSidebar(
+              context,
+              isInstructor,
+              isOffline,
+              expanded: _isExpanded,
+            ),
           ),
           Expanded(child: widget.child),
         ],
@@ -282,7 +352,8 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildSidebar(
     BuildContext context,
-    bool isInstructor, {
+    bool isInstructor,
+    bool isOffline, {
     required bool expanded,
   }) {
     final currentPath = GoRouterState.of(context).matchedLocation;
@@ -306,7 +377,7 @@ class _AppShellState extends State<AppShell> {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
-                for (final item in _getAllNavItems(isInstructor))
+                for (final item in _getAllNavItems(isInstructor, isOffline))
                   _buildSidebarNavItem(
                     context: context,
                     item: item,
@@ -407,8 +478,7 @@ class _AppShellState extends State<AppShell> {
     required String currentPath,
     required bool expanded,
   }) {
-    final isActive =
-        currentPath == item.path || currentPath.startsWith('${item.path}/');
+    final isActive = _isDestinationActive(item, currentPath);
     final colors = AppColors.of(context);
 
     if (item.isSectionHeader) {
@@ -432,11 +502,7 @@ class _AppShellState extends State<AppShell> {
         color: isActive ? colors.surface : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
-          onTap: () => _openDestination(
-            context,
-            currentPath: currentPath,
-            destination: item.path,
-          ),
+          onTap: () => _openDestination(context, destination: item.path),
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: EdgeInsets.symmetric(
@@ -531,26 +597,30 @@ class _AppShellState extends State<AppShell> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Full list of nav items for sidebar / drawer
-  List<_NavItem> _getAllNavItems(bool isInstructor) {
+  List<_NavItem> _getAllNavItems(bool isInstructor, bool isOffline) {
+    final home = _NavItem(
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard,
+      label: 'Home',
+      path: AppRoutes.dashboard,
+    );
+    final offlineFiles = _NavItem(
+      icon: Icons.download_for_offline_outlined,
+      activeIcon: Icons.download_for_offline,
+      label: 'Offline Files',
+      path: AppRoutes.offlineFiles,
+    );
+    if (isOffline) return [home, offlineFiles];
+
     return [
-      _NavItem(
-        icon: Icons.dashboard_outlined,
-        activeIcon: Icons.dashboard,
-        label: 'Home',
-        path: AppRoutes.dashboard,
-      ),
+      home,
       _NavItem(
         icon: Icons.check_box_outline_blank,
         activeIcon: Icons.check_box,
         label: 'Todos',
         path: AppRoutes.todos,
       ),
-      _NavItem(
-        icon: Icons.download_for_offline_outlined,
-        activeIcon: Icons.download_for_offline,
-        label: 'Offline Files',
-        path: AppRoutes.offlineFiles,
-      ),
+      offlineFiles,
       if (isInstructor) ...[
         _NavItem(
           icon: Icons.add_box_outlined,

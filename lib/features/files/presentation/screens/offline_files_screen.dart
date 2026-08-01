@@ -74,10 +74,40 @@ class _OfflineFilesScreenState extends State<OfflineFilesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+    final isOffline = authState is AuthAuthenticated && authState.isOffline;
     return Scaffold(
       appBar: AppBar(
         leading: const AppDrawerButton(),
         title: const Text('Offline Files'),
+        bottom: isOffline
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(38),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 7,
+                  ),
+                  color: AppColors.warning.withValues(alpha: 0.14),
+                  child: Row(
+                    children: [
+                      Icon(Icons.cloud_off, size: 18, color: AppColors.warning),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('Offline mode')),
+                      InkWell(
+                        onTap: () =>
+                            context.read<AuthBloc>().add(AuthCheckRequested()),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Text('Retry'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : null,
       ),
       body: _buildBody(),
     );

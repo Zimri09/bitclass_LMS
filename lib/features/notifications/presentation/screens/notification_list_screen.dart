@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../../shared/widgets/app_shell.dart';
@@ -39,7 +40,7 @@ class NotificationListScreen extends StatelessWidget {
   }
 }
 
-class NotificationListView extends StatelessWidget {
+class NotificationListView extends StatefulWidget {
   final String userId;
   final bool isInstructor;
 
@@ -48,6 +49,16 @@ class NotificationListView extends StatelessWidget {
     required this.userId,
     required this.isInstructor,
   });
+
+  @override
+  State<NotificationListView> createState() => _NotificationListViewState();
+}
+
+class _NotificationListViewState extends State<NotificationListView> {
+  bool _isOpeningNotification = false;
+
+  String get userId => widget.userId;
+  bool get isInstructor => widget.isInstructor;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +116,10 @@ class NotificationListView extends StatelessWidget {
         ],
       ),
       body: BlocConsumer<NotificationBloc, NotificationState>(
+        buildWhen: (previous, current) =>
+            current is NotificationsLoading ||
+            current is NotificationsLoaded ||
+            current is NotificationError,
         listener: (context, state) {
           if (state is AllNotificationsMarkedRead) {
             context.read<NotificationBloc>().add(
@@ -236,7 +251,7 @@ class NotificationListView extends StatelessWidget {
         );
       },
       child: InkWell(
-        onTap: () => _handleNotificationTap(context, notification),
+        onTap: () => _handleNotificationTap(notification),
         child: Container(
           color: notification.isRead
               ? Colors.transparent
@@ -322,20 +337,47 @@ class NotificationListView extends StatelessWidget {
     );
   }
 
-  void _handleNotificationTap(
-    BuildContext context,
-    NotificationModel notification,
-  ) {
+  Future<void> _handleNotificationTap(NotificationModel notification) async {
+    if (_isOpeningNotification) return;
+
+    final bloc = context.read<NotificationBloc>();
     // Mark as read
     if (!notification.isRead) {
-      context.read<NotificationBloc>().add(
+      bloc.add(
         MarkNotificationRead(notificationId: notification.id),
       );
     }
 
-    // Navigate if action URL exists
-    if (notification.actionUrl != null) {
-      context.push(notification.actionUrl!);
+    final destination = AppRoutes.notificationDestination(
+      notification.actionUrl,
+    );
+    if (notification.actionUrl == null) return;
+    if (destination == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This notification destination is no longer available.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isOpeningNotification = true);
+    try {
+      await context.push(destination);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This notification could not be opened.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isOpeningNotification = false);
+        bloc.add(RefreshNotifications(userId: userId));
+      }
     }
   }
 

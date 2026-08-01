@@ -126,11 +126,12 @@ class AuthLoading extends AuthState {
 
 class AuthAuthenticated extends AuthState {
   final UserModel user;
+  final bool isOffline;
 
-  const AuthAuthenticated(this.user);
+  const AuthAuthenticated(this.user, {this.isOffline = false});
 
   @override
-  List<Object?> get props => [user];
+  List<Object?> get props => [user, isOffline];
 }
 
 class AuthUnauthenticated extends AuthState {}
@@ -234,6 +235,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   int _requestGeneration = 0;
   AuthOtpChallenge? _activeOtpChallenge;
   String? _passwordRecoveryEmail;
+  bool _sessionCheckInProgress = false;
 
   AuthBloc({required AuthRepository authRepository})
     : _authRepository = authRepository,
@@ -259,6 +261,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthCheckRequested event,
     Emitter<AuthState> emit,
   ) async {
+    if (_sessionCheckInProgress) return;
     final currentState = state;
     if (currentState is AuthLoading &&
         currentState.operation == AuthOperation.signingOut) {
@@ -266,7 +269,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
 
     final requestGeneration = _requestGeneration;
-    emit(const AuthLoading(AuthOperation.checkingSession));
+    final previousUser = currentState is AuthAuthenticated
+        ? currentState.user
+        : null;
+    _sessionCheckInProgress = true;
+    if (previousUser == null) {
+      emit(const AuthLoading(AuthOperation.checkingSession));
+    }
 
     try {
       if (EnvironmentConfig.isDemoMode) {
@@ -280,14 +289,50 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
-      final profile = await _authRepository.restoreCurrentUserProfile();
+      final localProfile = await _authRepository.restoreSessionSnapshot();
       if (!_isCurrent(requestGeneration)) return;
-      emit(
-        profile == null ? AuthUnauthenticated() : AuthAuthenticated(profile),
-      );
-    } catch (_) {
+      if (localProfile != null) {
+        emit(AuthAuthenticated(localProfile, isOffline: true));
+      }
+
+      if (!_authRepository.hasCurrentSession) {
+        emit(AuthUnauthenticated());
+        return;
+      }
+
+      try {
+        final profile = await _authRepository
+            .restoreCurrentUserProfile()
+            .timeout(const Duration(seconds: 8));
+        if (!_isCurrent(requestGeneration)) return;
+        if (profile == null) {
+          await _authRepository.signOut();
+          if (!_isCurrent(requestGeneration)) return;
+          emit(AuthUnauthenticated());
+          return;
+        }
+        emit(AuthAuthenticated(profile));
+      } catch (error) {
+        if (!_isCurrent(requestGeneration)) return;
+        final offlineProfile = localProfile ?? previousUser;
+        if (offlineProfile != null && isNetworkFailure(error)) {
+          emit(AuthAuthenticated(offlineProfile, isOffline: true));
+          return;
+        }
+
+        await _authRepository.signOut();
+        if (!_isCurrent(requestGeneration)) return;
+        emit(AuthUnauthenticated());
+      }
+    } catch (error) {
       if (!_isCurrent(requestGeneration)) return;
-      emit(AuthUnauthenticated());
+      if (previousUser != null && isNetworkFailure(error)) {
+        emit(AuthAuthenticated(previousUser, isOffline: true));
+      } else {
+        emit(AuthUnauthenticated());
+      }
+    } finally {
+      _sessionCheckInProgress = false;
     }
   }
 
@@ -320,7 +365,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             currentState.operation == AuthOperation.signingUp ||
             currentState.operation == AuthOperation.signingOut ||
             currentState.operation == AuthOperation.updatingPassword);
-    if (currentState is! AuthAuthenticated &&
+    if ((currentState is! AuthAuthenticated || currentState.isOffline) &&
         !isHandlingOtp &&
         !shouldIgnoreSessionRefresh) {
       add(AuthCheckRequested());
@@ -390,9 +435,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _authRepository.signOut();
       if (!_isCurrent(requestGeneration)) return;
       emit(AuthUnauthenticated());
-    } catch (error) {
+    } catch (_) {
       if (!_isCurrent(requestGeneration)) return;
-      emit(AuthError(_message(error)));
+      // Manual logout is local-first. Never leave the auth UI blocked because
+      // optional cleanup failed after the local session was cleared.
+      emit(AuthUnauthenticated());
     }
   }
 

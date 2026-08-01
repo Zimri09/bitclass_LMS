@@ -34,6 +34,7 @@ class AuthRepository {
   static const String _avatarsBucket = 'avatars';
   static const String _authFlowBox = 'auth_flow';
   static const String _pendingRecoveryUserKey = 'pending_recovery_user_id';
+  static const String _sessionProfileBox = 'auth_session_profile_v1';
 
   final SupabaseClient? _supabase;
 
@@ -59,6 +60,10 @@ class AuthRepository {
   /// Get current authenticated user
   User? get currentUser =>
       EnvironmentConfig.isDemoMode ? null : _supabase!.auth.currentUser;
+
+  /// Whether Supabase restored a persisted session for this device.
+  bool get hasCurrentSession =>
+      EnvironmentConfig.isDemoMode || _supabase!.auth.currentSession != null;
 
   /// Get demo user (for demo mode)
   UserModel? get demoUser => _demoUser;
@@ -226,10 +231,15 @@ class AuthRepository {
       return;
     }
     final userId = currentUser?.id;
-    // Flutter defaults to local sign-out. Keep it explicit so logout only
-    // clears this device and never waits on unrelated application cleanup.
-    await _supabase!.auth.signOut(scope: SignOutScope.local);
-    if (userId != null) await _clearPendingRecovery(userId);
+    try {
+      // Keep logout device-local so it never waits for a network request.
+      await _supabase!.auth.signOut(scope: SignOutScope.local);
+    } finally {
+      if (userId != null) {
+        await _clearPendingRecovery(userId);
+        await _clearCachedProfile(userId);
+      }
+    }
   }
 
   /// Send password reset email
@@ -384,6 +394,32 @@ class AuthRepository {
     );
   }
 
+  /// Restores only device-local identity data for an existing Supabase
+  /// session. This never grants backend access; RLS still protects all remote
+  /// operations when connectivity returns.
+  Future<UserModel?> restoreSessionSnapshot() async {
+    if (EnvironmentConfig.isDemoMode) return _demoUser;
+
+    final user = currentUser;
+    if (user == null || user.emailConfirmedAt == null) return null;
+    if (await _hasPendingRecovery(user.id)) return null;
+
+    final cached = await _readCachedProfile(user.id);
+    if (cached != null && cached.email == user.email) return cached;
+
+    final email = user.email;
+    if (email == null || email.trim().isEmpty) return null;
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    return UserModel(
+      id: user.id,
+      email: email,
+      firstName: _metadataString(metadata, 'first_name', 'firstName'),
+      lastName: _metadataString(metadata, 'last_name', 'lastName'),
+      role: _safeSelfRegisteredRole(metadata['role']),
+      createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now().toUtc(),
+    );
+  }
+
   /// Update user profile
   Future<UserModel> updateProfile({
     String? firstName,
@@ -435,7 +471,7 @@ class AuthRepository {
       if (profile == null) {
         throw Exception('Failed to fetch updated profile');
       }
-
+      await _cacheProfile(profile);
       return profile;
     } on PostgrestException catch (e) {
       throw _handlePostgrestException(e);
@@ -520,7 +556,10 @@ class AuthRepository {
   }) async {
     for (var attempt = 0; attempt < 5; attempt++) {
       final profile = await getCurrentUserProfile();
-      if (profile != null) return profile;
+      if (profile != null) {
+        await _cacheProfile(profile);
+        return profile;
+      }
       await Future.delayed(const Duration(milliseconds: 200));
     }
     throw Exception(
@@ -607,6 +646,41 @@ class AuthRepository {
 
   static String _safeSelfRegisteredRole(Object? role) =>
       role == 'instructor' ? 'instructor' : 'student';
+
+  static String? _metadataString(
+    Map<String, dynamic> metadata,
+    String snakeCaseKey,
+    String camelCaseKey,
+  ) {
+    final value = metadata[snakeCaseKey] ?? metadata[camelCaseKey];
+    return value is String && value.trim().isNotEmpty ? value.trim() : null;
+  }
+
+  Future<Box<dynamic>> _profileCacheBox() =>
+      Hive.openBox<dynamic>(_sessionProfileBox);
+
+  Future<void> _cacheProfile(UserModel profile) async {
+    final box = await _profileCacheBox();
+    await box.put(profile.id, profile.toJson());
+  }
+
+  Future<UserModel?> _readCachedProfile(String userId) async {
+    final box = await _profileCacheBox();
+    final raw = box.get(userId);
+    if (raw is! Map) return null;
+
+    try {
+      return UserModel.fromJson(Map<String, dynamic>.from(raw));
+    } catch (_) {
+      await box.delete(userId);
+      return null;
+    }
+  }
+
+  Future<void> _clearCachedProfile(String userId) async {
+    final box = await _profileCacheBox();
+    await box.delete(userId);
+  }
 
   Future<void> _markPendingRecovery(String userId) async {
     final box = await Hive.openBox<String>(_authFlowBox);

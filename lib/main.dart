@@ -124,7 +124,7 @@ class _BitClassAppState extends State<BitClassApp> {
       synchronize: _pushNotificationService.synchronize,
     );
     _pushAuthSubscription = _authBloc.stream.listen((state) {
-      if (state is AuthAuthenticated) {
+      if (state is AuthAuthenticated && !state.isOffline) {
         unawaited(
           _pushNotificationService
               .activateUser(userId: state.user.id, role: state.user.role)
