@@ -1069,7 +1069,7 @@ $$;
 create table if not exists public.files (
   id text primary key,
   course_id uuid not null references public.courses(id) on delete cascade,
-  lesson_id uuid references public.lessons(id) on delete set null,
+  lesson_id uuid references public.lessons(id) on delete restrict,
   uploader_id uuid not null references public.profiles(id) on delete cascade,
   uploader_name text not null,
   name text not null,
@@ -1510,3 +1510,96 @@ $$;
 revoke all on function public.unenroll_from_course(uuid) from public;
 revoke all on function public.unenroll_from_course(uuid) from anon;
 grant execute on function public.unenroll_from_course(uuid) to authenticated;
+
+-- Keep discussion author names and avatars synchronized with profiles.
+create or replace function private.discussion_profile_display_name(
+  profile_row public.profiles
+)
+returns text
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select coalesce(
+    nullif(trim(concat_ws(' ', profile_row.first_name, profile_row.last_name)), ''),
+    nullif(trim(profile_row.display_name), ''),
+    nullif(trim(profile_row.email), ''),
+    'User'
+  );
+$$;
+
+create or replace function private.set_discussion_author_profile()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  author_profile public.profiles;
+begin
+  select profile_row.*
+  into author_profile
+  from public.profiles profile_row
+  where profile_row.id = new.author_id;
+
+  if not found then
+    raise exception 'Discussion author profile was not found.';
+  end if;
+
+  new.author_name := private.discussion_profile_display_name(author_profile);
+  new.author_avatar_url := author_profile.avatar_url;
+  return new;
+end;
+$$;
+
+drop trigger if exists threads_set_author_profile on public.threads;
+create trigger threads_set_author_profile
+  before insert or update of author_id on public.threads
+  for each row
+  execute function private.set_discussion_author_profile();
+
+drop trigger if exists replies_set_author_profile on public.replies;
+create trigger replies_set_author_profile
+  before insert or update of author_id on public.replies
+  for each row
+  execute function private.set_discussion_author_profile();
+
+create or replace function private.sync_discussion_authors_from_profile()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  current_name text;
+begin
+  current_name := private.discussion_profile_display_name(new);
+
+  update public.threads
+  set
+    author_name = current_name,
+    author_avatar_url = new.avatar_url
+  where author_id = new.id
+    and (
+      author_name is distinct from current_name
+      or author_avatar_url is distinct from new.avatar_url
+    );
+
+  update public.replies
+  set
+    author_name = current_name,
+    author_avatar_url = new.avatar_url
+  where author_id = new.id
+    and (
+      author_name is distinct from current_name
+      or author_avatar_url is distinct from new.avatar_url
+    );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_sync_discussion_authors on public.profiles;
+create trigger profiles_sync_discussion_authors
+  after update of first_name, last_name, display_name, avatar_url
+  on public.profiles
+  for each row
+  execute function private.sync_discussion_authors_from_profile();

@@ -115,6 +115,15 @@ class AppRouter {
             ),
           ),
           GoRoute(
+            path: AppRoutes.offlineFiles,
+            name: 'offline-files',
+            pageBuilder: (context, state) => AppTransitions.fadeTransition(
+              context: context,
+              state: state,
+              child: const OfflineFilesScreen(),
+            ),
+          ),
+          GoRoute(
             path: AppRoutes.courses,
             name: 'courses',
             pageBuilder: (context, state) => AppTransitions.fadeTransition(

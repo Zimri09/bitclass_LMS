@@ -9,6 +9,7 @@ class LessonRepository {
   static const String _lessonsTable = 'lessons';
   static const String _lessonProgressTable = 'lesson_progress';
   static const String _enrollmentsTable = 'enrollments';
+  static const String _filesTable = 'files';
 
   final SupabaseClient? _supabase;
 
@@ -3147,11 +3148,78 @@ class _UploadWidgetState extends State<UploadWidget> {
       return;
     }
 
-    await _supabase!
+    final attachmentRows = await _supabase!
+        .from(_filesTable)
+        .select('id, bucket, storage_path')
+        .eq('course_id', courseId)
+        .eq('lesson_id', lessonId);
+    final attachments = (attachmentRows as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+
+    if (attachments.isNotEmpty) {
+      final pathsByBucket = <String, List<String>>{};
+      for (final attachment in attachments) {
+        final bucket = attachment['bucket'] as String?;
+        final storagePath = attachment['storage_path'] as String?;
+        if (bucket == null ||
+            bucket.isEmpty ||
+            storagePath == null ||
+            storagePath.isEmpty) {
+          throw Exception(
+            'An attached file has invalid storage information. '
+            'The lesson was not deleted.',
+          );
+        }
+        pathsByBucket.putIfAbsent(bucket, () => []).add(storagePath);
+      }
+
+      try {
+        for (final entry in pathsByBucket.entries) {
+          // Supabase Storage accepts at most 1,000 paths per remove request.
+          for (var start = 0; start < entry.value.length; start += 1000) {
+            final end = (start + 1000).clamp(0, entry.value.length);
+            await _supabase.storage
+                .from(entry.key)
+                .remove(entry.value.sublist(start, end));
+          }
+        }
+      } catch (error) {
+        throw Exception(
+          'Could not delete the attached files from storage. '
+          'The lesson was not deleted. Please try again. ($error)',
+        );
+      }
+
+      try {
+        final deletedFiles = await _supabase
+            .from(_filesTable)
+            .delete()
+            .eq('course_id', courseId)
+            .eq('lesson_id', lessonId)
+            .select('id');
+        if ((deletedFiles as List<dynamic>).length != attachments.length) {
+          throw Exception('Not all attached file records could be deleted.');
+        }
+      } catch (error) {
+        throw Exception(
+          'The files were removed from storage, but their records could not '
+          'be cleaned up. Please retry the lesson deletion. ($error)',
+        );
+      }
+    }
+
+    final deletedLessons = await _supabase
         .from(_lessonsTable)
         .delete()
         .eq('course_id', courseId)
-        .eq('id', lessonId);
+        .eq('id', lessonId)
+        .select('id');
+    if ((deletedLessons as List<dynamic>).isEmpty) {
+      throw Exception(
+        'The lesson could not be deleted. Check your instructor permissions '
+        'and try again.',
+      );
+    }
   }
 
   /// Toggle lesson publish status

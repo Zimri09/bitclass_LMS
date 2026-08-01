@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/discussion_repository.dart';
@@ -351,18 +352,7 @@ class _ThreadListViewState extends State<ThreadListView> {
               // Footer with author and stats
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                    child: Text(
-                      thread.authorName[0].toUpperCase(),
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  UserAvatar(radius: 12, imageUrl: thread.authorAvatarUrl),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

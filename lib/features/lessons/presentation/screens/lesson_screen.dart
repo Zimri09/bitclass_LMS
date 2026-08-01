@@ -35,6 +35,7 @@ class _LessonScreenState extends State<LessonScreen> {
   late Future<List<CourseFile>> _attachments;
   final ScrollController _scrollController = ScrollController();
   bool _canManageLesson = false;
+  List<String> _pendingDeletedAttachmentIds = const [];
 
   bool get _isInstructor {
     final authState = context.read<AuthBloc>().state;
@@ -135,9 +136,10 @@ class _LessonScreenState extends State<LessonScreen> {
             // Reload to update completion status
             _loadLesson();
           } else if (state is LessonDeleted) {
+            _removePendingOfflineCopies();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text('Lesson deleted.'),
+                content: const Text('Lesson and attached files deleted.'),
                 backgroundColor: AppColors.success,
               ),
             );
@@ -700,12 +702,28 @@ class _LessonScreenState extends State<LessonScreen> {
   }
 
   Future<void> _confirmDeleteLesson() async {
+    var attachmentCount = 0;
+    try {
+      final attachments = await _attachments;
+      attachmentCount = attachments.length;
+      _pendingDeletedAttachmentIds = attachments
+          .map((attachment) => attachment.id)
+          .toList(growable: false);
+    } catch (_) {
+      _pendingDeletedAttachmentIds = const [];
+    }
+    if (!mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete lesson?'),
-        content: const Text(
-          'This will permanently remove the lesson and its student progress.',
+        content: Text(
+          attachmentCount == 0
+              ? 'This will permanently remove the lesson and its student progress.'
+              : 'This will permanently remove the lesson, its student progress, '
+                    'and $attachmentCount attached ${attachmentCount == 1 ? 'file' : 'files'} '
+                    'from Supabase Storage.',
         ),
         actions: [
           TextButton(
@@ -726,6 +744,22 @@ class _LessonScreenState extends State<LessonScreen> {
         DeleteLesson(courseId: widget.courseId, lessonId: widget.lessonId),
       );
     }
+  }
+
+  Future<void> _removePendingOfflineCopies() async {
+    final userId = _currentUserId;
+    if (userId == null || _pendingDeletedAttachmentIds.isEmpty) return;
+
+    final repository = context.read<FileRepository>();
+    for (final fileId in _pendingDeletedAttachmentIds) {
+      try {
+        await repository.removeOfflineFile(userId: userId, fileId: fileId);
+      } catch (_) {
+        // Remote lesson deletion succeeded; stale local metadata is pruned
+        // automatically if its file is later missing.
+      }
+    }
+    _pendingDeletedAttachmentIds = const [];
   }
 
   Future<void> _setLessonCompletion(bool isCurrentlyCompleted) async {

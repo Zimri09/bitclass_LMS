@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/errors/app_error.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
@@ -432,17 +433,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
             // Author info
             Row(
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                  child: Text(
-                    thread.authorName[0].toUpperCase(),
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                UserAvatar(radius: 20, imageUrl: thread.authorAvatarUrl),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -647,21 +638,15 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
             // Header
             Row(
               children: [
-                CircleAvatar(
+                UserAvatar(
                   radius: 16,
-                  backgroundColor: isInstructor
+                  imageUrl: reply.authorAvatarUrl,
+                  fallbackColor: isInstructor
                       ? AppColors.warning.withValues(alpha: 0.2)
                       : AppColors.primary.withValues(alpha: 0.2),
-                  child: Text(
-                    reply.authorName[0].toUpperCase(),
-                    style: TextStyle(
-                      color: isInstructor
-                          ? AppColors.warning
-                          : AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
+                  fallbackIconColor: isInstructor
+                      ? AppColors.warning
+                      : AppColors.primary,
                 ),
                 const SizedBox(width: 10),
                 Expanded(

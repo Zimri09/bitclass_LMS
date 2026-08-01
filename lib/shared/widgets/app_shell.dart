@@ -483,6 +483,12 @@ class _AppShellState extends State<AppShell> {
         label: 'Todos',
         path: AppRoutes.todos,
       ),
+      _NavItem(
+        icon: Icons.download_for_offline_outlined,
+        activeIcon: Icons.download_for_offline,
+        label: 'Offline Files',
+        path: AppRoutes.offlineFiles,
+      ),
       if (isInstructor) ...[
         _NavItem(
           icon: Icons.add_box_outlined,
@@ -519,16 +525,12 @@ class _AppShellState extends State<AppShell> {
       ),
     ];
   }
-
 }
 
 class _AppShellDrawerScope extends InheritedWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
 
-  const _AppShellDrawerScope({
-    required this.scaffoldKey,
-    required super.child,
-  });
+  const _AppShellDrawerScope({required this.scaffoldKey, required super.child});
 
   @override
   bool updateShouldNotify(_AppShellDrawerScope oldWidget) =>

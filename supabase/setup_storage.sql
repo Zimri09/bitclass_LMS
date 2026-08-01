@@ -13,7 +13,7 @@
 create table if not exists public.files (
   id            text        primary key,
   course_id     uuid        not null references public.courses(id) on delete cascade,
-  lesson_id     uuid        references public.lessons(id) on delete set null,
+  lesson_id     uuid        references public.lessons(id) on delete restrict,
   uploader_id   uuid        not null references public.profiles(id) on delete cascade,
   uploader_name text        not null,
   name          text        not null,

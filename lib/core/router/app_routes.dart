@@ -15,6 +15,7 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String todos = '/todos';
   static const String profile = '/profile';
+  static const String offlineFiles = '/offline-files';
 
   // Course routes
   static const String courses = '/courses';
