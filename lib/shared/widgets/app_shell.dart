@@ -159,6 +159,10 @@ class _AppShellState extends State<AppShell> {
     }
     _backNavigation.reset();
     final currentPath = GoRouterState.of(context).matchedLocation;
+    if (destination == AppRoutes.dashboard) {
+      context.go(AppRoutes.dashboard);
+      return;
+    }
     if (currentPath == destination) return;
     context.push(destination);
   }
@@ -598,10 +602,10 @@ class _AppShellState extends State<AppShell> {
 
   /// Full list of nav items for sidebar / drawer
   List<_NavItem> _getAllNavItems(bool isInstructor, bool isOffline) {
-    final home = _NavItem(
+    final classes = _NavItem(
       icon: Icons.dashboard_outlined,
       activeIcon: Icons.dashboard,
-      label: 'Home',
+      label: 'Classes',
       path: AppRoutes.dashboard,
     );
     final offlineFiles = _NavItem(
@@ -610,10 +614,10 @@ class _AppShellState extends State<AppShell> {
       label: 'Offline Files',
       path: AppRoutes.offlineFiles,
     );
-    if (isOffline) return [home, offlineFiles];
+    if (isOffline) return [classes, offlineFiles];
 
     return [
-      home,
+      classes,
       _NavItem(
         icon: Icons.check_box_outline_blank,
         activeIcon: Icons.check_box,
