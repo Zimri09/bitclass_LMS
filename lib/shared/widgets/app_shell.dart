@@ -237,13 +237,28 @@ class _AppShellState extends State<AppShell> {
     required _NavItem item,
     required String currentPath,
   }) {
-    final isActive = _isDestinationActive(item, currentPath);
     final colors = AppColors.of(context);
+
+    if (item.isSectionHeader) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 12, top: 20, bottom: 8),
+        child: Text(
+          item.label,
+          style: AppTextStyles.caption.copyWith(
+            letterSpacing: 1,
+            fontWeight: FontWeight.w600,
+            color: colors.textMuted,
+          ),
+        ),
+      );
+    }
+
+    final isActive = _isDestinationActive(item, currentPath);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: isActive ? colors.surface : Colors.transparent,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () {
@@ -256,14 +271,6 @@ class _AppShellState extends State<AppShell> {
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: isActive
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border(
-                      left: BorderSide(color: AppColors.primary, width: 3),
-                    ),
-                  )
-                : null,
             child: Row(
               children: [
                 Icon(
@@ -503,7 +510,7 @@ class _AppShellState extends State<AppShell> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: isActive ? colors.surface : Colors.transparent,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () => _openDestination(context, destination: item.path),
@@ -513,14 +520,6 @@ class _AppShellState extends State<AppShell> {
               horizontal: expanded ? 12 : 0,
               vertical: 12,
             ),
-            decoration: isActive
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border(
-                      left: BorderSide(color: AppColors.primary, width: 3),
-                    ),
-                  )
-                : null,
             child: Row(
               mainAxisAlignment: expanded
                   ? MainAxisAlignment.start

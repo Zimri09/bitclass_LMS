@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bitclass/core/router/app_routes.dart';
+import 'package:bitclass/core/theme/app_colors.dart';
 import 'package:bitclass/features/auth/data/models/user_model.dart';
 import 'package:bitclass/features/auth/data/repositories/auth_repository.dart';
 import 'package:bitclass/features/auth/presentation/bloc/auth_bloc.dart';
@@ -60,6 +61,10 @@ void main() {
     await tester.tap(find.byTooltip('Open navigation'));
     await tester.pumpAndSettle();
     expect(find.text('Classes'), findsOneWidget);
+    expect(
+      find.ancestor(of: find.text('ACCOUNT'), matching: find.byType(InkWell)),
+      findsNothing,
+    );
     expect(find.byIcon(Icons.dashboard_outlined), findsOneWidget);
 
     await tester.tap(find.text('Classes'));
@@ -71,6 +76,10 @@ void main() {
     await tester.tap(find.byTooltip('Open navigation'));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.dashboard), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Classes')).style?.color,
+      AppColors.primary,
+    );
   });
 }
 
