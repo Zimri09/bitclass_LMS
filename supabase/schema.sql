@@ -1,3 +1,6 @@
+-- Fresh-database baseline only. Do not rerun this file on an existing project:
+-- named RLS policies and other objects below may already exist. See README.md.
+
 create extension if not exists pgcrypto;
 create extension if not exists pg_cron;
 

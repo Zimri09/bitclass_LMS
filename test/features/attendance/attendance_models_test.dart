@@ -10,6 +10,7 @@ void main() {
       opensAt: DateTime.utc(2026, 8, 3, 1),
       presentDeadline: DateTime.utc(2026, 8, 3, 1, 15),
       lateDeadline: DateTime.utc(2026, 8, 3, 1, 30),
+      closesAt: DateTime.utc(2026, 8, 3, 1, 45),
       createdBy: 'instructor-1',
       createdAt: DateTime.utc(2026, 8, 2),
     );
@@ -29,6 +30,10 @@ void main() {
       );
       expect(
         session.windowAt(DateTime.utc(2026, 8, 3, 1, 31)),
+        AttendanceWindow.checkInEnded,
+      );
+      expect(
+        session.windowAt(DateTime.utc(2026, 8, 3, 1, 45)),
         AttendanceWindow.closed,
       );
     });
@@ -37,6 +42,7 @@ void main() {
       expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 10)), isTrue);
       expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 20)), isTrue);
       expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 31)), isFalse);
+      expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 46)), isFalse);
     });
   });
 
@@ -73,6 +79,7 @@ void main() {
       DateTime? opensAt,
       DateTime? presentDeadline,
       DateTime? lateDeadline,
+      DateTime? closesAt,
       List<AttendanceSession> existingSessions = const [],
     }) {
       return validateAttendanceSessionSchedule(
@@ -80,6 +87,7 @@ void main() {
         opensAt: opensAt ?? DateTime(2026, 8, 2, 23, 41),
         presentDeadline: presentDeadline ?? DateTime(2026, 8, 2, 23, 56),
         lateDeadline: lateDeadline ?? DateTime(2026, 8, 3, 0, 11),
+        closesAt: closesAt ?? DateTime(2026, 8, 3, 0, 26),
         serverNow: serverNow,
         existingSessions: existingSessions,
       );
@@ -95,6 +103,7 @@ void main() {
         opensAt: DateTime(2026, 8, 1, 23, 41),
         presentDeadline: DateTime(2026, 8, 1, 23, 56),
         lateDeadline: DateTime(2026, 8, 2, 0, 11),
+        closesAt: DateTime(2026, 8, 2, 0, 26),
       );
 
       expect(result.dateError, 'Attendance date cannot be in the past.');
@@ -106,6 +115,7 @@ void main() {
         presentDeadline: DateTime(2026, 8, 2, 23, 41),
       );
       final invalidLate = validate(lateDeadline: DateTime(2026, 8, 2, 23, 56));
+      final invalidClose = validate(closesAt: DateTime(2026, 8, 3, 0, 11));
 
       expect(
         invalidPresent.presentDeadlineError,
@@ -114,6 +124,10 @@ void main() {
       expect(
         invalidLate.lateDeadlineError,
         'Late deadline must be after the Present deadline.',
+      );
+      expect(
+        invalidClose.closingError,
+        'Closing time must be after the Late deadline.',
       );
     });
 
@@ -125,6 +139,7 @@ void main() {
         opensAt: DateTime(2026, 8, 3, 9),
         presentDeadline: DateTime(2026, 8, 3, 9, 15),
         lateDeadline: DateTime(2026, 8, 3, 9, 30),
+        closesAt: DateTime(2026, 8, 3, 9, 45),
         createdBy: 'instructor-1',
         createdAt: serverNow,
       );
@@ -133,6 +148,7 @@ void main() {
         opensAt: DateTime(2026, 8, 3, 10),
         presentDeadline: DateTime(2026, 8, 3, 10, 15),
         lateDeadline: DateTime(2026, 8, 3, 10, 30),
+        closesAt: DateTime(2026, 8, 3, 10, 45),
         serverNow: serverNow,
         existingSessions: [existing],
       );
@@ -141,6 +157,7 @@ void main() {
         opensAt: DateTime(2026, 8, 2, 23, 50),
         presentDeadline: DateTime(2026, 8, 3, 0, 5),
         lateDeadline: DateTime(2026, 8, 3, 0, 20),
+        closesAt: DateTime(2026, 8, 3, 0, 35),
         existingSessions: [
           AttendanceSession(
             id: 'overnight',
@@ -149,6 +166,7 @@ void main() {
             opensAt: DateTime(2026, 8, 3, 0, 10),
             presentDeadline: DateTime(2026, 8, 3, 0, 20),
             lateDeadline: DateTime(2026, 8, 3, 0, 30),
+            closesAt: DateTime(2026, 8, 3, 0, 45),
             createdBy: 'instructor-1',
             createdAt: serverNow,
           ),
@@ -160,7 +178,7 @@ void main() {
         'An attendance session already exists for this date.',
       );
       expect(
-        overlapping.lateDeadlineError,
+        overlapping.closingError,
         'This attendance window overlaps an existing session.',
       );
     });

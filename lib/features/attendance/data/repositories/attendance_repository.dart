@@ -66,6 +66,7 @@ class AttendanceRepository {
     required DateTime opensAt,
     required DateTime presentDeadline,
     required DateTime lateDeadline,
+    required DateTime closesAt,
     required String creatorId,
     List<String> demoStudentIds = const [],
   }) async {
@@ -76,6 +77,7 @@ class AttendanceRepository {
         opensAt: opensAt,
         presentDeadline: presentDeadline,
         lateDeadline: lateDeadline,
+        closesAt: closesAt,
         serverNow: now,
         existingSessions: _demoSessions
             .where((session) => session.courseId == courseId)
@@ -91,6 +93,7 @@ class AttendanceRepository {
         opensAt: opensAt.toUtc(),
         presentDeadline: presentDeadline.toUtc(),
         lateDeadline: lateDeadline.toUtc(),
+        closesAt: closesAt.toUtc(),
         createdBy: creatorId,
         createdAt: now,
       );
@@ -123,6 +126,7 @@ class AttendanceRepository {
           'target_opens_at': opensAt.toUtc().toIso8601String(),
           'target_present_deadline': presentDeadline.toUtc().toIso8601String(),
           'target_late_deadline': lateDeadline.toUtc().toIso8601String(),
+          'target_closes_at': closesAt.toUtc().toIso8601String(),
         },
       );
     } on PostgrestException catch (error) {

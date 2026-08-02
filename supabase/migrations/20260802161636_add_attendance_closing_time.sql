@@ -1,8 +1,14 @@
--- =============================================================================
--- Harden attendance session creation with server-time and overlap validation.
--- Follow-up patch only: requires add_course_attendance.sql and harden_rls.sql.
--- Existing hosted projects should not rerun an already-recorded migration.
--- =============================================================================
+-- Add an explicit session close after the student check-in deadlines.
+
+alter table public.attendance_sessions
+  add column if not exists closes_at timestamptz;
+
+update public.attendance_sessions
+set closes_at = late_deadline + interval '1 minute'
+where closes_at is null;
+
+alter table public.attendance_sessions
+  alter column closes_at set not null;
 
 alter table public.attendance_sessions
   drop constraint if exists attendance_sessions_deadline_order;
@@ -14,7 +20,11 @@ alter table public.attendance_sessions
     and late_deadline < closes_at
   );
 
-create or replace function public.create_attendance_session(
+drop function if exists public.create_attendance_session(
+  uuid, date, timestamptz, timestamptz, timestamptz
+);
+
+create function public.create_attendance_session(
   target_course_id uuid,
   target_attendance_date date,
   target_opens_at timestamptz,
@@ -43,7 +53,6 @@ begin
     raise exception 'Only the course instructor can create attendance.';
   end if;
 
-  -- Serialize creation per course so concurrent requests cannot overlap.
   perform 1
   from public.courses
   where id = target_course_id
@@ -149,10 +158,108 @@ begin
 end;
 $$;
 
+create or replace function public.check_in_attendance(target_session_id uuid)
+returns table (
+  record_id uuid,
+  attendance_status text,
+  checked_in_at timestamptz,
+  server_time timestamptz
+)
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $$
+declare
+  actor_id uuid := (select auth.uid());
+  session_row public.attendance_sessions;
+  record_row public.attendance_records;
+  server_now timestamptz := clock_timestamp();
+  computed_status text;
+begin
+  if actor_id is null then
+    raise exception 'You must be signed in to check in.';
+  end if;
+
+  select * into session_row
+  from public.attendance_sessions
+  where id = target_session_id;
+
+  if not found then
+    raise exception 'Attendance session not found.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.enrollments
+    where course_id = session_row.course_id
+      and user_id = actor_id
+  ) then
+    raise exception 'You are not enrolled in this course.';
+  end if;
+
+  if server_now < session_row.opens_at then
+    raise exception 'Attendance is not open yet.';
+  end if;
+
+  if server_now > session_row.late_deadline then
+    if server_now >= session_row.closes_at then
+      raise exception 'Attendance session is closed.';
+    end if;
+    raise exception 'The check-in period has ended.';
+  end if;
+
+  insert into public.attendance_records (
+    course_id,
+    session_id,
+    student_id,
+    attendance_date,
+    status,
+    created_by,
+    last_modified_by
+  ) values (
+    session_row.course_id,
+    session_row.id,
+    actor_id,
+    session_row.attendance_date,
+    'absent',
+    session_row.created_by,
+    actor_id
+  )
+  on conflict (session_id, student_id) do nothing;
+
+  select * into record_row
+  from public.attendance_records
+  where session_id = target_session_id
+    and student_id = actor_id
+  for update;
+
+  if record_row.check_in_at is not null then
+    raise exception 'You have already checked in for this session.';
+  end if;
+
+  computed_status := case
+    when server_now <= session_row.present_deadline then 'present'
+    else 'late'
+  end;
+
+  update public.attendance_records
+  set
+    check_in_at = server_now,
+    status = computed_status,
+    last_modified_by = actor_id
+  where id = record_row.id;
+
+  return query
+  select record_row.id, computed_status, server_now, server_now;
+end;
+$$;
+
 revoke all on function public.create_attendance_session(
   uuid, date, timestamptz, timestamptz, timestamptz, timestamptz
 ) from public, anon;
+revoke all on function public.check_in_attendance(uuid) from public, anon;
 
 grant execute on function public.create_attendance_session(
   uuid, date, timestamptz, timestamptz, timestamptz, timestamptz
 ) to authenticated;
+grant execute on function public.check_in_attendance(uuid) to authenticated;
