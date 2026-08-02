@@ -12,6 +12,7 @@ import '../../../../shared/widgets/glow_card.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../assignments/presentation/screens/assignment_list_screen.dart';
+import '../../../attendance/presentation/screens/attendance_screen.dart';
 import '../../../discussions/presentation/screens/channel_list_screen.dart';
 import '../../../lessons/data/repositories/lesson_repository.dart';
 import '../../../lessons/presentation/widgets/course_syllabus_widget.dart';
@@ -131,6 +132,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
             label: 'Discussion',
           ),
           NavigationDestination(
+            icon: Icon(Icons.fact_check_outlined),
+            selectedIcon: Icon(Icons.fact_check),
+            label: 'Attendance',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.people_outline),
             selectedIcon: Icon(Icons.people),
             label: 'People',
@@ -206,6 +212,20 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
       );
     }
     if (widget.selectedTab == 3) {
+      if (authState is! AuthAuthenticated) {
+        return const BitClassLoader();
+      }
+      return SafeArea(
+        bottom: false,
+        child: AttendanceScreen(
+          course: course,
+          isCourseOwner: isOwnCourse,
+          currentUserId: authState.user.id,
+          courseMenu: studentCourseMenu,
+        ),
+      );
+    }
+    if (widget.selectedTab == 4) {
       return SafeArea(
         bottom: false,
         child: _CoursePeopleTab(course: course, courseMenu: studentCourseMenu),

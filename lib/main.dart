@@ -14,6 +14,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
 import 'features/assignments/data/repositories/assignment_repository.dart';
+import 'features/attendance/data/repositories/attendance_repository.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/courses/data/repositories/course_repository.dart';
@@ -81,6 +82,7 @@ class BitClassApp extends StatefulWidget {
 
 class _BitClassAppState extends State<BitClassApp> {
   late final AuthRepository _authRepository;
+  late final AttendanceRepository _attendanceRepository;
   late final CourseRepository _courseRepository;
   late final LessonRepository _lessonRepository;
   late final QuizRepository _quizRepository;
@@ -99,6 +101,7 @@ class _BitClassAppState extends State<BitClassApp> {
   void initState() {
     super.initState();
     _authRepository = AuthRepository();
+    _attendanceRepository = AttendanceRepository();
     _courseRepository = CourseRepository();
     _lessonRepository = LessonRepository();
     _quizRepository = QuizRepository();
@@ -163,6 +166,9 @@ class _BitClassAppState extends State<BitClassApp> {
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>.value(value: _authRepository),
+        RepositoryProvider<AttendanceRepository>.value(
+          value: _attendanceRepository,
+        ),
         RepositoryProvider<CourseRepository>.value(value: _courseRepository),
         RepositoryProvider<LessonRepository>.value(value: _lessonRepository),
         RepositoryProvider<QuizRepository>.value(value: _quizRepository),
