@@ -759,7 +759,7 @@ class _FieldError extends StatelessWidget {
   }
 }
 
-class _AllowedTimePickerSheet extends StatelessWidget {
+class _AllowedTimePickerSheet extends StatefulWidget {
   final String title;
   final DateTime current;
   final DateTime minimum;
@@ -775,17 +775,84 @@ class _AllowedTimePickerSheet extends StatelessWidget {
   });
 
   @override
+  State<_AllowedTimePickerSheet> createState() =>
+      _AllowedTimePickerSheetState();
+}
+
+class _AllowedTimePickerSheetState extends State<_AllowedTimePickerSheet> {
+  String? _quickEntryError;
+
+  Future<void> _typeTime() async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(widget.current),
+      initialEntryMode: TimePickerEntryMode.inputOnly,
+      helpText: 'Type ${widget.title.toLowerCase()}',
+      confirmText: 'Use time',
+    );
+    if (selected == null || !mounted) return;
+
+    final candidates = _typedTimeCandidates(selected);
+    if (candidates.isEmpty) {
+      setState(() {
+        _quickEntryError =
+            'Enter a time between '
+            '${_formatAttendanceTime(widget.minimum, widget.attendanceDate)} '
+            'and ${_formatAttendanceTime(widget.maximum, widget.attendanceDate)}.';
+      });
+      return;
+    }
+
+    candidates.sort((first, second) {
+      final firstDistance = first.difference(widget.current).abs();
+      final secondDistance = second.difference(widget.current).abs();
+      return firstDistance.compareTo(secondDistance);
+    });
+    Navigator.of(context).pop(candidates.first);
+  }
+
+  List<DateTime> _typedTimeCandidates(TimeOfDay selected) {
+    final candidates = <DateTime>[];
+    var day = DateTime(
+      widget.minimum.year,
+      widget.minimum.month,
+      widget.minimum.day,
+    );
+    final lastDay = DateTime(
+      widget.maximum.year,
+      widget.maximum.month,
+      widget.maximum.day,
+    );
+
+    while (!day.isAfter(lastDay)) {
+      final candidate = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        selected.hour,
+        selected.minute,
+      );
+      if (!candidate.isBefore(widget.minimum) &&
+          !candidate.isAfter(widget.maximum)) {
+        candidates.add(candidate);
+      }
+      day = day.add(const Duration(days: 1));
+    }
+    return candidates;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final first = DateTime(
-      minimum.year,
-      minimum.month,
-      minimum.day,
-      minimum.hour,
-      minimum.minute,
+      widget.minimum.year,
+      widget.minimum.month,
+      widget.minimum.day,
+      widget.minimum.hour,
+      widget.minimum.minute,
     );
-    final count = maximum.isBefore(first)
+    final count = widget.maximum.isBefore(first)
         ? 0
-        : maximum.difference(first).inMinutes + 1;
+        : widget.maximum.difference(first).inMinutes + 1;
 
     return SafeArea(
       child: SizedBox(
@@ -795,17 +862,33 @@ class _AllowedTimePickerSheet extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-              child: Text(title, style: AppTextStyles.h4),
+              child: Text(widget.title, style: AppTextStyles.h4),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Text(
-                'Only valid times are shown. Deadlines may continue into the next day.',
+                'Type a time for faster entry, or choose from the valid list below. Times may continue into the next day.',
                 style: AppTextStyles.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _typeTime,
+                  icon: const Icon(Icons.keyboard_alt_outlined),
+                  label: const Text('Type time'),
+                ),
+              ),
+            ),
+            if (_quickEntryError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: _FieldError(_quickEntryError!),
+              ),
             const Divider(height: 1),
             Expanded(
               child: count == 0
@@ -815,14 +898,14 @@ class _AllowedTimePickerSheet extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final value = first.add(Duration(minutes: index));
                         final selected =
-                            value.year == current.year &&
-                            value.month == current.month &&
-                            value.day == current.day &&
-                            value.hour == current.hour &&
-                            value.minute == current.minute;
+                            value.year == widget.current.year &&
+                            value.month == widget.current.month &&
+                            value.day == widget.current.day &&
+                            value.hour == widget.current.hour &&
+                            value.minute == widget.current.minute;
                         return ListTile(
                           title: Text(
-                            _formatAttendanceTime(value, attendanceDate),
+                            _formatAttendanceTime(value, widget.attendanceDate),
                           ),
                           trailing: selected
                               ? const Icon(
