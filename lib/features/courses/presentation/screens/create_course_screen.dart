@@ -585,28 +585,6 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                               ),
                               const SizedBox(height: 20),
 
-                              // Category
-                              Text('Category', style: AppTextStyles.label),
-                              const SizedBox(height: 8),
-                              DropdownButtonFormField<String>(
-                                initialValue: _selectedCategory,
-                                decoration: const InputDecoration(
-                                  prefixIcon: Icon(Icons.category_outlined),
-                                ),
-                                items: AppConstants.courseCategories.map((cat) {
-                                  return DropdownMenuItem(
-                                    value: cat,
-                                    child: Text(cat),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() => _selectedCategory = value);
-                                  }
-                                },
-                              ),
-                              const SizedBox(height: 20),
-
                               // Program
                               TextFormField(
                                 controller: _descriptionController,
