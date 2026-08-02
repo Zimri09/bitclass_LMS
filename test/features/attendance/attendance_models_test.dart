@@ -8,8 +8,7 @@ void main() {
       courseId: 'course-1',
       attendanceDate: DateTime.utc(2026, 8, 3),
       opensAt: DateTime.utc(2026, 8, 3, 1),
-      presentDeadline: DateTime.utc(2026, 8, 3, 1, 15),
-      lateDeadline: DateTime.utc(2026, 8, 3, 1, 30),
+      lateAt: DateTime.utc(2026, 8, 3, 1, 15),
       closesAt: DateTime.utc(2026, 8, 3, 1, 45),
       createdBy: 'instructor-1',
       createdAt: DateTime.utc(2026, 8, 2),
@@ -21,16 +20,16 @@ void main() {
         AttendanceWindow.upcoming,
       );
       expect(
-        session.windowAt(DateTime.utc(2026, 8, 3, 1, 15)),
+        session.windowAt(DateTime.utc(2026, 8, 3, 1, 14, 59)),
         AttendanceWindow.present,
       );
       expect(
-        session.windowAt(DateTime.utc(2026, 8, 3, 1, 16)),
+        session.windowAt(DateTime.utc(2026, 8, 3, 1, 15)),
         AttendanceWindow.late,
       );
       expect(
-        session.windowAt(DateTime.utc(2026, 8, 3, 1, 31)),
-        AttendanceWindow.checkInEnded,
+        session.windowAt(DateTime.utc(2026, 8, 3, 1, 44, 59)),
+        AttendanceWindow.late,
       );
       expect(
         session.windowAt(DateTime.utc(2026, 8, 3, 1, 45)),
@@ -41,8 +40,8 @@ void main() {
     test('allows check-in only during present and late windows', () {
       expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 10)), isTrue);
       expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 20)), isTrue);
-      expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 31)), isFalse);
-      expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 46)), isFalse);
+      expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 44)), isTrue);
+      expect(session.isCheckInOpenAt(DateTime.utc(2026, 8, 3, 1, 45)), isFalse);
     });
   });
 
@@ -77,16 +76,14 @@ void main() {
     AttendanceSessionValidation validate({
       DateTime? date,
       DateTime? opensAt,
-      DateTime? presentDeadline,
-      DateTime? lateDeadline,
+      DateTime? lateAt,
       DateTime? closesAt,
       List<AttendanceSession> existingSessions = const [],
     }) {
       return validateAttendanceSessionSchedule(
         attendanceDate: date ?? DateTime(2026, 8, 2),
         opensAt: opensAt ?? DateTime(2026, 8, 2, 23, 41),
-        presentDeadline: presentDeadline ?? DateTime(2026, 8, 2, 23, 56),
-        lateDeadline: lateDeadline ?? DateTime(2026, 8, 3, 0, 11),
+        lateAt: lateAt ?? DateTime(2026, 8, 2, 23, 56),
         closesAt: closesAt ?? DateTime(2026, 8, 3, 0, 26),
         serverNow: serverNow,
         existingSessions: existingSessions,
@@ -101,8 +98,7 @@ void main() {
       final result = validate(
         date: DateTime(2026, 8, 1),
         opensAt: DateTime(2026, 8, 1, 23, 41),
-        presentDeadline: DateTime(2026, 8, 1, 23, 56),
-        lateDeadline: DateTime(2026, 8, 2, 0, 11),
+        lateAt: DateTime(2026, 8, 1, 23, 56),
         closesAt: DateTime(2026, 8, 2, 0, 26),
       );
 
@@ -110,24 +106,17 @@ void main() {
       expect(result.openingError, 'Opening time cannot be in the past.');
     });
 
-    test('requires strict present and late deadline ordering', () {
-      final invalidPresent = validate(
-        presentDeadline: DateTime(2026, 8, 2, 23, 41),
-      );
-      final invalidLate = validate(lateDeadline: DateTime(2026, 8, 2, 23, 56));
-      final invalidClose = validate(closesAt: DateTime(2026, 8, 3, 0, 11));
+    test('requires strict opening, late, and closing ordering', () {
+      final invalidLate = validate(lateAt: DateTime(2026, 8, 2, 23, 41));
+      final invalidClose = validate(closesAt: DateTime(2026, 8, 2, 23, 56));
 
       expect(
-        invalidPresent.presentDeadlineError,
-        'Present deadline must be after the opening time.',
-      );
-      expect(
-        invalidLate.lateDeadlineError,
-        'Late deadline must be after the Present deadline.',
+        invalidLate.lateTimeError,
+        'Late time must be after the opening time.',
       );
       expect(
         invalidClose.closingError,
-        'Closing time must be after the Late deadline.',
+        'Closing time must be after the Late time.',
       );
     });
 
@@ -137,8 +126,7 @@ void main() {
         courseId: 'course-1',
         attendanceDate: DateTime(2026, 8, 3),
         opensAt: DateTime(2026, 8, 3, 9),
-        presentDeadline: DateTime(2026, 8, 3, 9, 15),
-        lateDeadline: DateTime(2026, 8, 3, 9, 30),
+        lateAt: DateTime(2026, 8, 3, 9, 15),
         closesAt: DateTime(2026, 8, 3, 9, 45),
         createdBy: 'instructor-1',
         createdAt: serverNow,
@@ -146,8 +134,7 @@ void main() {
       final duplicate = validateAttendanceSessionSchedule(
         attendanceDate: DateTime(2026, 8, 3),
         opensAt: DateTime(2026, 8, 3, 10),
-        presentDeadline: DateTime(2026, 8, 3, 10, 15),
-        lateDeadline: DateTime(2026, 8, 3, 10, 30),
+        lateAt: DateTime(2026, 8, 3, 10, 15),
         closesAt: DateTime(2026, 8, 3, 10, 45),
         serverNow: serverNow,
         existingSessions: [existing],
@@ -155,8 +142,7 @@ void main() {
       final overlapping = validate(
         date: DateTime(2026, 8, 2),
         opensAt: DateTime(2026, 8, 2, 23, 50),
-        presentDeadline: DateTime(2026, 8, 3, 0, 5),
-        lateDeadline: DateTime(2026, 8, 3, 0, 20),
+        lateAt: DateTime(2026, 8, 3, 0, 5),
         closesAt: DateTime(2026, 8, 3, 0, 35),
         existingSessions: [
           AttendanceSession(
@@ -164,8 +150,7 @@ void main() {
             courseId: 'course-1',
             attendanceDate: DateTime(2026, 8, 1),
             opensAt: DateTime(2026, 8, 3, 0, 10),
-            presentDeadline: DateTime(2026, 8, 3, 0, 20),
-            lateDeadline: DateTime(2026, 8, 3, 0, 30),
+            lateAt: DateTime(2026, 8, 3, 0, 20),
             closesAt: DateTime(2026, 8, 3, 0, 45),
             createdBy: 'instructor-1',
             createdAt: serverNow,

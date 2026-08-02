@@ -8,16 +8,14 @@ create table if not exists public.attendance_sessions (
   course_id uuid not null references public.courses(id) on delete cascade,
   attendance_date date not null,
   opens_at timestamptz not null,
-  present_deadline timestamptz not null,
-  late_deadline timestamptz not null,
+  late_at timestamptz not null,
   closes_at timestamptz not null,
   created_by uuid not null references public.profiles(id) on delete cascade,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
-  constraint attendance_sessions_deadline_order check (
-    opens_at < present_deadline
-    and present_deadline < late_deadline
-    and late_deadline < closes_at
+  constraint attendance_sessions_time_order check (
+    opens_at < late_at
+    and late_at < closes_at
   ),
   constraint attendance_sessions_course_date_unique
     unique (course_id, attendance_date)
@@ -157,9 +155,8 @@ create or replace function public.create_attendance_session(
   target_course_id uuid,
   target_attendance_date date,
   target_opens_at timestamptz,
-  target_present_deadline timestamptz,
-  target_late_deadline timestamptz,
-  target_closes_at timestamptz default null
+  target_late_at timestamptz,
+  target_closes_at timestamptz
 )
 returns uuid
 language plpgsql
@@ -171,8 +168,6 @@ declare
   created_session_id uuid;
   server_now timestamptz := clock_timestamp();
   server_date date := (server_now at time zone 'Asia/Manila')::date;
-  effective_closes_at timestamptz :=
-    coalesce(target_closes_at, target_late_deadline + interval '1 minute');
 begin
   if actor_id is null then
     raise exception 'You must be signed in to create attendance.';
@@ -194,9 +189,8 @@ begin
 
   if target_attendance_date is null
      or target_opens_at is null
-     or target_present_deadline is null
-     or target_late_deadline is null
-     or effective_closes_at is null then
+     or target_late_at is null
+     or target_closes_at is null then
     raise exception 'Attendance date and all session times are required.';
   end if;
 
@@ -213,16 +207,12 @@ begin
     raise exception 'Opening time cannot be in the past.';
   end if;
 
-  if target_present_deadline <= target_opens_at then
-    raise exception 'Present deadline must be after the opening time.';
+  if target_late_at <= target_opens_at then
+    raise exception 'Late time must be after the opening time.';
   end if;
 
-  if target_late_deadline <= target_present_deadline then
-    raise exception 'Late deadline must be after the Present deadline.';
-  end if;
-
-  if effective_closes_at <= target_late_deadline then
-    raise exception 'Closing time must be after the Late deadline.';
+  if target_closes_at <= target_late_at then
+    raise exception 'Closing time must be after the Late time.';
   end if;
 
   if exists (
@@ -238,8 +228,8 @@ begin
     select 1
     from public.attendance_sessions
     where course_id = target_course_id
-      and tstzrange(opens_at, closes_at, '[]') &&
-          tstzrange(target_opens_at, effective_closes_at, '[]')
+      and tstzrange(opens_at, closes_at, '[)') &&
+          tstzrange(target_opens_at, target_closes_at, '[)')
   ) then
     raise exception 'This attendance window overlaps an existing session.';
   end if;
@@ -248,17 +238,15 @@ begin
     course_id,
     attendance_date,
     opens_at,
-    present_deadline,
-    late_deadline,
+    late_at,
     closes_at,
     created_by
   ) values (
     target_course_id,
     target_attendance_date,
     target_opens_at,
-    target_present_deadline,
-    target_late_deadline,
-    effective_closes_at,
+    target_late_at,
+    target_closes_at,
     actor_id
   )
   returning id into created_session_id;
@@ -331,11 +319,8 @@ begin
     raise exception 'Attendance is not open yet.';
   end if;
 
-  if server_now > session_row.late_deadline then
-    if server_now >= session_row.closes_at then
-      raise exception 'Attendance session is closed.';
-    end if;
-    raise exception 'The check-in period has ended.';
+  if server_now >= session_row.closes_at then
+    raise exception 'Attendance session is closed.';
   end if;
 
   insert into public.attendance_records (
@@ -368,7 +353,7 @@ begin
   end if;
 
   computed_status := case
-    when server_now <= session_row.present_deadline then 'present'
+    when server_now < session_row.late_at then 'present'
     else 'late'
   end;
 
@@ -464,7 +449,7 @@ begin
     session.created_by
   from public.attendance_sessions as session
   where session.course_id = new.course_id
-    and session.late_deadline >= clock_timestamp()
+    and session.closes_at > clock_timestamp()
   on conflict (session_id, student_id) do nothing;
   return new;
 end;
@@ -520,14 +505,14 @@ grant select on table public.attendance_records to authenticated;
 grant select on table public.attendance_record_changes to authenticated;
 
 revoke all on function public.create_attendance_session(
-  uuid, date, timestamptz, timestamptz, timestamptz, timestamptz
+  uuid, date, timestamptz, timestamptz, timestamptz
 ) from public, anon;
 revoke all on function public.check_in_attendance(uuid) from public, anon;
 revoke all on function public.update_attendance_record(uuid, text, text)
   from public, anon;
 revoke all on function public.attendance_server_now() from public, anon;
 grant execute on function public.create_attendance_session(
-  uuid, date, timestamptz, timestamptz, timestamptz, timestamptz
+  uuid, date, timestamptz, timestamptz, timestamptz
 ) to authenticated;
 grant execute on function public.check_in_attendance(uuid) to authenticated;
 grant execute on function public.update_attendance_record(uuid, text, text)

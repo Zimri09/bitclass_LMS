@@ -64,8 +64,7 @@ class AttendanceRepository {
     required String courseId,
     required DateTime attendanceDate,
     required DateTime opensAt,
-    required DateTime presentDeadline,
-    required DateTime lateDeadline,
+    required DateTime lateAt,
     required DateTime closesAt,
     required String creatorId,
     List<String> demoStudentIds = const [],
@@ -75,8 +74,7 @@ class AttendanceRepository {
       final validation = validateAttendanceSessionSchedule(
         attendanceDate: attendanceDate,
         opensAt: opensAt,
-        presentDeadline: presentDeadline,
-        lateDeadline: lateDeadline,
+        lateAt: lateAt,
         closesAt: closesAt,
         serverNow: now,
         existingSessions: _demoSessions
@@ -91,8 +89,7 @@ class AttendanceRepository {
         courseId: courseId,
         attendanceDate: attendanceDate,
         opensAt: opensAt.toUtc(),
-        presentDeadline: presentDeadline.toUtc(),
-        lateDeadline: lateDeadline.toUtc(),
+        lateAt: lateAt.toUtc(),
         closesAt: closesAt.toUtc(),
         createdBy: creatorId,
         createdAt: now,
@@ -124,8 +121,7 @@ class AttendanceRepository {
           'target_course_id': courseId,
           'target_attendance_date': _dateOnly(attendanceDate),
           'target_opens_at': opensAt.toUtc().toIso8601String(),
-          'target_present_deadline': presentDeadline.toUtc().toIso8601String(),
-          'target_late_deadline': lateDeadline.toUtc().toIso8601String(),
+          'target_late_at': lateAt.toUtc().toIso8601String(),
           'target_closes_at': closesAt.toUtc().toIso8601String(),
         },
       );
@@ -155,7 +151,7 @@ class AttendanceRepository {
               : 'Attendance is already closed.',
         );
       }
-      final status = now.isAfter(session.presentDeadline)
+      final status = !now.isBefore(session.lateAt)
           ? AttendanceStatus.late
           : AttendanceStatus.present;
       _demoRecords[index] = _demoRecords[index].copyWith(

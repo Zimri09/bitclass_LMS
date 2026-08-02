@@ -149,8 +149,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         courseId: widget.course.id,
         attendanceDate: request.attendanceDate,
         opensAt: request.opensAt,
-        presentDeadline: request.presentDeadline,
-        lateDeadline: request.lateDeadline,
+        lateAt: request.lateAt,
         closesAt: request.closesAt,
         creatorId: widget.currentUserId,
         demoStudentIds: _roster.map((student) => student.userId).toList(),
@@ -458,7 +457,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       ? 'Checked in'
                       : switch (window) {
                           AttendanceWindow.upcoming => 'Not open yet',
-                          AttendanceWindow.checkInEnded => 'Check-in ended',
                           AttendanceWindow.closed => 'Attendance closed',
                           _ => 'Check In',
                         },
@@ -475,15 +473,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 class _NewAttendanceSession {
   final DateTime attendanceDate;
   final DateTime opensAt;
-  final DateTime presentDeadline;
-  final DateTime lateDeadline;
+  final DateTime lateAt;
   final DateTime closesAt;
 
   const _NewAttendanceSession({
     required this.attendanceDate,
     required this.opensAt,
-    required this.presentDeadline,
-    required this.lateDeadline,
+    required this.lateAt,
     required this.closesAt,
   });
 }
@@ -507,8 +503,7 @@ class _CreateAttendanceSessionDialogState
   final Stopwatch _serverClock = Stopwatch();
   late DateTime _date;
   late DateTime _opensAt;
-  late DateTime _presentDeadline;
-  late DateTime _lateDeadline;
+  late DateTime _lateAt;
   late DateTime _closesAt;
   bool _showValidationErrors = false;
 
@@ -518,9 +513,8 @@ class _CreateAttendanceSessionDialogState
     _serverClock.start();
     _opensAt = _ceilToMinute(widget.serverTime.toLocal());
     _date = _dateOnly(_opensAt);
-    _presentDeadline = _opensAt.add(const Duration(minutes: 15));
-    _lateDeadline = _presentDeadline.add(const Duration(minutes: 15));
-    _closesAt = _lateDeadline.add(const Duration(minutes: 15));
+    _lateAt = _opensAt.add(const Duration(minutes: 15));
+    _closesAt = _lateAt.add(const Duration(minutes: 15));
   }
 
   @override
@@ -536,8 +530,7 @@ class _CreateAttendanceSessionDialogState
       validateAttendanceSessionSchedule(
         attendanceDate: _date,
         opensAt: _opensAt,
-        presentDeadline: _presentDeadline,
-        lateDeadline: _lateDeadline,
+        lateAt: _lateAt,
         closesAt: _closesAt,
         serverNow: _serverNow,
         existingSessions: widget.existingSessions,
@@ -576,25 +569,21 @@ class _CreateAttendanceSessionDialogState
 
     final dayShift = selected.difference(_date).inDays;
     var opensAt = _opensAt.add(Duration(days: dayShift));
-    var presentDeadline = _presentDeadline.add(Duration(days: dayShift));
-    var lateDeadline = _lateDeadline.add(Duration(days: dayShift));
+    var lateAt = _lateAt.add(Duration(days: dayShift));
     var closesAt = _closesAt.add(Duration(days: dayShift));
     final earliestOpening = _laterOf(selected, _ceilToMinute(_serverNow));
     if (opensAt.isBefore(earliestOpening)) {
-      final presentDuration = _presentDeadline.difference(_opensAt);
-      final lateDuration = _lateDeadline.difference(_presentDeadline);
-      final closingDuration = _closesAt.difference(_lateDeadline);
+      final lateDuration = _lateAt.difference(_opensAt);
+      final closingDuration = _closesAt.difference(_lateAt);
       opensAt = earliestOpening;
-      presentDeadline = opensAt.add(presentDuration);
-      lateDeadline = presentDeadline.add(lateDuration);
-      closesAt = lateDeadline.add(closingDuration);
+      lateAt = opensAt.add(lateDuration);
+      closesAt = lateAt.add(closingDuration);
     }
 
     setState(() {
       _date = selected;
       _opensAt = opensAt;
-      _presentDeadline = presentDeadline;
-      _lateDeadline = lateDeadline;
+      _lateAt = lateAt;
       _closesAt = closesAt;
     });
   }
@@ -629,8 +618,7 @@ class _CreateAttendanceSessionDialogState
       _NewAttendanceSession(
         attendanceDate: _date,
         opensAt: _opensAt,
-        presentDeadline: _presentDeadline,
-        lateDeadline: _lateDeadline,
+        lateAt: _lateAt,
         closesAt: _closesAt,
       ),
     );
@@ -676,33 +664,18 @@ class _CreateAttendanceSessionDialogState
               ),
             ),
             _TimePickerTile(
-              label: 'Present deadline',
-              value: _presentDeadline,
+              label: 'Late time',
+              value: _lateAt,
               attendanceDate: _date,
               errorText: _showValidationErrors
-                  ? validation.presentDeadlineError
+                  ? validation.lateTimeError
                   : null,
               onTap: () => _pickTime(
-                title: 'Present deadline',
-                current: _presentDeadline,
+                title: 'Late time',
+                current: _lateAt,
                 minimum: _opensAt.add(const Duration(minutes: 1)),
                 maximum: _opensAt.add(const Duration(days: 1)),
-                onSelected: (value) => _presentDeadline = value,
-              ),
-            ),
-            _TimePickerTile(
-              label: 'Late deadline',
-              value: _lateDeadline,
-              attendanceDate: _date,
-              errorText: _showValidationErrors
-                  ? validation.lateDeadlineError
-                  : null,
-              onTap: () => _pickTime(
-                title: 'Late deadline',
-                current: _lateDeadline,
-                minimum: _presentDeadline.add(const Duration(minutes: 1)),
-                maximum: _presentDeadline.add(const Duration(days: 1)),
-                onSelected: (value) => _lateDeadline = value,
+                onSelected: (value) => _lateAt = value,
               ),
             ),
             _TimePickerTile(
@@ -713,8 +686,8 @@ class _CreateAttendanceSessionDialogState
               onTap: () => _pickTime(
                 title: 'Closing time',
                 current: _closesAt,
-                minimum: _lateDeadline.add(const Duration(minutes: 1)),
-                maximum: _lateDeadline.add(const Duration(days: 1)),
+                minimum: _lateAt.add(const Duration(minutes: 1)),
+                maximum: _lateAt.add(const Duration(days: 1)),
                 onSelected: (value) => _closesAt = value,
               ),
             ),
@@ -1121,8 +1094,7 @@ class _SessionTimeline extends StatelessWidget {
       runSpacing: 4,
       children: [
         Text('Opens ${format.format(session.opensAt.toLocal())}'),
-        Text('Present by ${format.format(session.presentDeadline.toLocal())}'),
-        Text('Late by ${format.format(session.lateDeadline.toLocal())}'),
+        Text('Late from ${format.format(session.lateAt.toLocal())}'),
         Text('Closes ${format.format(session.closesAt.toLocal())}'),
       ],
     );
@@ -1138,9 +1110,8 @@ class _WindowChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (window) {
       AttendanceWindow.upcoming => ('Upcoming', AppColors.info),
-      AttendanceWindow.present => ('Open', AppColors.success),
+      AttendanceWindow.present => ('Present window', AppColors.success),
       AttendanceWindow.late => ('Late window', AppColors.warning),
-      AttendanceWindow.checkInEnded => ('Check-in ended', AppColors.error),
       AttendanceWindow.closed => ('Closed', AppColors.textMuted),
     };
     return Chip(

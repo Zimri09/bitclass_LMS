@@ -19,9 +19,10 @@ The attendance migrations already installed on the BitClass project are:
 2. `optimize_course_attendance_indexes`
 3. `harden_attendance_session_creation`
 4. `add_attendance_closing_time`
+5. `simplify_attendance_windows`
 
 `harden_attendance_session_creation.sql` and
-`add_attendance_closing_time.sql` are follow-up patches. They require the
+the timestamped attendance migrations are follow-up patches. They require the
 attendance tables from `add_course_attendance.sql` and the authorization helpers
 from `harden_rls.sql`. Do not run them by themselves on an empty database.
 

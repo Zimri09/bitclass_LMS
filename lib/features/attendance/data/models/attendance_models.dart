@@ -16,43 +16,35 @@ enum AttendanceStatus {
   String get label => name[0].toUpperCase() + name.substring(1);
 }
 
-enum AttendanceWindow { upcoming, present, late, checkInEnded, closed }
+enum AttendanceWindow { upcoming, present, late, closed }
 
 class AttendanceSessionValidation {
   final String? dateError;
   final String? openingError;
-  final String? presentDeadlineError;
-  final String? lateDeadlineError;
+  final String? lateTimeError;
   final String? closingError;
 
   const AttendanceSessionValidation({
     this.dateError,
     this.openingError,
-    this.presentDeadlineError,
-    this.lateDeadlineError,
+    this.lateTimeError,
     this.closingError,
   });
 
   bool get isValid =>
       dateError == null &&
       openingError == null &&
-      presentDeadlineError == null &&
-      lateDeadlineError == null &&
+      lateTimeError == null &&
       closingError == null;
 
   String? get firstError =>
-      dateError ??
-      openingError ??
-      presentDeadlineError ??
-      lateDeadlineError ??
-      closingError;
+      dateError ?? openingError ?? lateTimeError ?? closingError;
 }
 
 AttendanceSessionValidation validateAttendanceSessionSchedule({
   required DateTime? attendanceDate,
   required DateTime? opensAt,
-  required DateTime? presentDeadline,
-  required DateTime? lateDeadline,
+  required DateTime? lateAt,
   required DateTime? closesAt,
   required DateTime serverNow,
   List<AttendanceSession> existingSessions = const [],
@@ -60,15 +52,13 @@ AttendanceSessionValidation validateAttendanceSessionSchedule({
   final localNow = serverNow.toLocal();
   final localDate = attendanceDate?.toLocal();
   final localOpensAt = opensAt?.toLocal();
-  final localPresentDeadline = presentDeadline?.toLocal();
-  final localLateDeadline = lateDeadline?.toLocal();
+  final localLateAt = lateAt?.toLocal();
   final localClosesAt = closesAt?.toLocal();
   final today = DateTime(localNow.year, localNow.month, localNow.day);
 
   String? dateError;
   String? openingError;
-  String? presentDeadlineError;
-  String? lateDeadlineError;
+  String? lateTimeError;
   String? closingError;
 
   if (localDate == null) {
@@ -109,37 +99,27 @@ AttendanceSessionValidation validateAttendanceSessionSchedule({
     }
   }
 
-  if (localPresentDeadline == null) {
-    presentDeadlineError = 'Present deadline is required.';
-  } else if (localOpensAt != null &&
-      !localPresentDeadline.isAfter(localOpensAt)) {
-    presentDeadlineError = 'Present deadline must be after the opening time.';
-  }
-
-  if (localLateDeadline == null) {
-    lateDeadlineError = 'Late deadline is required.';
-  } else if (localPresentDeadline != null &&
-      !localLateDeadline.isAfter(localPresentDeadline)) {
-    lateDeadlineError = 'Late deadline must be after the Present deadline.';
+  if (localLateAt == null) {
+    lateTimeError = 'Late time is required.';
+  } else if (localOpensAt != null && !localLateAt.isAfter(localOpensAt)) {
+    lateTimeError = 'Late time must be after the opening time.';
   }
 
   if (localClosesAt == null) {
     closingError = 'Closing time is required.';
-  } else if (localLateDeadline != null &&
-      !localClosesAt.isAfter(localLateDeadline)) {
-    closingError = 'Closing time must be after the Late deadline.';
+  } else if (localLateAt != null && !localClosesAt.isAfter(localLateAt)) {
+    closingError = 'Closing time must be after the Late time.';
   }
 
   if (dateError == null &&
       openingError == null &&
-      presentDeadlineError == null &&
-      lateDeadlineError == null &&
+      lateTimeError == null &&
       closingError == null) {
     final overlaps = existingSessions.any((session) {
       final existingOpensAt = session.opensAt.toLocal();
       final existingClosesAt = session.closesAt.toLocal();
-      return !localClosesAt!.isBefore(existingOpensAt) &&
-          !localOpensAt!.isAfter(existingClosesAt);
+      return localClosesAt!.isAfter(existingOpensAt) &&
+          localOpensAt!.isBefore(existingClosesAt);
     });
     if (overlaps) {
       closingError = 'This attendance window overlaps an existing session.';
@@ -149,8 +129,7 @@ AttendanceSessionValidation validateAttendanceSessionSchedule({
   return AttendanceSessionValidation(
     dateError: dateError,
     openingError: openingError,
-    presentDeadlineError: presentDeadlineError,
-    lateDeadlineError: lateDeadlineError,
+    lateTimeError: lateTimeError,
     closingError: closingError,
   );
 }
@@ -160,8 +139,7 @@ class AttendanceSession extends Equatable {
   final String courseId;
   final DateTime attendanceDate;
   final DateTime opensAt;
-  final DateTime presentDeadline;
-  final DateTime lateDeadline;
+  final DateTime lateAt;
   final DateTime closesAt;
   final String createdBy;
   final DateTime createdAt;
@@ -172,8 +150,7 @@ class AttendanceSession extends Equatable {
     required this.courseId,
     required this.attendanceDate,
     required this.opensAt,
-    required this.presentDeadline,
-    required this.lateDeadline,
+    required this.lateAt,
     required this.closesAt,
     required this.createdBy,
     required this.createdAt,
@@ -186,8 +163,7 @@ class AttendanceSession extends Equatable {
       courseId: map['course_id'] as String,
       attendanceDate: DateTime.parse(map['attendance_date'] as String),
       opensAt: DateTime.parse(map['opens_at'] as String),
-      presentDeadline: DateTime.parse(map['present_deadline'] as String),
-      lateDeadline: DateTime.parse(map['late_deadline'] as String),
+      lateAt: DateTime.parse(map['late_at'] as String),
       closesAt: DateTime.parse(map['closes_at'] as String),
       createdBy: map['created_by'] as String,
       createdAt: DateTime.parse(map['created_at'] as String),
@@ -199,11 +175,8 @@ class AttendanceSession extends Equatable {
 
   AttendanceWindow windowAt(DateTime serverTime) {
     if (serverTime.isBefore(opensAt)) return AttendanceWindow.upcoming;
-    if (!serverTime.isAfter(presentDeadline)) {
-      return AttendanceWindow.present;
-    }
-    if (!serverTime.isAfter(lateDeadline)) return AttendanceWindow.late;
-    if (serverTime.isBefore(closesAt)) return AttendanceWindow.checkInEnded;
+    if (serverTime.isBefore(lateAt)) return AttendanceWindow.present;
+    if (serverTime.isBefore(closesAt)) return AttendanceWindow.late;
     return AttendanceWindow.closed;
   }
 
@@ -219,8 +192,7 @@ class AttendanceSession extends Equatable {
     courseId,
     attendanceDate,
     opensAt,
-    presentDeadline,
-    lateDeadline,
+    lateAt,
     closesAt,
     createdBy,
     createdAt,
