@@ -103,7 +103,7 @@ class ClassroomCourseCard extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              if (trailing != null) trailing!,
+                              ?trailing,
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -116,18 +116,8 @@ class ClassroomCourseCard extends StatelessWidget {
                             ),
                           ),
                           const Spacer(),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            children: [
-                              _BannerLabel(label: currentCourse.category),
-                              if (status != null)
-                                _BannerLabel(
-                                  label: status,
-                                  color: badgeColor,
-                                ),
-                            ],
-                          ),
+                          if (status != null)
+                            _BannerLabel(label: status, color: badgeColor),
                         ],
                       ),
                     ),

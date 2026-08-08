@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -25,7 +24,7 @@ class CourseCatalogScreen extends StatefulWidget {
 
 class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
   final _searchController = TextEditingController();
-  String? _selectedCategory;
+  List<CourseModel>? _lastVisibleCourses;
 
   @override
   void initState() {
@@ -42,7 +41,6 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
   void _loadCourses() {
     context.read<CourseBloc>().add(
       LoadCourses(
-        category: _selectedCategory,
         searchQuery: _searchController.text.isNotEmpty
             ? _searchController.text
             : null,
@@ -58,7 +56,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
 
     return Scaffold(
       body: BlocListener<CourseBloc, CourseState>(
-        listener: (context, state) {
+        listener: (context, state) async {
           if (state is CourseJoinedByCode) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -78,7 +76,10 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                 duration: const Duration(seconds: 3),
               ),
             );
-            context.push(AppRoutes.courseDetailPath(state.course.id));
+            await context.push(AppRoutes.courseDetailPath(state.course.id));
+            if (mounted) {
+              _loadCourses();
+            }
           } else if (state is CourseError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -99,44 +100,25 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
               leading: const AppDrawerButton(),
               title: Text('Classes', style: AppTextStyles.h3),
               bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(120),
+                preferredSize: const Size.fromHeight(68),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Column(
-                    children: [
-                      // Search bar
-                      TextField(
-                        controller: _searchController,
-                        onSubmitted: (_) => _loadCourses(),
-                        decoration: InputDecoration(
-                          hintText: 'Search your classes...',
-                          prefixIcon: Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _loadCourses();
-                                  },
-                                )
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Category filter
-                      SizedBox(
-                        height: 36,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: [
-                            _buildCategoryChip(null, 'All'),
-                            ...AppConstants.courseCategories.map(
-                              (cat) => _buildCategoryChip(cat, cat),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  child: TextField(
+                    controller: _searchController,
+                    onSubmitted: (_) => _loadCourses(),
+                    decoration: InputDecoration(
+                      hintText: 'Search your classes...',
+                      prefixIcon: Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                _loadCourses();
+                              },
+                            )
+                          : null,
+                    ),
                   ),
                 ),
               ),
@@ -145,12 +127,16 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
             // Course grid
             BlocBuilder<CourseBloc, CourseState>(
               builder: (context, state) {
-                final visibleCourses = switch (state) {
+                final currentCourses = switch (state) {
                   CoursesLoaded(:final courses) => courses,
                   CourseJoining(:final courses) => courses,
                   CourseJoinFailure(:final courses) => courses,
                   _ => null,
                 };
+                if (currentCourses != null) {
+                  _lastVisibleCourses = currentCourses;
+                }
+                final visibleCourses = currentCourses ?? _lastVisibleCourses;
 
                 if (visibleCourses != null) {
                   if (visibleCourses.isEmpty) {
@@ -158,9 +144,8 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                       child: EmptyState(
                         icon: Icons.school_outlined,
                         title: 'No classes joined yet',
-                        subtitle: _selectedCategory != null
-                            ? 'Try a different category'
-                            : 'Use your instructor\'s class code to join one',
+                        subtitle:
+                            'Use your instructor\'s class code to join one',
                       ),
                     );
                   }
@@ -171,7 +156,10 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _CourseCard(course: visibleCourses[index]),
+                          child: _CourseCard(
+                            course: visibleCourses[index],
+                            onTap: () => _openCourse(visibleCourses[index]),
+                          ),
                         ),
                         childCount: visibleCourses.length,
                       ),
@@ -213,6 +201,13 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
             )
           : null,
     );
+  }
+
+  Future<void> _openCourse(CourseModel course) async {
+    await context.push(AppRoutes.courseDetailPath(course.id));
+    if (mounted) {
+      _loadCourses();
+    }
   }
 
   /// Shows a bottom sheet for joining a course by its code
@@ -467,44 +462,19 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
       },
     );
   }
-
-  Widget _buildCategoryChip(String? value, String label) {
-    final isSelected = _selectedCategory == value;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        selected: isSelected,
-        label: Text(label),
-        labelStyle: TextStyle(
-          color: isSelected ? AppColors.background : AppColors.textPrimary,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
-        selectedColor: AppColors.primary,
-        checkmarkColor: AppColors.background,
-        side: BorderSide(
-          color: isSelected ? AppColors.primary : AppColors.border,
-        ),
-        onSelected: (_) {
-          setState(() {
-            _selectedCategory = value;
-          });
-          _loadCourses();
-        },
-      ),
-    );
-  }
 }
 
 class _CourseCard extends StatelessWidget {
   final CourseModel course;
+  final VoidCallback onTap;
 
-  const _CourseCard({required this.course});
+  const _CourseCard({required this.course, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return ClassroomCourseCard(
       course: course,
-      onTap: () => context.push(AppRoutes.courseDetailPath(course.id)),
+      onTap: onTap,
       footer: [
         Icon(Icons.people_outline, size: 18, color: AppColors.textMuted),
         const SizedBox(width: 4),

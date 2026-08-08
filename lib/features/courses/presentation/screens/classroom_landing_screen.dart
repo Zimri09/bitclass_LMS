@@ -7,6 +7,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_shell.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../data/repositories/course_repository.dart';
+import '../bloc/course_bloc.dart';
 import 'course_catalog_screen.dart';
 import 'my_courses_screen.dart';
 
@@ -24,7 +26,11 @@ class ClassroomLandingScreen extends StatelessWidget {
         if (state is AuthAuthenticated && state.user.role == 'instructor') {
           return const MyCoursesScreen();
         }
-        return const CourseCatalogScreen();
+        return BlocProvider(
+          create: (context) =>
+              CourseBloc(courseRepository: context.read<CourseRepository>()),
+          child: const CourseCatalogScreen(),
+        );
       },
     );
   }
