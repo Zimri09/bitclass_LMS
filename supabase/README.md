@@ -55,3 +55,10 @@ At minimum, dependencies must be created in this order:
 Never reset or replay the full schema against the production project to resolve
 one feature error. Capture the exact database error and apply a focused,
 timestamped migration instead.
+
+## AI quiz generation
+
+The `generate-quiz-questions` Edge Function creates editable quiz drafts from
+instructor-provided PDF or TXT material. It requires a `GEMINI_API_KEY` project
+secret. Setup and deployment instructions are in
+`functions/generate-quiz-questions/README.md`.

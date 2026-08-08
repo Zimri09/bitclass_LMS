@@ -13,6 +13,7 @@ import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../assignments/presentation/screens/assignment_list_screen.dart';
 import '../../../attendance/presentation/screens/attendance_screen.dart';
+import '../../../class_records/presentation/screens/course_records_screen.dart';
 import '../../../discussions/presentation/screens/channel_list_screen.dart';
 import '../../../lessons/data/repositories/lesson_repository.dart';
 import '../../../lessons/presentation/widgets/course_syllabus_widget.dart';
@@ -110,38 +111,53 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           return const BitClassLoader();
         },
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedTab,
-        onDestinationSelected: (index) {
-          setState(() => _selectedTab = index);
+      bottomNavigationBar: BlocBuilder<CourseBloc, CourseState>(
+        builder: (context, state) {
+          final authState = context.watch<AuthBloc>().state;
+          final isOwnCourse =
+              state is CourseDetailLoaded &&
+              authState is AuthAuthenticated &&
+              authState.user.id == state.course.instructorId;
+          return NavigationBar(
+            selectedIndex: _selectedTab,
+            onDestinationSelected: (index) {
+              setState(() => _selectedTab = index);
+            },
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.menu_book_outlined),
+                selectedIcon: Icon(Icons.menu_book),
+                label: 'Content',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.assignment_outlined),
+                selectedIcon: Icon(Icons.assignment),
+                label: 'Work',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.forum_outlined),
+                selectedIcon: Icon(Icons.forum),
+                label: 'Discussion',
+              ),
+              NavigationDestination(
+                icon: Icon(
+                  isOwnCourse
+                      ? Icons.table_chart_outlined
+                      : Icons.fact_check_outlined,
+                ),
+                selectedIcon: Icon(
+                  isOwnCourse ? Icons.table_chart : Icons.fact_check,
+                ),
+                label: isOwnCourse ? 'Records' : 'Attendance',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.people_outline),
+                selectedIcon: Icon(Icons.people),
+                label: 'People',
+              ),
+            ],
+          );
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: 'Content',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment),
-            label: 'Work',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.forum_outlined),
-            selectedIcon: Icon(Icons.forum),
-            label: 'Discussion',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.fact_check_outlined),
-            selectedIcon: Icon(Icons.fact_check),
-            label: 'Attendance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'People',
-          ),
-        ],
       ),
     );
   }
@@ -217,12 +233,17 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
       }
       return SafeArea(
         bottom: false,
-        child: AttendanceScreen(
-          course: course,
-          isCourseOwner: isOwnCourse,
-          currentUserId: authState.user.id,
-          courseMenu: studentCourseMenu,
-        ),
+        child: isOwnCourse
+            ? CourseRecordsScreen(
+                course: course,
+                currentUserId: authState.user.id,
+              )
+            : AttendanceScreen(
+                course: course,
+                isCourseOwner: false,
+                currentUserId: authState.user.id,
+                courseMenu: studentCourseMenu,
+              ),
       );
     }
     if (widget.selectedTab == 4) {

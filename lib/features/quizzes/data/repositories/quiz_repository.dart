@@ -1,17 +1,29 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
+import '../../../../core/errors/app_error.dart';
 import '../models/models.dart';
+
+class QuizGenerationException implements Exception {
+  final String message;
+
+  const QuizGenerationException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 /// Repository for quiz operations.
 class QuizRepository {
   static const String _quizzesTable = 'quizzes';
   static const String _questionsTable = 'questions';
   static const String _attemptsTable = 'quiz_attempts';
-  static const String _answersTable = 'quiz_answers';
 
   final SupabaseClient? _supabase;
 
@@ -296,6 +308,96 @@ class QuizRepository {
     }
   }
 
+  Future<List<QuestionModel>> generateQuestionsFromFile({
+    required String courseId,
+    required String fileName,
+    required String mimeType,
+    required Uint8List bytes,
+    required int questionCount,
+    required QuizGenerationQuestionType questionType,
+    required QuizGenerationDifficulty difficulty,
+    required int pointsPerQuestion,
+    String? instructions,
+  }) async {
+    if (EnvironmentConfig.isDemoMode) {
+      throw const QuizGenerationException(
+        'AI quiz generation requires a connected Supabase project.',
+      );
+    }
+
+    try {
+      final response = await _supabase!.functions
+          .invoke(
+            'generate-quiz-questions',
+            body: {
+              'courseId': courseId,
+              'fileName': fileName,
+              'mimeType': mimeType,
+              'fileData': base64Encode(bytes),
+              'questionCount': questionCount,
+              'questionType': questionType.apiValue,
+              'difficulty': difficulty.apiValue,
+              'pointsPerQuestion': pointsPerQuestion,
+              if (instructions?.trim().isNotEmpty == true)
+                'instructions': instructions!.trim(),
+            },
+          )
+          .timeout(const Duration(seconds: 100));
+
+      if (response.status < 200 || response.status >= 300) {
+        throw QuizGenerationException(_generationError(response.data));
+      }
+      final data = response.data;
+      if (data is! Map) {
+        throw const QuizGenerationException(
+          'The quiz generator returned an invalid response.',
+        );
+      }
+
+      final generated = GeneratedQuizQuestions.fromMap(
+        Map<String, dynamic>.from(data),
+        expectedCount: questionCount,
+      );
+      const uuid = Uuid();
+      return [
+        for (var index = 0; index < generated.questions.length; index++)
+          generated.questions[index].toQuestionModel(
+            createId: uuid.v4,
+            order: index,
+            points: pointsPerQuestion,
+          ),
+      ];
+    } on TimeoutException {
+      throw const QuizGenerationException(
+        'Question generation timed out. Try a smaller file or fewer questions.',
+      );
+    } on FunctionException catch (error) {
+      throw QuizGenerationException(_generationError(error.details));
+    } on FormatException catch (error) {
+      throw QuizGenerationException(error.message);
+    } on QuizGenerationException {
+      rethrow;
+    } catch (error) {
+      throw QuizGenerationException(
+        userFriendlyErrorMessage(
+          error,
+          fallback: 'Could not generate quiz questions.',
+        ),
+      );
+    }
+  }
+
+  String _generationError(Object? data) {
+    if (data is Map) {
+      final message = data['error'] ?? data['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        return message.trim();
+      }
+    }
+    if (data is String && data.trim().isNotEmpty) return data.trim();
+    return 'Could not generate quiz questions. Please try again.';
+  }
+
   Future<QuizAttemptModel> startAttempt({
     required String quizId,
     required String userId,
@@ -328,20 +430,24 @@ class QuizRepository {
       return attempt;
     }
 
-    final inserted = await _supabase!.from(_attemptsTable).insert({
-      'quiz_id': attempt.quizId,
-      'user_id': attempt.userId,
-      'enrollment_id': attempt.enrollmentId,
-      'status': attempt.status.name,
-      'attempt_number': attempt.attemptNumber,
-      'started_at': attempt.startedAt.toIso8601String(),
-      'score': attempt.score,
-      'total_points': attempt.totalPoints,
-      'percentage': attempt.percentage,
-      'passed': attempt.passed,
-      'time_spent_seconds': attempt.timeSpentSeconds,
-      'answers': attempt.answers.map((k, v) => MapEntry(k, v.toMap())),
-    }).select().single();
+    final inserted = await _supabase!
+        .from(_attemptsTable)
+        .insert({
+          'quiz_id': attempt.quizId,
+          'user_id': attempt.userId,
+          'enrollment_id': attempt.enrollmentId,
+          'status': attempt.status.name,
+          'attempt_number': attempt.attemptNumber,
+          'started_at': attempt.startedAt.toIso8601String(),
+          'score': attempt.score,
+          'total_points': attempt.totalPoints,
+          'percentage': attempt.percentage,
+          'passed': attempt.passed,
+          'time_spent_seconds': attempt.timeSpentSeconds,
+          'answers': attempt.answers.map((k, v) => MapEntry(k, v.toMap())),
+        })
+        .select()
+        .single();
 
     return _attemptFromRow(inserted);
   }
@@ -368,6 +474,33 @@ class QuizRepository {
           .map(_attemptFromRow)
           .toList();
     } catch (_) {
+      return [];
+    }
+  }
+
+  /// Get every attempt for a quiz. Course RLS limits this to the owner.
+  Future<List<QuizAttemptModel>> getQuizAttempts(String quizId) async {
+    if (EnvironmentConfig.isDemoMode) {
+      return _attemptsByUser.values
+          .expand((attempts) => attempts)
+          .where((attempt) => attempt.quizId == quizId)
+          .toList();
+    }
+
+    try {
+      final rows = await _supabase!
+          .from(_attemptsTable)
+          .select()
+          .eq('quiz_id', quizId)
+          .order('attempt_number', ascending: true);
+      return (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(_attemptFromRow)
+          .toList();
+    } catch (error) {
+      if (kDebugMode) {
+        log('Error fetching quiz attempts: $error', name: 'QuizRepository');
+      }
       return [];
     }
   }
@@ -662,9 +795,10 @@ class QuizRepository {
       return;
     }
 
-    await _supabase!.from(_questionsTable).delete().eq('quiz_id', quizId);
-    await _supabase!.from(_attemptsTable).delete().eq('quiz_id', quizId);
-    await _supabase!.from(_quizzesTable).delete().eq('id', quizId);
+    final supabase = _supabase!;
+    await supabase.from(_questionsTable).delete().eq('quiz_id', quizId);
+    await supabase.from(_attemptsTable).delete().eq('quiz_id', quizId);
+    await supabase.from(_quizzesTable).delete().eq('id', quizId);
   }
 
   Future<void> saveQuestion(QuestionModel question) async {

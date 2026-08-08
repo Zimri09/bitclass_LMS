@@ -17,6 +17,7 @@ import 'features/assignments/data/repositories/assignment_repository.dart';
 import 'features/attendance/data/repositories/attendance_repository.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/class_records/data/repositories/class_record_repository.dart';
 import 'features/courses/data/repositories/course_repository.dart';
 import 'features/courses/presentation/bloc/course_bloc.dart';
 import 'features/discussions/data/repositories/discussion_repository.dart';
@@ -83,6 +84,7 @@ class BitClassApp extends StatefulWidget {
 class _BitClassAppState extends State<BitClassApp> {
   late final AuthRepository _authRepository;
   late final AttendanceRepository _attendanceRepository;
+  late final ClassRecordRepository _classRecordRepository;
   late final CourseRepository _courseRepository;
   late final LessonRepository _lessonRepository;
   late final QuizRepository _quizRepository;
@@ -106,6 +108,12 @@ class _BitClassAppState extends State<BitClassApp> {
     _lessonRepository = LessonRepository();
     _quizRepository = QuizRepository();
     _assignmentRepository = AssignmentRepository();
+    _classRecordRepository = ClassRecordRepository(
+      courseRepository: _courseRepository,
+      quizRepository: _quizRepository,
+      assignmentRepository: _assignmentRepository,
+      attendanceRepository: _attendanceRepository,
+    );
     _discussionRepository = DiscussionRepository();
     _notificationRepository = NotificationRepository();
     _fileRepository = FileRepository();
@@ -168,6 +176,9 @@ class _BitClassAppState extends State<BitClassApp> {
         RepositoryProvider<AuthRepository>.value(value: _authRepository),
         RepositoryProvider<AttendanceRepository>.value(
           value: _attendanceRepository,
+        ),
+        RepositoryProvider<ClassRecordRepository>.value(
+          value: _classRecordRepository,
         ),
         RepositoryProvider<CourseRepository>.value(value: _courseRepository),
         RepositoryProvider<LessonRepository>.value(value: _lessonRepository),

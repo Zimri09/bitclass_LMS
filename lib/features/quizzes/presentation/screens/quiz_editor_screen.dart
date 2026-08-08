@@ -1,3 +1,8 @@
+import 'dart:io' as io show File;
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart' as fp;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,9 +11,13 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/question_model.dart';
+import '../../data/models/quiz_generation_model.dart';
 import '../../data/models/quiz_model.dart';
 import '../../data/repositories/quiz_repository.dart';
+
+enum _QuestionCreationMode { manual, file }
 
 /// Screen for creating and editing quizzes
 class QuizEditorScreen extends StatefulWidget {
@@ -22,14 +31,29 @@ class QuizEditorScreen extends StatefulWidget {
 }
 
 class _QuizEditorScreenState extends State<QuizEditorScreen> {
+  static const int _maxPdfBytes = 8 * 1024 * 1024;
+  static const int _maxTextBytes = 1024 * 1024;
+
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _generationInstructionsController = TextEditingController();
 
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isPickingSource = false;
+  bool _isGenerating = false;
+  bool _hasGeneratedQuestions = false;
   QuizModel? _quiz;
   List<QuestionModel> _questions = [];
+  fp.PlatformFile? _sourceFile;
+  Uint8List? _sourceBytes;
+  _QuestionCreationMode _creationMode = _QuestionCreationMode.manual;
+  QuizGenerationQuestionType _generationType = QuizGenerationQuestionType.mixed;
+  QuizGenerationDifficulty _generationDifficulty =
+      QuizGenerationDifficulty.mixed;
+  int _generationQuestionCount = 10;
+  int _generationPoints = 1;
 
   // Quiz settings
   int _timeLimitMinutes = 0;
@@ -53,6 +77,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _generationInstructionsController.dispose();
     super.dispose();
   }
 
@@ -87,6 +112,11 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
   Future<void> _saveQuiz() async {
     if (!_formKey.currentState!.validate()) return;
+    final questionError = _questionValidationError();
+    if (questionError != null) {
+      _showError(questionError);
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -155,6 +185,156 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     );
   }
 
+  String? _questionValidationError() {
+    if (_questions.isEmpty) return 'Add at least one question to the quiz.';
+
+    for (var index = 0; index < _questions.length; index++) {
+      final question = _questions[index];
+      final label = 'Question ${index + 1}';
+      if (question.questionText.trim().isEmpty) {
+        return '$label needs question text.';
+      }
+      if (question.points < 1 || question.points > 100) {
+        return '$label must be worth between 1 and 100 points.';
+      }
+      if (!_isChoiceQuestion(question.type)) continue;
+
+      if (question.options.length < 2 ||
+          question.options.any((option) => option.text.trim().isEmpty)) {
+        return '$label needs at least two completed answer choices.';
+      }
+      final normalizedOptions = question.options
+          .map((option) => option.text.trim().toLowerCase())
+          .toSet();
+      if (normalizedOptions.length != question.options.length) {
+        return '$label contains duplicate answer choices.';
+      }
+      final correctCount = question.options
+          .where((option) => option.isCorrect)
+          .length;
+      if (question.type == QuestionType.multipleSelect) {
+        if (correctCount < 1) return '$label needs a correct answer.';
+      } else if (correctCount != 1) {
+        return '$label must have exactly one correct answer.';
+      }
+      if (question.type == QuestionType.trueFalse &&
+          (question.options.length != 2 ||
+              !normalizedOptions.contains('true') ||
+              !normalizedOptions.contains('false'))) {
+        return '$label must contain only True and False choices.';
+      }
+    }
+    return null;
+  }
+
+  bool _isChoiceQuestion(QuestionType type) {
+    return type == QuestionType.multipleChoice ||
+        type == QuestionType.multipleSelect ||
+        type == QuestionType.trueFalse;
+  }
+
+  Future<void> _pickSourceFile() async {
+    if (_isPickingSource || _isGenerating) return;
+    setState(() => _isPickingSource = true);
+
+    try {
+      final result = await fp.FilePicker.platform.pickFiles(
+        type: fp.FileType.custom,
+        allowedExtensions: const ['pdf', 'txt'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      final extension = (file.extension ?? '').toLowerCase();
+      final maxBytes = extension == 'pdf' ? _maxPdfBytes : _maxTextBytes;
+      if (extension != 'pdf' && extension != 'txt') {
+        _showError('Only PDF and TXT files are supported right now.');
+        return;
+      }
+      if (file.size <= 0 || file.size > maxBytes) {
+        _showError(
+          extension == 'pdf'
+              ? 'Select a PDF that is no larger than 8 MB.'
+              : 'Select a TXT file that is no larger than 1 MB.',
+        );
+        return;
+      }
+
+      Uint8List? bytes = file.bytes;
+      if (bytes == null && !kIsWeb && file.path != null) {
+        try {
+          bytes = await io.File(file.path!).readAsBytes();
+        } catch (_) {}
+      }
+      if (bytes == null || bytes.isEmpty) {
+        _showError('Could not read the selected file. Please try again.');
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _sourceFile = file;
+        _sourceBytes = bytes;
+      });
+    } catch (error) {
+      if (mounted) _showError('Failed to select file: $error');
+    } finally {
+      if (mounted) setState(() => _isPickingSource = false);
+    }
+  }
+
+  Future<void> _generateQuestions() async {
+    final file = _sourceFile;
+    final bytes = _sourceBytes;
+    if (file == null || bytes == null) {
+      _showError('Select a PDF or TXT file first.');
+      return;
+    }
+    if (_isGenerating) return;
+
+    setState(() => _isGenerating = true);
+    try {
+      final extension = (file.extension ?? '').toLowerCase();
+      final generated = await context
+          .read<QuizRepository>()
+          .generateQuestionsFromFile(
+            courseId: widget.courseId,
+            fileName: file.name,
+            mimeType: extension == 'pdf' ? 'application/pdf' : 'text/plain',
+            bytes: bytes,
+            questionCount: _generationQuestionCount,
+            questionType: _generationType,
+            difficulty: _generationDifficulty,
+            pointsPerQuestion: _generationPoints,
+            instructions: _generationInstructionsController.text,
+          );
+      if (!mounted) return;
+
+      setState(() {
+        final startingOrder = _questions.length;
+        _questions.addAll([
+          for (var index = 0; index < generated.length; index++)
+            generated[index].copyWith(order: startingOrder + index),
+        ]);
+        _hasGeneratedQuestions = true;
+        _isPublished = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${generated.length} draft questions generated. Review them before publishing.',
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (mounted) _showError('Question generation failed: $error');
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
+  }
+
   void _addQuestion() {
     final questionId = const Uuid().v4();
     setState(() {
@@ -200,6 +380,24 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+    final isInstructor =
+        authState is AuthAuthenticated && authState.user.role == 'instructor';
+    if (!isInstructor) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Quiz Editor')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Only instructors can create or edit quizzes.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -211,7 +409,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: FilledButton(
-                onPressed: _isSaving ? null : _saveQuiz,
+                onPressed: _isSaving || _isGenerating ? null : _saveQuiz,
                 child: _isSaving
                     ? const SizedBox(
                         width: 16,
@@ -243,6 +441,10 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
                     // Quiz Settings Card
                     _buildQuizSettingsCard(),
+                    const SizedBox(height: 24),
+
+                    // Question creation tools
+                    _buildQuestionCreationCard(),
                     const SizedBox(height: 24),
 
                     // Questions Section
@@ -437,24 +639,335 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     );
   }
 
+  Widget _buildQuestionCreationCard() {
+    final padding = MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0;
+    final colors = AppColors.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(padding),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Create Questions', style: AppTextStyles.h4),
+          const SizedBox(height: 6),
+          Text(
+            'Add questions yourself or create an editable draft from course material.',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SegmentedButton<_QuestionCreationMode>(
+            segments: const [
+              ButtonSegment(
+                value: _QuestionCreationMode.manual,
+                icon: Icon(Icons.edit_outlined),
+                label: Text('Create Manually'),
+              ),
+              ButtonSegment(
+                value: _QuestionCreationMode.file,
+                icon: Icon(Icons.auto_awesome),
+                label: Text('Generate from File'),
+              ),
+            ],
+            selected: {_creationMode},
+            onSelectionChanged: _isGenerating
+                ? null
+                : (selection) {
+                    setState(() => _creationMode = selection.single);
+                  },
+          ),
+          const SizedBox(height: 18),
+          if (_creationMode == _QuestionCreationMode.manual)
+            Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: colors.textMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Use Add Question below to build the quiz one question at a time.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _sourceFile == null
+                        ? Icons.upload_file_outlined
+                        : Icons.description_outlined,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _sourceFile == null
+                        ? Text(
+                            'Choose a PDF (up to 8 MB) or TXT file (up to 1 MB).',
+                            style: AppTextStyles.bodySmall,
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _sourceFile!.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                _formatBytes(_sourceFile!.size),
+                                style: AppTextStyles.caption.copyWith(
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                  if (_sourceFile != null)
+                    IconButton(
+                      tooltip: 'Remove file',
+                      onPressed: _isGenerating
+                          ? null
+                          : () {
+                              setState(() {
+                                _sourceFile = null;
+                                _sourceBytes = null;
+                              });
+                            },
+                      icon: const Icon(Icons.close),
+                    )
+                  else
+                    OutlinedButton(
+                      onPressed: _isPickingSource ? null : _pickSourceFile,
+                      child: Text(_isPickingSource ? 'Opening...' : 'Choose'),
+                    ),
+                ],
+              ),
+            ),
+            if (_sourceFile != null) ...[
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: _isGenerating ? null : _pickSourceFile,
+                icon: const Icon(Icons.swap_horiz),
+                label: const Text('Replace file'),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: 190,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _generationQuestionCount,
+                    decoration: const InputDecoration(
+                      labelText: 'Number of questions',
+                    ),
+                    items: const [5, 10, 15, 20, 25, 30]
+                        .map(
+                          (count) => DropdownMenuItem(
+                            value: count,
+                            child: Text('$count questions'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isGenerating
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _generationQuestionCount = value);
+                            }
+                          },
+                  ),
+                ),
+                SizedBox(
+                  width: 190,
+                  child: DropdownButtonFormField<QuizGenerationQuestionType>(
+                    initialValue: _generationType,
+                    decoration: const InputDecoration(
+                      labelText: 'Question type',
+                    ),
+                    items: QuizGenerationQuestionType.values
+                        .map(
+                          (type) => DropdownMenuItem(
+                            value: type,
+                            child: Text(type.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isGenerating
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _generationType = value);
+                            }
+                          },
+                  ),
+                ),
+                SizedBox(
+                  width: 190,
+                  child: DropdownButtonFormField<QuizGenerationDifficulty>(
+                    initialValue: _generationDifficulty,
+                    decoration: const InputDecoration(labelText: 'Difficulty'),
+                    items: QuizGenerationDifficulty.values
+                        .map(
+                          (difficulty) => DropdownMenuItem(
+                            value: difficulty,
+                            child: Text(difficulty.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isGenerating
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _generationDifficulty = value);
+                            }
+                          },
+                  ),
+                ),
+                SizedBox(
+                  width: 190,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _generationPoints,
+                    decoration: const InputDecoration(
+                      labelText: 'Points per question',
+                    ),
+                    items: List.generate(10, (index) => index + 1)
+                        .map(
+                          (points) => DropdownMenuItem(
+                            value: points,
+                            child: Text(
+                              '$points point${points == 1 ? '' : 's'}',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isGenerating
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _generationPoints = value);
+                            }
+                          },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _generationInstructionsController,
+              enabled: !_isGenerating,
+              maxLength: 1000,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Topic or instructions (Optional)',
+                hintText: 'Example: Focus on chapters 2 and 3',
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: _sourceFile == null || _isGenerating
+                    ? null
+                    : _generateQuestions,
+                icon: _isGenerating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.auto_awesome),
+                label: Text(
+                  _isGenerating
+                      ? 'Reading file and generating questions...'
+                      : 'Generate Draft Questions',
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.fact_check_outlined,
+                  size: 18,
+                  color: colors.textMuted,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'AI-generated questions are added as an unpublished draft. Review every question and answer before saving or publishing.',
+                    style: AppTextStyles.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (_hasGeneratedQuestions) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.warning.withValues(alpha: 0.3),
+                ),
+              ),
+              child: const Text(
+                'Review required: generated questions remain editable below and the quiz has been set to Draft.',
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kilobytes = bytes / 1024;
+    if (kilobytes < 1024) return '${kilobytes.toStringAsFixed(1)} KB';
+    return '${(kilobytes / 1024).toStringAsFixed(1)} MB';
+  }
+
   Widget _buildQuestionsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Questions (${_questions.length})', style: AppTextStyles.h4),
-            ElevatedButton.icon(
-              onPressed: _addQuestion,
-              icon: Icon(Icons.add),
-              label: const Text('Add Question'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
+        _buildQuestionsHeader(),
         const SizedBox(height: 16),
 
         if (_questions.isEmpty)
@@ -518,6 +1031,38 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             },
           ),
       ],
+    );
+  }
+
+  Widget _buildQuestionsHeader() {
+    final title = Text(
+      'Questions (${_questions.length})',
+      style: AppTextStyles.h4,
+    );
+    final addButton = ElevatedButton.icon(
+      onPressed: _addQuestion,
+      icon: const Icon(Icons.add),
+      label: const Text('Add Question'),
+      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 480) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              title,
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: addButton),
+            ],
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [title, addButton],
+        );
+      },
     );
   }
 }
@@ -688,6 +1233,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
         ),
         child: ExpansionTile(
           key: PageStorageKey(widget.question.id),
+          maintainState: true,
           initiallyExpanded: widget.question.questionText.isEmpty,
           leading: ReorderableDragStartListener(
             index: widget.index,
@@ -702,7 +1248,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            '${_getQuestionTypeName(widget.question.type)} • ${widget.question.points} pts',
+            '${_getQuestionTypeName(widget.question.type)} - ${widget.question.points} pts',
             style: AppTextStyles.bodySmall.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -717,38 +1263,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Question type and points
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: DropdownButtonFormField<QuestionType>(
-                          initialValue: widget.question.type,
-                          decoration: const InputDecoration(
-                            labelText: 'Question Type',
-                          ),
-                          items: QuestionType.values.map((type) {
-                            return DropdownMenuItem(
-                              value: type,
-                              child: Text(_getQuestionTypeName(type)),
-                            );
-                          }).toList(),
-                          onChanged: _changeQuestionType,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _pointsController,
-                          decoration: const InputDecoration(
-                            labelText: 'Points',
-                          ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => _updateQuestion(),
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildQuestionSettings(),
                   const SizedBox(height: 16),
 
                   // Question text
@@ -798,6 +1313,54 @@ class _QuestionEditorState extends State<_QuestionEditor> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildQuestionSettings() {
+    final questionTypeField = DropdownButtonFormField<QuestionType>(
+      key: ValueKey('${widget.question.id}-type'),
+      initialValue: widget.question.type,
+      decoration: const InputDecoration(labelText: 'Question Type'),
+      isExpanded: true,
+      items: QuestionType.values.map((type) {
+        return DropdownMenuItem(
+          value: type,
+          child: Text(
+            _getQuestionTypeName(type),
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
+      onChanged: _changeQuestionType,
+    );
+    final pointsField = TextFormField(
+      key: ValueKey('${widget.question.id}-points'),
+      controller: _pointsController,
+      decoration: const InputDecoration(labelText: 'Points'),
+      keyboardType: TextInputType.number,
+      onChanged: (_) => _updateQuestion(),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 420) {
+          return Column(
+            children: [
+              questionTypeField,
+              const SizedBox(height: 16),
+              pointsField,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 2, child: questionTypeField),
+            const SizedBox(width: 16),
+            Expanded(child: pointsField),
+          ],
+        );
+      },
     );
   }
 
