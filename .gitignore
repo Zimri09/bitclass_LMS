@@ -35,6 +35,9 @@ migrate_working_dir/
 supabase/functions/.env
 supabase/functions/.env.*
 !supabase/functions/.env.example
+code_runner/.env
+code_runner/.env.*
+!code_runner/.env.example
 
 # Symbolication related
 app.*.symbols

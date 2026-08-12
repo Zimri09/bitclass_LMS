@@ -15,6 +15,7 @@ import '../../features/todos/presentation/state/todos_cubit.dart';
 import '../../features/todos/data/repositories/todos_repository.dart';
 
 import '../../features/courses/presentation/screens/classroom_landing_screen.dart';
+import '../../features/code_lab/presentation/screens/screens.dart';
 import '../../features/courses/presentation/screens/course_detail_screen.dart';
 import '../../features/courses/presentation/screens/create_course_screen.dart';
 import '../../features/courses/presentation/screens/my_courses_screen.dart';
@@ -127,6 +128,15 @@ class AppRouter {
               context: context,
               state: state,
               child: const OfflineFilesScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.codeLab,
+            name: 'code-lab',
+            pageBuilder: (context, state) => AppTransitions.fadeTransition(
+              context: context,
+              state: state,
+              child: const CodeLabScreen(),
             ),
           ),
           GoRoute(
@@ -532,6 +542,12 @@ class AppRouter {
 
     if (authState is AuthAuthenticated && !_canManageCourse(authState)) {
       if (_isInstructorOnlyPath(state.uri.path)) return AppRoutes.dashboard;
+    }
+
+    if (authState is AuthAuthenticated &&
+        authState.isOffline &&
+        state.matchedLocation == AppRoutes.codeLab) {
+      return AppRoutes.dashboard;
     }
 
     return null;

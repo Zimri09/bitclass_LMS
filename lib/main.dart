@@ -18,6 +18,7 @@ import 'features/attendance/data/repositories/attendance_repository.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/class_records/data/repositories/class_record_repository.dart';
+import 'features/code_lab/data/repositories/code_execution_repository.dart';
 import 'features/courses/data/repositories/course_repository.dart';
 import 'features/courses/presentation/bloc/course_bloc.dart';
 import 'features/discussions/data/repositories/discussion_repository.dart';
@@ -86,6 +87,7 @@ class _BitClassAppState extends State<BitClassApp> {
   late final AttendanceRepository _attendanceRepository;
   late final ClassRecordRepository _classRecordRepository;
   late final CourseRepository _courseRepository;
+  late final CodeExecutionRepository _codeExecutionRepository;
   late final LessonRepository _lessonRepository;
   late final QuizRepository _quizRepository;
   late final AssignmentRepository _assignmentRepository;
@@ -105,6 +107,7 @@ class _BitClassAppState extends State<BitClassApp> {
     _authRepository = AuthRepository();
     _attendanceRepository = AttendanceRepository();
     _courseRepository = CourseRepository();
+    _codeExecutionRepository = SupabaseCodeExecutionRepository();
     _lessonRepository = LessonRepository();
     _quizRepository = QuizRepository();
     _assignmentRepository = AssignmentRepository();
@@ -181,6 +184,9 @@ class _BitClassAppState extends State<BitClassApp> {
           value: _classRecordRepository,
         ),
         RepositoryProvider<CourseRepository>.value(value: _courseRepository),
+        RepositoryProvider<CodeExecutionRepository>.value(
+          value: _codeExecutionRepository,
+        ),
         RepositoryProvider<LessonRepository>.value(value: _lessonRepository),
         RepositoryProvider<QuizRepository>.value(value: _quizRepository),
         RepositoryProvider<AssignmentRepository>.value(

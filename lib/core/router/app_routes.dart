@@ -17,6 +17,7 @@ class AppRoutes {
   static const String todos = '/todos';
   static const String profile = '/profile';
   static const String offlineFiles = '/offline-files';
+  static const String codeLab = '/code-lab';
 
   // Course routes
   static const String courses = '/courses';
@@ -131,6 +132,7 @@ class AppRoutes {
       todos,
       profile,
       offlineFiles,
+      codeLab,
       courses,
       myCourses,
       enrolledCourses,

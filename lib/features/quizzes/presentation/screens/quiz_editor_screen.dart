@@ -5,7 +5,6 @@ import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/errors/app_error.dart';
@@ -18,6 +17,8 @@ import '../../data/models/quiz_model.dart';
 import '../../data/repositories/quiz_repository.dart';
 
 enum _QuestionCreationMode { manual, file }
+
+enum _QuizExitAction { keepEditing, discard, saveDraft }
 
 /// Screen for creating and editing quizzes
 class QuizEditorScreen extends StatefulWidget {
@@ -38,12 +39,15 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _generationInstructionsController = TextEditingController();
+  late final String _workingQuizId;
 
   bool _isLoading = false;
   bool _isSaving = false;
   bool _isPickingSource = false;
   bool _isGenerating = false;
   bool _hasGeneratedQuestions = false;
+  bool _allowPop = false;
+  bool _isExitDialogOpen = false;
   QuizModel? _quiz;
   List<QuestionModel> _questions = [];
   fp.PlatformFile? _sourceFile;
@@ -70,6 +74,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _workingQuizId = widget.quizId ?? const Uuid().v4();
     if (widget.quizId != null) {
       _loadQuiz();
     }
@@ -112,24 +117,30 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     }
   }
 
-  Future<void> _saveQuiz() async {
-    if (!_formKey.currentState!.validate()) return;
-    final questionError = _questionValidationError();
-    if (questionError != null) {
-      _showError(questionError);
-      return;
+  Future<bool> _saveQuiz({bool asDraft = false}) async {
+    if (_isSaving) return false;
+    if (!asDraft) {
+      if (!_formKey.currentState!.validate()) return false;
+      final questionError = _questionValidationError();
+      if (questionError != null) {
+        _showError(questionError);
+        return false;
+      }
     }
 
     setState(() => _isSaving = true);
     try {
       final repo = context.read<QuizRepository>();
       final now = DateTime.now();
-      final quizId = widget.quizId ?? const Uuid().v4();
+      final quizId = _workingQuizId;
 
+      final enteredTitle = _titleController.text.trim();
       final quiz = QuizModel(
         id: quizId,
         courseId: widget.courseId,
-        title: _titleController.text.trim(),
+        title: asDraft && enteredTitle.isEmpty
+            ? 'Untitled Quiz Draft'
+            : enteredTitle,
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
@@ -142,7 +153,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         showCorrectAnswers: _showCorrectAnswers,
         allowRetakes: _allowRetakes,
         maxAttempts: _maxAttempts,
-        isPublished: _isPublished,
+        isPublished: asDraft ? false : _isPublished,
         createdAt: _quiz?.createdAt ?? now,
         updatedAt: now,
       );
@@ -162,19 +173,85 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              widget.quizId == null
+              asDraft
+                  ? 'Quiz saved as draft.'
+                  : widget.quizId == null
                   ? 'Quiz created successfully!'
                   : 'Quiz updated successfully!',
             ),
             backgroundColor: AppColors.success,
           ),
         );
-        context.pop();
+        _leaveEditor();
       }
+      return true;
     } catch (e) {
-      _showError('Failed to save quiz: $e');
+      if (mounted) {
+        _showError(
+          asDraft ? 'Failed to save draft: $e' : 'Failed to save quiz: $e',
+        );
+      }
+      return false;
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _leaveEditor() {
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  Future<void> _handleExitRequest() async {
+    if (_isExitDialogOpen || _isSaving || _isGenerating) return;
+    _isExitDialogOpen = true;
+    final action = await showDialog<_QuizExitAction>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+        title: const Text('Leave quiz editor?'),
+        content: const Text(
+          'Your created or generated questions have not been saved yet. '
+          'If you leave now, they will be lost. You can save the quiz as a '
+          'draft and finish it later.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _QuizExitAction.keepEditing),
+            child: const Text('Keep Editing'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _QuizExitAction.discard),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _QuizExitAction.saveDraft),
+            child: const Text('Save as Draft'),
+          ),
+        ],
+      ),
+    );
+    _isExitDialogOpen = false;
+    if (!mounted) return;
+
+    switch (action) {
+      case _QuizExitAction.discard:
+        _leaveEditor();
+        return;
+      case _QuizExitAction.saveDraft:
+        await _saveQuiz(asDraft: true);
+        return;
+      case _QuizExitAction.keepEditing:
+      case null:
+        return;
     }
   }
 
@@ -408,61 +485,71 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.quizId == null ? 'Create Quiz' : 'Edit Quiz',
-          style: AppTextStyles.h4,
+    return PopScope<Object?>(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _handleExitRequest();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.quizId == null ? 'Create Quiz' : 'Edit Quiz',
+            style: AppTextStyles.h4,
+          ),
+          actions: [
+            if (!_isLoading)
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: FilledButton(
+                  onPressed: _isSaving || _isGenerating
+                      ? null
+                      : () => _saveQuiz(),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Save Quiz'),
+                ),
+              ),
+          ],
         ),
-        actions: [
-          if (!_isLoading)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: FilledButton(
-                onPressed: _isSaving || _isGenerating ? null : _saveQuiz,
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Save Quiz'),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.all(
+                    MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Quiz Details Card
+                      _buildQuizDetailsCard(),
+                      const SizedBox(height: 24),
+
+                      // Quiz Settings Card
+                      _buildQuizSettingsCard(),
+                      const SizedBox(height: 24),
+
+                      // Question creation tools
+                      _buildQuestionCreationCard(),
+                      const SizedBox(height: 24),
+
+                      // Questions Section
+                      _buildQuestionsSection(),
+                    ],
+                  ),
+                ),
               ),
-            ),
-        ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(
-                  MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Quiz Details Card
-                    _buildQuizDetailsCard(),
-                    const SizedBox(height: 24),
-
-                    // Quiz Settings Card
-                    _buildQuizSettingsCard(),
-                    const SizedBox(height: 24),
-
-                    // Question creation tools
-                    _buildQuestionCreationCard(),
-                    const SizedBox(height: 24),
-
-                    // Questions Section
-                    _buildQuestionsSection(),
-                  ],
-                ),
-              ),
-            ),
     );
   }
 
@@ -1053,6 +1140,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
           ReorderableListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
             itemCount: _questions.length,
             onReorder: (oldIndex, newIndex) {
               setState(() {
@@ -1137,6 +1225,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
   late TextEditingController _pointsController;
   late TextEditingController _acceptedAnswersController;
   late List<TextEditingController> _optionControllers;
+  final ScrollController _mobileEditorScrollController = ScrollController();
 
   @override
   void initState() {
@@ -1162,6 +1251,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
 
   @override
   void dispose() {
+    _mobileEditorScrollController.dispose();
     _questionTextController.dispose();
     _explanationController.dispose();
     _pointsController.dispose();
@@ -1300,6 +1390,79 @@ class _QuestionEditorState extends State<_QuestionEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final editorFields = Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildQuestionSettings(),
+          const SizedBox(height: 16),
+
+          // Question text
+          TextFormField(
+            controller: _questionTextController,
+            decoration: const InputDecoration(
+              labelText: 'Question Text',
+              hintText: 'Enter your question here...',
+            ),
+            maxLines: 3,
+            onChanged: (_) => _updateQuestion(),
+          ),
+          const SizedBox(height: 16),
+
+          // Answer options (for choice questions)
+          if (_isChoiceQuestion(widget.question.type)) ...[
+            Text(
+              'Answer Options',
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ..._buildOptionEditors(),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _addOption,
+              icon: Icon(Icons.add),
+              label: const Text('Add Option'),
+            ),
+          ],
+
+          if (widget.question.type == QuestionType.shortAnswer) ...[
+            TextFormField(
+              key: ValueKey('${widget.question.id}-accepted-answers'),
+              controller: _acceptedAnswersController,
+              decoration: const InputDecoration(
+                labelText: 'Accepted Answers',
+                hintText: 'Enter one accepted answer per line',
+                helperText: 'Matching ignores capitalization.',
+              ),
+              minLines: 2,
+              maxLines: 4,
+              onChanged: (_) => _updateQuestion(),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Explanation
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _explanationController,
+            decoration: const InputDecoration(
+              labelText: 'Explanation (Optional)',
+              hintText: 'Explain the correct answer...',
+            ),
+            maxLines: 2,
+            onChanged: (_) => _updateQuestion(),
+          ),
+        ],
+      ),
+    );
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+    final isMobile = mediaQuery.size.width < 600;
+
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
@@ -1336,74 +1499,24 @@ class _QuestionEditorState extends State<_QuestionEditor> {
             onPressed: widget.onRemove,
           ),
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildQuestionSettings(),
-                  const SizedBox(height: 16),
-
-                  // Question text
-                  TextFormField(
-                    controller: _questionTextController,
-                    decoration: const InputDecoration(
-                      labelText: 'Question Text',
-                      hintText: 'Enter your question here...',
-                    ),
-                    maxLines: 3,
-                    onChanged: (_) => _updateQuestion(),
+            if (isMobile)
+              SizedBox(
+                key: ValueKey('${widget.question.id}-scrollable-editor'),
+                height: (availableHeight * 0.62).clamp(320.0, 560.0),
+                child: Scrollbar(
+                  controller: _mobileEditorScrollController,
+                  thumbVisibility: true,
+                  interactive: true,
+                  child: SingleChildScrollView(
+                    controller: _mobileEditorScrollController,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: editorFields,
                   ),
-                  const SizedBox(height: 16),
-
-                  // Answer options (for choice questions)
-                  if (_isChoiceQuestion(widget.question.type)) ...[
-                    Text(
-                      'Answer Options',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ..._buildOptionEditors(),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _addOption,
-                      icon: Icon(Icons.add),
-                      label: const Text('Add Option'),
-                    ),
-                  ],
-
-                  if (widget.question.type == QuestionType.shortAnswer) ...[
-                    TextFormField(
-                      key: ValueKey('${widget.question.id}-accepted-answers'),
-                      controller: _acceptedAnswersController,
-                      decoration: const InputDecoration(
-                        labelText: 'Accepted Answers',
-                        hintText: 'Enter one accepted answer per line',
-                        helperText: 'Matching ignores capitalization.',
-                      ),
-                      minLines: 2,
-                      maxLines: 4,
-                      onChanged: (_) => _updateQuestion(),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Explanation
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _explanationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Explanation (Optional)',
-                      hintText: 'Explain the correct answer...',
-                    ),
-                    maxLines: 2,
-                    onChanged: (_) => _updateQuestion(),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              )
+            else
+              editorFields,
           ],
         ),
       ),

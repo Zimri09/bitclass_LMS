@@ -13,6 +13,112 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  testWidgets('back navigation warns before discarding quiz work', (
+    tester,
+  ) async {
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_instructor));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+
+    final quizRepository = _FakeQuizRepository();
+    addTearDown(quizRepository.dispose);
+    addTearDown(() async {
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<QuizRepository>.value(
+        value: quizRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: _quizEditorNavigationApp(),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open Quiz Editor'));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Leave quiz editor?'), findsOneWidget);
+    expect(find.text('Keep Editing'), findsOneWidget);
+    expect(find.text('Discard'), findsOneWidget);
+    expect(find.text('Save as Draft'), findsOneWidget);
+
+    await tester.tap(find.text('Keep Editing'));
+    await tester.pumpAndSettle();
+    expect(find.text('Create Quiz'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Quiz Editor'), findsOneWidget);
+    expect(quizRepository.createdQuiz, isNull);
+    expect(quizRepository.savedQuestions, isEmpty);
+  });
+
+  testWidgets('unfinished quiz work can be saved as a draft when leaving', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_instructor));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+
+    final quizRepository = _FakeQuizRepository();
+    addTearDown(quizRepository.dispose);
+    addTearDown(() async {
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<QuizRepository>.value(
+        value: quizRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: _quizEditorNavigationApp(),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open Quiz Editor'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Add Question'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Add Question'));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save as Draft'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Quiz Editor'), findsOneWidget);
+    expect(quizRepository.createdQuiz, isNotNull);
+    expect(quizRepository.createdQuiz!.title, 'Untitled Quiz Draft');
+    expect(quizRepository.createdQuiz!.isPublished, isFalse);
+    expect(quizRepository.createdQuiz!.questionCount, 1);
+    expect(quizRepository.savedQuestions, hasLength(1));
+    expect(
+      quizRepository.savedQuestions.single.quizId,
+      quizRepository.createdQuiz!.id,
+    );
+  });
+
   testWidgets('generated question editor expands safely on a phone layout', (
     tester,
   ) async {
@@ -63,6 +169,25 @@ void main() {
       tester.getTopLeft(pointsField).dy,
       greaterThan(tester.getBottomLeft(typeField).dy),
     );
+    expect(find.byType(ReorderableDelayedDragStartListener), findsNothing);
+
+    final mobileEditor = find.byKey(
+      const ValueKey('question-1-scrollable-editor'),
+    );
+    final editorScrollable = find
+        .descendant(of: mobileEditor, matching: find.byType(Scrollable))
+        .first;
+    expect(mobileEditor, findsOneWidget);
+    expect(editorScrollable, findsOneWidget);
+
+    await tester.ensureVisible(mobileEditor);
+    await tester.pumpAndSettle();
+    final scrollableState = tester.state<ScrollableState>(editorScrollable);
+    expect(scrollableState.position.maxScrollExtent, greaterThan(0));
+
+    await tester.drag(editorScrollable, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(scrollableState.position.pixels, greaterThan(0));
     expect(tester.takeException(), isNull);
   });
 
@@ -232,9 +357,31 @@ const _shortQuestion = QuestionModel(
   points: 3,
 );
 
+Widget _quizEditorNavigationApp() {
+  return MaterialApp(
+    home: Builder(
+      builder: (context) => Scaffold(
+        body: Center(
+          child: ElevatedButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const QuizEditorScreen(courseId: 'course-1'),
+              ),
+            ),
+            child: const Text('Open Quiz Editor'),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _FakeQuizRepository extends QuizRepository {
   final SupabaseClient _client;
   final QuestionModel question;
+  QuizModel? createdQuiz;
+  QuizModel? updatedQuiz;
+  final List<QuestionModel> savedQuestions = [];
 
   factory _FakeQuizRepository({QuestionModel question = _question}) {
     final client = SupabaseClient('http://localhost:54321', 'test-anon-key');
@@ -249,6 +396,21 @@ class _FakeQuizRepository extends QuizRepository {
 
   @override
   Future<List<QuestionModel>> getQuestions(String quizId) async => [question];
+
+  @override
+  Future<void> createQuiz(QuizModel quiz) async {
+    createdQuiz = quiz;
+  }
+
+  @override
+  Future<void> updateQuiz(QuizModel quiz) async {
+    updatedQuiz = quiz;
+  }
+
+  @override
+  Future<void> saveQuestion(QuestionModel question) async {
+    savedQuestions.add(question);
+  }
 
   void dispose() => _client.auth.dispose();
 }

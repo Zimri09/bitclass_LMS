@@ -19,6 +19,7 @@ import '../../../lessons/data/repositories/lesson_repository.dart';
 import '../../../lessons/presentation/widgets/course_syllabus_widget.dart';
 import '../../../quizzes/data/models/models.dart';
 import '../../../quizzes/data/repositories/quiz_repository.dart';
+import '../../../quizzes/presentation/widgets/quiz_delete_button.dart';
 import '../../data/models/course_model.dart';
 import '../../data/repositories/course_repository.dart';
 import '../bloc/course_bloc.dart';
@@ -1243,7 +1244,10 @@ class _CourseWorkTab extends StatelessWidget {
               children: [
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  child: _CourseQuizzesSection(courseId: course.id),
+                  child: _CourseQuizzesSection(
+                    courseId: course.id,
+                    canManage: isCourseOwner,
+                  ),
                 ),
                 AssignmentListScreen(courseId: course.id, embedded: true),
               ],
@@ -1570,15 +1574,44 @@ class _CourseProgressSummary {
 }
 
 /// Widget showing quizzes for a course
-class _CourseQuizzesSection extends StatelessWidget {
+class _CourseQuizzesSection extends StatefulWidget {
   final String courseId;
+  final bool canManage;
 
-  const _CourseQuizzesSection({super.key, required this.courseId});
+  const _CourseQuizzesSection({
+    required this.courseId,
+    required this.canManage,
+  });
+
+  @override
+  State<_CourseQuizzesSection> createState() => _CourseQuizzesSectionState();
+}
+
+class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
+  late Future<List<QuizModel>> _quizzesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshQuizzes();
+  }
+
+  void _refreshQuizzes() {
+    _quizzesFuture = context.read<QuizRepository>().getQuizzesByCourse(
+      widget.courseId,
+      includeUnpublished: widget.canManage,
+    );
+  }
+
+  void _handleDeleted() {
+    if (!mounted) return;
+    setState(_refreshQuizzes);
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<QuizModel>>(
-      future: context.read<QuizRepository>().getQuizzesByCourse(courseId),
+      future: _quizzesFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -1638,8 +1671,9 @@ class _CourseQuizzesSection extends StatelessWidget {
       child: GlowCard(
         glowColor: AppColors.secondary,
         glowIntensity: 0.08,
-        onTap: () {
-          context.push('/courses/$courseId/quizzes/${quiz.id}');
+        onTap: () async {
+          await context.push('/courses/${widget.courseId}/quizzes/${quiz.id}');
+          if (mounted) setState(_refreshQuizzes);
         },
         child: Row(
           children: [
@@ -1661,11 +1695,39 @@ class _CourseQuizzesSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    quiz.title,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          quiz.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (!quiz.isPublished) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Draft',
+                            style: AppTextStyles.label.copyWith(
+                              color: AppColors.warning,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -1716,7 +1778,10 @@ class _CourseQuizzesSection extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            if (widget.canManage)
+              QuizDeleteButton(quiz: quiz, onDeleted: _handleDeleted)
+            else
+              Icon(Icons.chevron_right, color: AppColors.textSecondary),
           ],
         ),
       ),

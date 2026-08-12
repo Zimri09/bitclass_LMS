@@ -623,6 +623,12 @@ class _AppShellState extends State<AppShell> {
         label: 'Todos',
         path: AppRoutes.todos,
       ),
+      _NavItem(
+        icon: Icons.terminal_outlined,
+        activeIcon: Icons.terminal,
+        label: 'Code Lab',
+        path: AppRoutes.codeLab,
+      ),
       offlineFiles,
       if (isInstructor) ...[
         _NavItem(

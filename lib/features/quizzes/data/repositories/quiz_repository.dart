@@ -184,21 +184,31 @@ class QuizRepository {
     ];
   }
 
-  Future<List<QuizModel>> getQuizzesByCourse(String courseId) async {
+  Future<List<QuizModel>> getQuizzesByCourse(
+    String courseId, {
+    bool includeUnpublished = false,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       return _quizzes.values
-          .where((q) => q.courseId == courseId && q.isPublished)
+          .where(
+            (quiz) =>
+                quiz.courseId == courseId &&
+                (includeUnpublished || quiz.isPublished),
+          )
           .toList();
     }
 
     try {
-      final rows = await _supabase!
+      final query = _supabase!
           .from(_quizzesTable)
           .select()
-          .eq('course_id', courseId)
-          .eq('is_published', true)
-          .order('created_at', ascending: false);
+          .eq('course_id', courseId);
+      final rows = includeUnpublished
+          ? await query.order('created_at', ascending: false)
+          : await query
+                .eq('is_published', true)
+                .order('created_at', ascending: false);
 
       return (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -795,10 +805,16 @@ class QuizRepository {
       return;
     }
 
-    final supabase = _supabase!;
-    await supabase.from(_questionsTable).delete().eq('quiz_id', quizId);
-    await supabase.from(_attemptsTable).delete().eq('quiz_id', quizId);
-    await supabase.from(_quizzesTable).delete().eq('id', quizId);
+    final deletedRows = await _supabase!
+        .from(_quizzesTable)
+        .delete()
+        .eq('id', quizId)
+        .select('id');
+    if (deletedRows.isEmpty) {
+      throw StateError(
+        'Quiz was not deleted. Check that you own the course and try again.',
+      );
+    }
   }
 
   Future<void> saveQuestion(QuestionModel question) async {

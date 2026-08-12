@@ -1,0 +1,8 @@
+name: bitclass_code_runner
+description: Isolated Python execution service for BitClass.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.1
+
