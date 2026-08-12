@@ -2,6 +2,13 @@ import 'package:bitclass/core/router/app_routes.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('builds the instructor quiz edit path', () {
+    expect(
+      AppRoutes.editQuizPath('course-1', 'quiz-1'),
+      '/courses/course-1/quizzes/quiz-1/edit',
+    );
+  });
+
   group('notificationDestination', () {
     test('accepts registered main and nested course routes', () {
       expect(

@@ -36,6 +36,7 @@ class AppRoutes {
   static const String quiz = '/courses/:courseId/quizzes/:quizId';
   static const String quizResult = '/courses/:courseId/quizzes/:quizId/result';
   static const String createQuiz = '/courses/:courseId/quizzes/create';
+  static const String editQuiz = '/courses/:courseId/quizzes/:quizId/edit';
 
   // Assignment routes
   static const String assignments = '/courses/:courseId/assignments';
@@ -81,6 +82,8 @@ class AppRoutes {
       '/courses/$courseId/lessons/$lessonId';
   static String quizPath(String courseId, String quizId) =>
       '/courses/$courseId/quizzes/$quizId';
+  static String editQuizPath(String courseId, String quizId) =>
+      '/courses/$courseId/quizzes/$quizId/edit';
   static String assignmentPath(String courseId, String assignmentId) =>
       '/courses/$courseId/assignments/$assignmentId';
   static String channelPath(String courseId, String channelId) =>

@@ -152,6 +152,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Edit Quiz'), findsOneWidget);
     expect(find.text('Questions (1)'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text(_question.questionText),

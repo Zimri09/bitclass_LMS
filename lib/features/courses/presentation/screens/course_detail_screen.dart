@@ -1608,6 +1608,15 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
     setState(_refreshQuizzes);
   }
 
+  Future<void> _openQuiz(QuizModel quiz, {bool edit = false}) async {
+    final shouldEdit = widget.canManage && (edit || !quiz.isPublished);
+    final path = shouldEdit
+        ? AppRoutes.editQuizPath(widget.courseId, quiz.id)
+        : AppRoutes.quizPath(widget.courseId, quiz.id);
+    await context.push(path);
+    if (mounted) setState(_refreshQuizzes);
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<QuizModel>>(
@@ -1671,10 +1680,7 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
       child: GlowCard(
         glowColor: AppColors.secondary,
         glowIntensity: 0.08,
-        onTap: () async {
-          await context.push('/courses/${widget.courseId}/quizzes/${quiz.id}');
-          if (mounted) setState(_refreshQuizzes);
-        },
+        onTap: () => _openQuiz(quiz),
         child: Row(
           children: [
             Container(
@@ -1730,32 +1736,42 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Icon(
-                        Icons.star_outline,
-                        size: 14,
-                        color: AppColors.textSecondary,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_outline,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${quiz.totalPoints} pts',
+                            style: AppTextStyles.bodySmall,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${quiz.totalPoints} pts',
-                        style: AppTextStyles.bodySmall,
-                      ),
-                      if (quiz.timeLimitMinutes > 0) ...[
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.timer_outlined,
-                          size: 14,
-                          color: AppColors.textSecondary,
+                      if (quiz.timeLimitMinutes > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.timer_outlined,
+                              size: 14,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${quiz.timeLimitMinutes}m',
+                              style: AppTextStyles.bodySmall,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${quiz.timeLimitMinutes}m',
-                          style: AppTextStyles.bodySmall,
-                        ),
-                      ],
-                      const SizedBox(width: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -1778,9 +1794,16 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                 ],
               ),
             ),
-            if (widget.canManage)
-              QuizDeleteButton(quiz: quiz, onDeleted: _handleDeleted)
-            else
+            if (widget.canManage) ...[
+              IconButton(
+                key: ValueKey('edit-quiz-${quiz.id}'),
+                tooltip: quiz.isPublished ? 'Edit quiz' : 'Continue editing',
+                onPressed: () => _openQuiz(quiz, edit: true),
+                color: AppColors.primary,
+                icon: const Icon(Icons.edit_outlined),
+              ),
+              QuizDeleteButton(quiz: quiz, onDeleted: _handleDeleted),
+            ] else
               Icon(Icons.chevron_right, color: AppColors.textSecondary),
           ],
         ),

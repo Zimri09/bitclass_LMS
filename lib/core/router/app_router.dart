@@ -265,6 +265,19 @@ class AppRouter {
             },
           ),
           GoRoute(
+            path: AppRoutes.editQuiz,
+            name: 'edit-quiz',
+            pageBuilder: (context, state) {
+              final courseId = state.pathParameters['courseId']!;
+              final quizId = state.pathParameters['quizId']!;
+              return AppTransitions.slideFromBottom(
+                context: context,
+                state: state,
+                child: QuizEditorScreen(courseId: courseId, quizId: quizId),
+              );
+            },
+          ),
+          GoRoute(
             path: AppRoutes.quiz,
             name: 'quiz',
             pageBuilder: (context, state) {
@@ -566,6 +579,7 @@ class AppRouter {
       RegExp(r'^/courses/[^/]+/lessons/create$'),
       RegExp(r'^/courses/[^/]+/lessons/[^/]+/edit$'),
       RegExp(r'^/courses/[^/]+/quizzes/create$'),
+      RegExp(r'^/courses/[^/]+/quizzes/[^/]+/edit$'),
       RegExp(r'^/courses/[^/]+/assignments/create$'),
       RegExp(r'^/courses/[^/]+/assignments/[^/]+/edit$'),
       RegExp(r'^/courses/[^/]+/assignments/[^/]+/grade$'),
