@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../../../../shared/widgets/lesson_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../courses/data/repositories/course_repository.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/assignment_repository.dart';
 import '../bloc/assignment_bloc.dart';
 import '../bloc/assignment_event.dart';
 import '../bloc/assignment_state.dart';
-import '../widgets/code_editor.dart';
+import '../widgets/widgets.dart';
 
-/// Screen for viewing assignment details and submitting code
 class AssignmentDetailScreen extends StatefulWidget {
   final String courseId;
   final String assignmentId;
@@ -28,41 +33,65 @@ class AssignmentDetailScreen extends StatefulWidget {
   State<AssignmentDetailScreen> createState() => _AssignmentDetailScreenState();
 }
 
-class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
-    with SingleTickerProviderStateMixin {
-  late AssignmentBloc _assignmentBloc;
-  late TabController _tabController;
+class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
+  late final AssignmentBloc _assignmentBloc;
   String _currentCode = '';
+  bool _canManage = false;
+  bool _isWorkBusy = false;
 
-  bool get _isInstructor {
+  AuthAuthenticated? get _authenticatedUser {
     final authState = context.read<AuthBloc>().state;
-    return authState is AuthAuthenticated &&
-        authState.user.role == 'instructor';
+    return authState is AuthAuthenticated ? authState : null;
   }
+
+  bool get _isInstructorView {
+    final role = _authenticatedUser?.user.role;
+    return role == 'instructor' || role == 'admin';
+  }
+
+  String get _userId => _authenticatedUser?.user.id ?? 'demo-user-1';
+  String get _userDisplayName =>
+      _authenticatedUser?.user.displayNameOrEmail ?? 'Demo Student';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _assignmentBloc = AssignmentBloc(
       assignmentRepository: context.read<AssignmentRepository>(),
     );
+    _loadManagementPermission();
     _loadAssignment();
   }
 
-  void _loadAssignment() {
+  Future<void> _loadManagementPermission() async {
     final authState = context.read<AuthBloc>().state;
-    final userId = authState is AuthAuthenticated
-        ? authState.user.id
-        : 'demo_user';
+    if (authState is! AuthAuthenticated) return;
+    if (authState.user.role == 'admin') {
+      if (mounted) setState(() => _canManage = true);
+      return;
+    }
+    if (authState.user.role != 'instructor') return;
+
+    try {
+      final course = await context.read<CourseRepository>().getCourse(
+        widget.courseId,
+      );
+      if (mounted) {
+        setState(() => _canManage = course?.instructorId == authState.user.id);
+      }
+    } catch (_) {
+      // RLS remains the final authority when ownership cannot be loaded.
+    }
+  }
+
+  void _loadAssignment() {
     _assignmentBloc.add(
-      LoadAssignmentDetail(assignmentId: widget.assignmentId, userId: userId),
+      LoadAssignmentDetail(assignmentId: widget.assignmentId, userId: _userId),
     );
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     _assignmentBloc.close();
     super.dispose();
   }
@@ -75,438 +104,492 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
         listener: (context, state) {
           if (state is AssignmentDetailLoaded) {
             _currentCode = state.currentCode;
-          }
-          if (state is DraftSaved) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Draft saved'),
-                backgroundColor: AppColors.success,
-                duration: Duration(seconds: 2),
-              ),
+          } else if (state is DraftSaved) {
+            _showMessage('Draft saved.', AppColors.success);
+          } else if (state is AssignmentSubmitted) {
+            _showMessage(
+              state.submission.isLate
+                  ? 'Work submitted late.'
+                  : 'Work submitted.',
+              state.submission.isLate ? AppColors.warning : AppColors.success,
             );
-          }
-          if (state is AssignmentSubmitted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  state.submission.isLate
-                      ? 'Assignment submitted (late)'
-                      : 'Assignment submitted successfully!',
-                ),
-                backgroundColor: state.submission.isLate
-                    ? AppColors.warning
-                    : AppColors.success,
-              ),
+          } else if (state is AssignmentMarkedDone) {
+            _showMessage(
+              state.submission.isLate ? 'Marked done late.' : 'Marked as done.',
+              state.submission.isLate ? AppColors.warning : AppColors.success,
             );
-          }
-          if (state is AssignmentError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppColors.error,
-              ),
+          } else if (state is AssignmentUnsubmitted) {
+            _showMessage(
+              'Submission taken back. You can edit your work now.',
+              AppColors.info,
             );
+          } else if (state is AssignmentError) {
+            _showMessage(state.message, AppColors.error);
           }
         },
-        builder: (context, state) {
-          return Scaffold(
-            appBar: _buildAppBar(state),
-            body: _buildBody(state),
-            bottomNavigationBar: _buildBottomBar(state),
-          );
-        },
+        builder: (context, state) => Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: _buildAppBar(state),
+          body: _buildBody(state),
+        ),
       ),
     );
   }
 
   PreferredSizeWidget _buildAppBar(AssignmentState state) {
-    String title = 'Assignment';
-    if (state is AssignmentDetailLoaded) {
-      title = state.assignment.title;
-    }
-
+    final assignment = state is AssignmentDetailLoaded
+        ? state.assignment
+        : null;
     return AppBar(
-      title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+      title: const Text('Assignment'),
       leading: IconButton(
-        icon: Icon(Icons.arrow_back),
+        icon: const Icon(Icons.arrow_back),
         onPressed: () => context.pop(),
       ),
-      bottom: TabBar(
-        controller: _tabController,
-        indicatorColor: AppColors.primary,
-        labelColor: AppColors.primary,
-        unselectedLabelColor: AppColors.textSecondary,
-        tabs: const [
-          Tab(text: 'Instructions'),
-          Tab(text: 'Code Editor'),
-        ],
-      ),
       actions: [
-        if (!_isInstructor &&
-            state is AssignmentDetailLoaded &&
-            state.hasChanges)
-          TextButton.icon(
-            onPressed: state.isSaving ? null : () => _saveDraft(state),
-            icon: state.isSaving
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
-                    ),
-                  )
-                : Icon(Icons.save_outlined, size: 18),
-            label: const Text('Save'),
+        if (_canManage && assignment != null)
+          PopupMenuButton<String>(
+            tooltip: 'Assignment actions',
+            onSelected: (action) async {
+              if (action == 'edit') {
+                await context.push(
+                  AppRoutes.editAssignmentPath(
+                    widget.courseId,
+                    widget.assignmentId,
+                  ),
+                );
+                if (mounted) _loadAssignment();
+              } else if (action == 'review') {
+                await context.push(
+                  AppRoutes.gradeAssignmentPath(
+                    widget.courseId,
+                    widget.assignmentId,
+                  ),
+                );
+              } else if (action == 'delete') {
+                await _deleteAssignment(assignment);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit assignment')),
+              PopupMenuItem(value: 'review', child: Text('Review submissions')),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(
+                  'Delete assignment',
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
+            ],
           ),
       ],
     );
   }
 
   Widget _buildBody(AssignmentState state) {
-    if (state is AssignmentDetailLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
+    if (state is AssignmentDetailLoading || state is AssignmentInitial) {
+      return const Center(child: CircularProgressIndicator());
     }
-
     if (state is AssignmentError) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: AppColors.error),
-            const SizedBox(height: 16),
-            Text(
-              state.message,
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _loadAssignment,
-              child: const Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              const SizedBox(height: 14),
+              Text(state.message, textAlign: TextAlign.center),
+              const SizedBox(height: 14),
+              FilledButton(
+                onPressed: _loadAssignment,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }
+    if (state is! AssignmentDetailLoaded) return const SizedBox.shrink();
 
-    if (state is AssignmentDetailLoaded) {
-      return TabBarView(
-        controller: _tabController,
-        children: [_buildInstructionsTab(state), _buildCodeEditorTab(state)],
-      );
-    }
+    return RefreshIndicator(
+      onRefresh: () async => _loadAssignment(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 880;
+          final details = _buildDetails(state);
+          final sidePanel = _isInstructorView
+              ? (_canManage
+                    ? _buildInstructorPanel(state.assignment)
+                    : const _DetailCard(
+                        child: Text(
+                          'This assignment is read-only for this instructor.',
+                        ),
+                      ))
+              : _buildYourWork(state);
 
-    return const SizedBox.shrink();
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.all(isWide ? 28 : 16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1120),
+                child: isWide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: details),
+                          const SizedBox(width: 20),
+                          SizedBox(width: 330, child: sidePanel),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          details,
+                          const SizedBox(height: 16),
+                          sidePanel,
+                        ],
+                      ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
-  Widget _buildInstructionsTab(AssignmentDetailLoaded state) {
+  Widget _buildDetails(AssignmentDetailLoaded state) {
     final assignment = state.assignment;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    final status = _classroomStatus(assignment, state.submission);
+
+    return Column(
+      children: [
+        _DetailCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.assignment_outlined,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(assignment.title, style: AppTextStyles.h3),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            _MetaLabel(
+                              icon: Icons.star_outline,
+                              text: '${assignment.maxPoints} points',
+                            ),
+                            _MetaLabel(
+                              icon: Icons.event_outlined,
+                              text: _dueLabel(assignment.dueDate),
+                            ),
+                            if (assignment.isCodeActivity)
+                              _MetaLabel(
+                                icon: Icons.code,
+                                text: assignment.language.displayName,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!_isInstructorView) _StatusBadge(status: status),
+                  if (_isInstructorView && !assignment.isPublished)
+                    const _SimpleBadge(
+                      label: 'Draft',
+                      color: AppColors.warning,
+                    ),
+                ],
+              ),
+              const Divider(height: 34),
+              Text('Instructions', style: AppTextStyles.h4),
+              const SizedBox(height: 12),
+              if (assignment.instructions?.trim().isNotEmpty == true)
+                MarkdownContent(
+                  content: assignment.instructions!,
+                  selectable: true,
+                )
+              else
+                Text(
+                  'No instructions were provided.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              if (assignment.attachments.isNotEmpty) ...[
+                const SizedBox(height: 26),
+                Text('Materials', style: AppTextStyles.h4),
+                const SizedBox(height: 10),
+                ...assignment.attachments.map(
+                  (attachment) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: AssignmentAttachmentTile(
+                      attachment: attachment,
+                      onOpen: () => _openAttachment(attachment),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (assignment.isCodeActivity) ...[
+          const SizedBox(height: 16),
+          _buildCodeSection(state),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCodeSection(AssignmentDetailLoaded state) {
+    final submission = state.submission;
+    final canEdit =
+        !_isInstructorView &&
+        (submission == null || submission.status == SubmissionStatus.draft) &&
+        !(state.assignment.isPastDue && !state.assignment.allowLateSubmission);
+
+    return _DetailCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Assignment info card
-          _buildInfoCard(assignment, state.submission),
-          const SizedBox(height: 16),
-
-          // Instructions
-          if (assignment.instructions != null) ...[
-            Text(
-              'Instructions',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+          Row(
+            children: [
+              Expanded(child: Text('Code editor', style: AppTextStyles.h4)),
+              if (canEdit && state.hasChanges)
+                TextButton.icon(
+                  onPressed: state.isSaving ? null : () => _saveDraft(state),
+                  icon: state.isSaving
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined, size: 18),
+                  label: const Text('Save draft'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (!canEdit && !_isInstructorView)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                submission?.isCompleted == true
+                    ? 'Unsubmit before the deadline to edit this work.'
+                    : 'The deadline has passed and editing is closed.',
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: MarkdownContent(
-                content: assignment.instructions!,
-                selectable: true,
-              ),
+          CodeEditor(
+            key: ValueKey(
+              '${submission?.id}-${submission?.updatedAt}-$canEdit',
             ),
-          ],
-
-          // Starter code preview
-          if (assignment.starterCode != null &&
-              assignment.starterCode!.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            Text(
-              'Starter Code',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 300,
-              child: CodeViewer(
-                code: assignment.starterCode!,
-                language: assignment.language,
-              ),
-            ),
-          ],
+            initialCode: _currentCode,
+            language: state.assignment.language,
+            readOnly: _isInstructorView || !canEdit,
+            height: 430,
+            onChanged: canEdit
+                ? (code) {
+                    _currentCode = code;
+                    _assignmentBloc.add(UpdateCode(code: code));
+                  }
+                : null,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoCard(
-    AssignmentModel assignment,
-    SubmissionModel? submission,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
+  Widget _buildInstructorPanel(AssignmentModel assignment) {
+    return _DetailCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Instructor actions', style: AppTextStyles.h4),
+          const SizedBox(height: 8),
           Text(
-            assignment.description,
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            assignment.isPublished
+                ? 'This assignment is visible to students.'
+                : 'This assignment is currently a draft.',
+            style: TextStyle(color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push(
+                AppRoutes.gradeAssignmentPath(
+                  widget.courseId,
+                  widget.assignmentId,
+                ),
+              ),
+              icon: const Icon(Icons.fact_check_outlined),
+              label: const Text('Review submissions'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await context.push(
+                  AppRoutes.editAssignmentPath(
+                    widget.courseId,
+                    widget.assignmentId,
+                  ),
+                );
+                if (mounted) _loadAssignment();
+              },
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit assignment'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildYourWork(AssignmentDetailLoaded state) {
+    final assignment = state.assignment;
+    final submission = state.submission;
+    final attachments =
+        submission?.attachments ?? const <AssignmentAttachment>[];
+    final status = _classroomStatus(assignment, submission);
+    final isDraft =
+        submission == null || submission.status == SubmissionStatus.draft;
+    final deadlineClosed =
+        assignment.isPastDue && !assignment.allowLateSubmission;
+    final canEdit = isDraft && !deadlineClosed;
+    final shouldSubmit =
+        assignment.requiresAttachment ||
+        assignment.isCodeActivity ||
+        attachments.isNotEmpty;
+
+    return _DetailCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              _buildInfoChip(
-                icon: Icons.code,
-                label: assignment.language.displayName,
-                color: AppColors.primary,
-              ),
-              _buildInfoChip(
-                icon: Icons.star_outline,
-                label: '${assignment.maxPoints} points',
-              ),
-              if (assignment.dueDate != null)
-                _buildInfoChip(
-                  icon: Icons.schedule,
-                  label: _formatDueDate(assignment.dueDate!),
-                  color: assignment.isPastDue
-                      ? AppColors.error
-                      : AppColors.success,
-                ),
-              if (submission != null)
-                _buildInfoChip(
-                  icon: _getStatusIcon(submission.status),
-                  label: submission.status.displayName,
-                  color: _getStatusColor(submission.status),
-                ),
+              Expanded(child: Text('Your work', style: AppTextStyles.h4)),
+              _StatusBadge(status: status),
             ],
           ),
-          if (submission?.isGraded == true) ...[
+          if (submission?.submittedAt != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '${submission!.status == SubmissionStatus.done ? 'Completed' : 'Submitted'} '
+              '${_dateTimeLabel(submission.submittedAt!)}',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+          if (submission?.score != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Grade: ${submission!.score}/${assignment.maxPoints}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+          if (submission?.feedback?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Text('Feedback', style: AppTextStyles.label),
+            const SizedBox(height: 4),
+            Text(submission!.feedback!),
+          ],
+          if (attachments.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            ...attachments.map(
+              (attachment) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: AssignmentAttachmentTile(
+                  attachment: attachment,
+                  isBusy: _isWorkBusy,
+                  onOpen: () => _openAttachment(attachment),
+                  onRemove: canEdit
+                      ? () => _removeStudentAttachment(state, attachment)
+                      : null,
+                ),
+              ),
+            ),
+          ] else ...[
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(12),
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.grade, color: AppColors.secondary, size: 24),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Score: ${submission!.score}/${assignment.maxPoints}',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${submission.getPercentage(assignment.maxPoints)?.toStringAsFixed(0)}%',
-                    style: GoogleFonts.inter(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.secondary,
-                    ),
-                  ),
-                ],
+              child: Text(
+                assignment.requiresAttachment
+                    ? 'No work attached yet.'
+                    : 'No attachment is required.',
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
-            if (submission.feedback != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Feedback',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                submission.feedback!,
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-              ),
-            ],
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoChip({
-    required IconData icon,
-    required String label,
-    Color? color,
-  }) {
-    final chipColor = color ?? AppColors.textSecondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: chipColor),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: chipColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCodeEditorTab(AssignmentDetailLoaded state) {
-    final isSubmitted = state.submission?.isSubmitted == true;
-    final isInstructor = _isInstructor;
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isInstructor)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppColors.info.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.visibility, color: AppColors.info, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Instructor preview mode (read-only)',
-                    style: TextStyle(fontSize: 13, color: AppColors.info),
+          if (canEdit) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isWorkBusy
+                        ? null
+                        : () => _addStudentFile(state),
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: const Text('File'),
                   ),
-                ],
-              ),
-            )
-          else if (isSubmitted)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppColors.info.withValues(alpha: 0.3),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: AppColors.info, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'This assignment has been submitted. You can still edit and resubmit.',
-                    style: TextStyle(fontSize: 13, color: AppColors.info),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isWorkBusy
+                        ? null
+                        : () => _addStudentLink(state),
+                    icon: const Icon(Icons.link),
+                    label: const Text('Link'),
                   ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: CodeEditor(
-              initialCode: state.currentCode,
-              language: state.assignment.language,
-              readOnly: isInstructor,
-              onChanged: (code) {
-                _currentCode = code;
-                _assignmentBloc.add(UpdateCode(code: code));
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget? _buildBottomBar(AssignmentState state) {
-    if (state is! AssignmentDetailLoaded) return null;
-    if (_isInstructor) return null;
-
-    final isSubmitting = state.isSubmitting;
-    final isSubmitted = state.submission?.isSubmitted == true;
-    final submissionsClosed =
-        state.assignment.isPastDue && !state.assignment.allowLateSubmission;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundSecondary,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: state.hasChanges && !isSubmitting
-                    ? () => _saveDraft(state)
-                    : null,
-                icon: Icon(Icons.save_outlined),
-                label: const Text('Save Draft'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: FilledButton.icon(
-                onPressed: isSubmitting || submissionsClosed
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                key: ValueKey(shouldSubmit ? 'turn-in-work' : 'mark-work-done'),
+                onPressed: state.isSubmitting || _isWorkBusy
                     ? null
-                    : () => _submitAssignment(state),
-                icon: isSubmitting
+                    : () => shouldSubmit
+                          ? _confirmTurnIn(state)
+                          : _confirmMarkDone(state),
+                child: state.isSubmitting
                     ? const SizedBox(
                         width: 18,
                         height: 18,
@@ -515,169 +598,481 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                           color: Colors.white,
                         ),
                       )
-                    : Icon(
-                        submissionsClosed
-                            ? Icons.lock_outline
-                            : isSubmitted
-                            ? Icons.refresh
-                            : Icons.send,
-                      ),
-                label: Text(
-                  submissionsClosed
-                      ? 'Submissions Closed'
-                      : isSubmitted
-                      ? 'Resubmit'
-                      : 'Submit',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.secondary,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
+                    : Text(shouldSubmit ? 'Turn in' : 'Mark as done'),
               ),
             ),
+          ] else if (submission?.canUnsubmit(assignment) == true) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                key: const ValueKey('unsubmit-work'),
+                onPressed: state.isUnsubmitting
+                    ? null
+                    : () => _confirmUnsubmit(state),
+                child: state.isUnsubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Unsubmit'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Unsubmit before the deadline to edit or replace your work.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ] else if (submission?.isCompleted == true) ...[
+            const SizedBox(height: 14),
+            Text(
+              submission!.isGraded
+                  ? 'This work has been graded and can no longer be unsubmitted.'
+                  : 'The deadline has passed. This work can no longer be unsubmitted.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ] else if (deadlineClosed) ...[
+            const SizedBox(height: 14),
+            Text(
+              'The deadline has passed and late submissions are closed.',
+              style: const TextStyle(color: AppColors.error),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  void _saveDraft(AssignmentDetailLoaded state) {
-    final authState = context.read<AuthBloc>().state;
-    final userId = authState is AuthAuthenticated
-        ? authState.user.id
-        : 'demo_user';
-    final displayName = authState is AuthAuthenticated
-        ? (authState.user.displayName ?? 'Student')
-        : 'Demo Student';
-    _assignmentBloc.add(
-      SaveDraft(
+  Future<void> _addStudentFile(AssignmentDetailLoaded state) async {
+    final repository = context.read<AssignmentRepository>();
+    final current = state.submission?.attachments ?? const [];
+    if (current.length >= AssignmentRepository.maxAttachments) {
+      _showMessage('You can attach up to 10 items.', AppColors.error);
+      return;
+    }
+
+    setState(() => _isWorkBusy = true);
+    AssignmentAttachment? uploaded;
+    try {
+      final file = await pickAssignmentFile();
+      if (file == null || !mounted) return;
+      uploaded = await repository.uploadAttachment(
+        courseId: widget.courseId,
+        assignmentId: widget.assignmentId,
+        userId: _userId,
+        fileName: file.name,
+        mimeType: file.mimeType,
+        bytes: file.bytes,
+        isSubmission: true,
+      );
+      await repository.saveDraft(
         assignmentId: widget.assignmentId,
         courseId: widget.courseId,
-        userId: userId,
-        userDisplayName: displayName,
-        code: _currentCode,
-      ),
-    );
+        userId: _userId,
+        userDisplayName: _userDisplayName,
+        code: state.currentCode,
+        attachments: [...current, uploaded],
+      );
+      if (mounted) {
+        _showMessage('File attached.', AppColors.success);
+        _loadAssignment();
+      }
+    } catch (error) {
+      if (uploaded != null) {
+        try {
+          await repository.deleteStoredAttachment(uploaded);
+        } catch (_) {}
+      }
+      if (mounted) _showMessage(error.toString(), AppColors.error);
+    } finally {
+      if (mounted) setState(() => _isWorkBusy = false);
+    }
   }
 
-  void _submitAssignment(AssignmentDetailLoaded state) {
-    // Show confirmation dialog
-    showDialog(
+  Future<void> _addStudentLink(AssignmentDetailLoaded state) async {
+    final current = state.submission?.attachments ?? const [];
+    if (current.length >= AssignmentRepository.maxAttachments) {
+      _showMessage('You can attach up to 10 items.', AppColors.error);
+      return;
+    }
+
+    final attachment = await _showLinkDialog();
+    if (attachment == null || !mounted) return;
+    setState(() => _isWorkBusy = true);
+    try {
+      await context.read<AssignmentRepository>().saveDraft(
+        assignmentId: widget.assignmentId,
+        courseId: widget.courseId,
+        userId: _userId,
+        userDisplayName: _userDisplayName,
+        code: state.currentCode,
+        attachments: [...current, attachment],
+      );
+      if (mounted) {
+        _showMessage('Link attached.', AppColors.success);
+        _loadAssignment();
+      }
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), AppColors.error);
+    } finally {
+      if (mounted) setState(() => _isWorkBusy = false);
+    }
+  }
+
+  Future<AssignmentAttachment?> _showLinkDialog() async {
+    var linkName = '';
+    var linkUrl = '';
+    final formKey = GlobalKey<FormState>();
+    final result = await showDialog<AssignmentAttachment>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Submit Assignment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Are you sure you want to submit this assignment?'),
-            if (state.assignment.isPastDue) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Attach a web link'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                onChanged: (value) => linkUrl = value,
+                decoration: const InputDecoration(
+                  labelText: 'Web address',
+                  hintText: 'https://example.com',
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.warning_amber,
-                      color: AppColors.warning,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'This assignment is past due. A ${state.assignment.latePenaltyPercent}% penalty may apply.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ),
-                  ],
+                validator: validateWebUrl,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                onChanged: (value) => linkName = value,
+                decoration: const InputDecoration(
+                  labelText: 'Display name (optional)',
                 ),
               ),
             ],
-          ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context);
-              final authState = context.read<AuthBloc>().state;
-              final userId = authState is AuthAuthenticated
-                  ? authState.user.id
-                  : 'demo_user';
-              final displayName = authState is AuthAuthenticated
-                  ? (authState.user.displayName ?? 'Student')
-                  : 'Demo Student';
-              _assignmentBloc.add(
-                SubmitAssignment(
-                  assignmentId: widget.assignmentId,
-                  courseId: widget.courseId,
-                  userId: userId,
-                  userDisplayName: displayName,
-                  code: _currentCode,
+              if (!formKey.currentState!.validate()) return;
+              final uri = normalizeWebUrl(linkUrl);
+              Navigator.pop(
+                dialogContext,
+                AssignmentAttachment(
+                  id: const Uuid().v4(),
+                  name: linkName.trim().isEmpty ? uri.host : linkName.trim(),
+                  kind: AssignmentAttachmentKind.link,
+                  url: uri.toString(),
                 ),
               );
             },
-            style: FilledButton.styleFrom(backgroundColor: AppColors.secondary),
-            child: const Text('Submit', style: TextStyle(color: Colors.black)),
+            child: const Text('Attach'),
+          ),
+        ],
+      ),
+    );
+    return result;
+  }
+
+  Future<void> _removeStudentAttachment(
+    AssignmentDetailLoaded state,
+    AssignmentAttachment attachment,
+  ) async {
+    final updated = List<AssignmentAttachment>.from(
+      state.submission?.attachments ?? const [],
+    )..removeWhere((item) => item.id == attachment.id);
+
+    setState(() => _isWorkBusy = true);
+    try {
+      final repository = context.read<AssignmentRepository>();
+      await repository.saveDraft(
+        assignmentId: widget.assignmentId,
+        courseId: widget.courseId,
+        userId: _userId,
+        userDisplayName: _userDisplayName,
+        code: state.currentCode,
+        attachments: updated,
+      );
+      await repository.deleteStoredAttachment(attachment);
+      if (mounted) {
+        _showMessage('Attachment removed.', AppColors.success);
+        _loadAssignment();
+      }
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), AppColors.error);
+    } finally {
+      if (mounted) setState(() => _isWorkBusy = false);
+    }
+  }
+
+  void _saveDraft(AssignmentDetailLoaded state) {
+    _assignmentBloc.add(
+      SaveDraft(
+        assignmentId: widget.assignmentId,
+        courseId: widget.courseId,
+        userId: _userId,
+        userDisplayName: _userDisplayName,
+        code: state.currentCode,
+        attachments: state.submission?.attachments,
+      ),
+    );
+  }
+
+  Future<void> _confirmTurnIn(AssignmentDetailLoaded state) async {
+    if (state.assignment.requiresAttachment &&
+        (state.submission?.attachments.isEmpty ?? true)) {
+      _showMessage(
+        'Attach at least one file or link before turning in.',
+        AppColors.error,
+      );
+      return;
+    }
+    final confirmed = await _confirmationDialog(
+      title: 'Turn in your work?',
+      message: 'You will need to unsubmit before the deadline to make changes.',
+      action: 'Turn in',
+    );
+    if (confirmed != true) return;
+    _assignmentBloc.add(
+      SubmitAssignment(
+        assignmentId: widget.assignmentId,
+        courseId: widget.courseId,
+        userId: _userId,
+        userDisplayName: _userDisplayName,
+        code: state.currentCode,
+        attachments: state.submission?.attachments,
+      ),
+    );
+  }
+
+  Future<void> _confirmMarkDone(AssignmentDetailLoaded state) async {
+    final confirmed = await _confirmationDialog(
+      title: 'Mark this activity as done?',
+      message: 'This activity does not require an attachment.',
+      action: 'Mark as done',
+    );
+    if (confirmed != true) return;
+    _assignmentBloc.add(
+      MarkAssignmentDone(
+        assignmentId: widget.assignmentId,
+        courseId: widget.courseId,
+        userId: _userId,
+        userDisplayName: _userDisplayName,
+        code: state.currentCode,
+        attachments: state.submission?.attachments,
+      ),
+    );
+  }
+
+  Future<void> _confirmUnsubmit(AssignmentDetailLoaded state) async {
+    final confirmed = await _confirmationDialog(
+      title: 'Unsubmit this work?',
+      message: 'Your work will return to draft so you can edit or replace it.',
+      action: 'Unsubmit',
+    );
+    if (confirmed != true) return;
+    _assignmentBloc.add(
+      UnsubmitAssignment(assignmentId: widget.assignmentId, userId: _userId),
+    );
+  }
+
+  Future<bool?> _confirmationDialog({
+    required String title,
+    required String message,
+    required String action,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(action),
           ),
         ],
       ),
     );
   }
 
-  String _formatDueDate(DateTime dueDate) {
-    final now = DateTime.now();
-    final diff = dueDate.difference(now);
-
-    if (diff.isNegative) {
-      return 'Past due';
-    } else if (diff.inDays == 0) {
-      return 'Due today';
-    } else if (diff.inDays == 1) {
-      return 'Due tomorrow';
-    } else {
-      return 'Due in ${diff.inDays} days';
+  Future<void> _openAttachment(AssignmentAttachment attachment) async {
+    try {
+      final value = await context.read<AssignmentRepository>().getAttachmentUrl(
+        attachment,
+      );
+      final opened = await launchUrl(
+        Uri.parse(value),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw Exception('No app can open this attachment.');
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), AppColors.error);
     }
   }
 
-  IconData _getStatusIcon(SubmissionStatus status) {
-    switch (status) {
-      case SubmissionStatus.draft:
-        return Icons.edit_note;
-      case SubmissionStatus.submitted:
-        return Icons.check_circle_outline;
-      case SubmissionStatus.grading:
-        return Icons.hourglass_empty;
-      case SubmissionStatus.graded:
-        return Icons.grade;
-      case SubmissionStatus.returned:
-        return Icons.assignment_return;
+  Future<void> _deleteAssignment(AssignmentModel assignment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.delete_outline, color: AppColors.error),
+        title: const Text('Delete assignment?'),
+        content: Text(
+          '"${assignment.title}" and every student submission will be '
+          'permanently deleted. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await context.read<AssignmentRepository>().deleteAssignment(
+        assignment.id,
+      );
+      if (mounted) context.pop();
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), AppColors.error);
     }
   }
 
-  Color _getStatusColor(SubmissionStatus status) {
-    switch (status) {
-      case SubmissionStatus.draft:
-        return AppColors.textSecondary;
-      case SubmissionStatus.submitted:
-        return AppColors.info;
-      case SubmissionStatus.grading:
-        return AppColors.warning;
-      case SubmissionStatus.graded:
-        return AppColors.success;
-      case SubmissionStatus.returned:
-        return AppColors.secondary;
-    }
+  ClassroomSubmissionStatus _classroomStatus(
+    AssignmentModel assignment,
+    SubmissionModel? submission,
+  ) {
+    if (submission != null) return submission.classroomStatus(assignment);
+    if (assignment.isPastDue) return ClassroomSubmissionStatus.missing;
+    return ClassroomSubmissionStatus.assigned;
+  }
+
+  String _dueLabel(DateTime? dueDate) {
+    if (dueDate == null) return 'No due date';
+    return 'Due ${DateFormat('MMM d, y, h:mm a').format(dueDate.toLocal())}';
+  }
+
+  String _dateTimeLabel(DateTime date) {
+    return DateFormat('MMM d, y, h:mm a').format(date.toLocal());
+  }
+
+  void _showMessage(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+  }
+}
+
+class _DetailCard extends StatelessWidget {
+  final Widget child;
+
+  const _DetailCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: AppColors.backgroundSecondary,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.border),
+        ),
+        child: Padding(padding: const EdgeInsets.all(20), child: child),
+      ),
+    );
+  }
+}
+
+class _MetaLabel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _MetaLabel({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 16, color: AppColors.textSecondary),
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            text,
+            softWrap: true,
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final ClassroomSubmissionStatus status;
+
+  const _StatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      ClassroomSubmissionStatus.assigned => AppColors.info,
+      ClassroomSubmissionStatus.submitted => AppColors.success,
+      ClassroomSubmissionStatus.done => AppColors.success,
+      ClassroomSubmissionStatus.missing => AppColors.error,
+      ClassroomSubmissionStatus.late => AppColors.warning,
+    };
+    return _SimpleBadge(label: status.displayName, color: color);
+  }
+}
+
+class _SimpleBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _SimpleBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }

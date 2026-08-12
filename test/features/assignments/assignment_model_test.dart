@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bitclass/features/assignments/data/models/assignment_attachment.dart';
 import 'package:bitclass/features/assignments/data/models/assignment_model.dart';
 
 void main() {
@@ -9,23 +10,30 @@ void main() {
     test('fromString parses known languages', () {
       expect(ProgrammingLanguage.fromString('dart'), ProgrammingLanguage.dart);
       expect(
-          ProgrammingLanguage.fromString('python'), ProgrammingLanguage.python);
-      expect(ProgrammingLanguage.fromString('javascript'),
-          ProgrammingLanguage.javascript);
+        ProgrammingLanguage.fromString('python'),
+        ProgrammingLanguage.python,
+      );
+      expect(
+        ProgrammingLanguage.fromString('javascript'),
+        ProgrammingLanguage.javascript,
+      );
       expect(ProgrammingLanguage.fromString('cpp'), ProgrammingLanguage.cpp);
     });
 
     test('fromString is case-insensitive (lowercases input)', () {
       expect(ProgrammingLanguage.fromString('Dart'), ProgrammingLanguage.dart);
-      expect(ProgrammingLanguage.fromString('PYTHON'),
-          ProgrammingLanguage.python);
+      expect(
+        ProgrammingLanguage.fromString('PYTHON'),
+        ProgrammingLanguage.python,
+      );
     });
 
     test('fromString returns plaintext for unknown values', () {
-      expect(ProgrammingLanguage.fromString('unknown'),
-          ProgrammingLanguage.plaintext);
       expect(
-          ProgrammingLanguage.fromString(''), ProgrammingLanguage.plaintext);
+        ProgrammingLanguage.fromString('unknown'),
+        ProgrammingLanguage.plaintext,
+      );
+      expect(ProgrammingLanguage.fromString(''), ProgrammingLanguage.plaintext);
     });
 
     test('displayName returns human-readable names', () {
@@ -57,15 +65,14 @@ void main() {
       String id = 'assign-1',
       String courseId = 'course-1',
       ProgrammingLanguage language = ProgrammingLanguage.dart,
-    }) =>
-        AssignmentModel(
-          id: id,
-          courseId: courseId,
-          title: 'Hello World',
-          description: 'Write a hello world program',
-          language: language,
-          createdAt: createdAt,
-        );
+    }) => AssignmentModel(
+      id: id,
+      courseId: courseId,
+      title: 'Hello World',
+      description: 'Write a hello world program',
+      language: language,
+      createdAt: createdAt,
+    );
 
     test('creates a valid instance with required fields', () {
       final assignment = makeAssignment();
@@ -175,6 +182,23 @@ void main() {
         language: ProgrammingLanguage.rust,
         starterCode: 'fn main() {}',
         solutionCode: 'fn main() { println!("hi"); }',
+        attachments: const [
+          AssignmentAttachment(
+            id: 'material-1',
+            name: 'Rubric.pdf',
+            kind: AssignmentAttachmentKind.file,
+            storagePath: 'materials/course-1/assign-1/user-1/rubric.pdf',
+            mimeType: 'application/pdf',
+            sizeBytes: 2048,
+          ),
+          AssignmentAttachment(
+            id: 'material-2',
+            name: 'Reference',
+            kind: AssignmentAttachmentKind.link,
+            url: 'https://example.com/reference',
+          ),
+        ],
+        requiresAttachment: true,
         maxPoints: 50,
         dueDate: DateTime(2024, 5, 1),
         allowLateSubmission: false,
@@ -187,6 +211,16 @@ void main() {
       final roundtripped = AssignmentModel.fromMap(original.toMap());
 
       expect(roundtripped, equals(original));
+      expect(roundtripped.attachments, hasLength(2));
+      expect(roundtripped.requiresAttachment, isTrue);
+    });
+
+    test('identifies plain activities and code activities', () {
+      final activity = makeAssignment(language: ProgrammingLanguage.plaintext);
+      final codeAssignment = makeAssignment();
+
+      expect(activity.isCodeActivity, isFalse);
+      expect(codeAssignment.isCodeActivity, isTrue);
     });
 
     test('copyWith updates only specified fields', () {

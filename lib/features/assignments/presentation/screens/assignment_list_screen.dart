@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../courses/data/repositories/course_repository.dart';
 import '../../data/models/models.dart';
@@ -13,7 +14,6 @@ import '../bloc/assignment_bloc.dart';
 import '../bloc/assignment_event.dart';
 import '../bloc/assignment_state.dart';
 
-/// Screen displaying list of assignments for a course
 class AssignmentListScreen extends StatefulWidget {
   final String courseId;
   final bool embedded;
@@ -29,8 +29,16 @@ class AssignmentListScreen extends StatefulWidget {
 }
 
 class _AssignmentListScreenState extends State<AssignmentListScreen> {
-  late AssignmentBloc _assignmentBloc;
+  late final AssignmentBloc _assignmentBloc;
   bool _canManageAssignments = false;
+  Map<String, SubmissionModel> _studentSubmissions = {};
+
+  bool get _hasInstructorRole {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return false;
+    return authState.user.role == 'instructor' ||
+        authState.user.role == 'admin';
+  }
 
   @override
   void initState() {
@@ -39,32 +47,65 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
       assignmentRepository: context.read<AssignmentRepository>(),
     );
     _loadManagementPermission();
+    _loadStudentSubmissions();
     _loadAssignments();
   }
 
   Future<void> _loadManagementPermission() async {
     final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthAuthenticated ||
-        authState.user.role != 'instructor') {
+    if (authState is! AuthAuthenticated) return;
+    if (authState.user.role == 'admin') {
+      if (mounted) {
+        setState(() => _canManageAssignments = true);
+        _loadAssignments();
+      }
       return;
     }
+    if (authState.user.role != 'instructor') return;
 
     try {
       final course = await context.read<CourseRepository>().getCourse(
         widget.courseId,
       );
-      if (mounted) {
-        setState(() {
-          _canManageAssignments = course?.instructorId == authState.user.id;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _canManageAssignments = course?.instructorId == authState.user.id;
+      });
+      if (_canManageAssignments) _loadAssignments();
     } catch (_) {
-      // RLS remains the authority; hide management controls when uncertain.
+      // Hide write controls when ownership cannot be confirmed.
     }
   }
 
+  Future<void> _loadStudentSubmissions() async {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated || authState.user.role != 'student') {
+      return;
+    }
+    final submissions = await context
+        .read<AssignmentRepository>()
+        .getUserSubmissionsForCourse(widget.courseId, authState.user.id);
+    if (!mounted) return;
+    setState(() {
+      _studentSubmissions = {
+        for (final submission in submissions)
+          submission.assignmentId: submission,
+      };
+    });
+  }
+
   void _loadAssignments() {
-    _assignmentBloc.add(LoadAssignments(courseId: widget.courseId));
+    _assignmentBloc.add(
+      LoadAssignments(
+        courseId: widget.courseId,
+        includeDrafts: _canManageAssignments,
+      ),
+    );
+  }
+
+  Future<void> _refresh() async {
+    _loadAssignments();
+    await _loadStudentSubmissions();
   }
 
   @override
@@ -75,42 +116,18 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final assignmentsBody = BlocBuilder<AssignmentBloc, AssignmentState>(
+    final body = BlocBuilder<AssignmentBloc, AssignmentState>(
       builder: (context, state) {
-        if (state is AssignmentsLoading) {
-          return Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          );
+        if (state is AssignmentsLoading || state is AssignmentInitial) {
+          return const Center(child: CircularProgressIndicator());
         }
-
         if (state is AssignmentError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 48, color: AppColors.error),
-                const SizedBox(height: 16),
-                Text(
-                  state.message,
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _loadAssignments,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
+          return _buildError(state.message);
         }
-
         if (state is AssignmentsLoaded) {
-          if (state.assignments.isEmpty) {
-            return _buildEmptyState();
-          }
+          if (state.assignments.isEmpty) return _buildEmptyState();
           return _buildAssignmentList(state.assignments);
         }
-
         return const SizedBox.shrink();
       },
     );
@@ -118,96 +135,123 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
     return BlocProvider.value(
       value: _assignmentBloc,
       child: widget.embedded
-          ? assignmentsBody
+          ? body
           : Scaffold(
+              backgroundColor: AppColors.background,
               appBar: AppBar(
-                title: Text(
-                  'Assignments',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                ),
+                title: const Text('Assignments'),
                 leading: IconButton(
-                  icon: Icon(Icons.arrow_back),
+                  icon: const Icon(Icons.arrow_back),
                   onPressed: () => context.pop(),
                 ),
                 actions: [
                   if (_canManageAssignments)
                     IconButton(
-                      icon: const Icon(Icons.add),
                       tooltip: 'Create assignment',
                       onPressed: _createAssignment,
+                      icon: const Icon(Icons.add),
                     ),
                 ],
               ),
-              body: assignmentsBody,
+              body: body,
             ),
+    );
+  }
+
+  Widget _buildError(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            const SizedBox(height: 14),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: _loadAssignments,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.assignment_outlined, size: 64, color: AppColors.textMuted),
-          const SizedBox(height: 16),
-          Text(
-            'No assignments yet',
-            style: GoogleFonts.inter(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.assignment_outlined,
+                size: 34,
+                color: AppColors.primary,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _canManageAssignments
-                ? 'Create an assignment to get started'
-                : 'Assignments will appear here when published',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          if (_canManageAssignments) ...[
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _createAssignment,
-              icon: const Icon(Icons.add),
-              label: const Text('Create Assignment'),
+            const SizedBox(height: 16),
+            Text('No assignments yet', style: AppTextStyles.h4),
+            const SizedBox(height: 6),
+            Text(
+              _canManageAssignments
+                  ? 'Create an assignment or activity for your class.'
+                  : 'Published assignments will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary),
             ),
+            if (_canManageAssignments) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: _createAssignment,
+                icon: const Icon(Icons.add),
+                label: const Text('Create assignment'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildAssignmentList(List<AssignmentModel> assignments) {
     return RefreshIndicator(
-      onRefresh: () async => _loadAssignments(),
-      color: AppColors.primary,
-      child: ListView.builder(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: assignments.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final assignment = assignments[index];
-          return _AssignmentCard(
-            assignment: assignment,
-            onTap: () {
-              context.push(
-                '/courses/${widget.courseId}/assignments/${assignment.id}',
-              );
-            },
-            onEdit: _canManageAssignments
-                ? () => _editAssignment(assignment.id)
-                : null,
-            onDelete: _canManageAssignments
-                ? () => _confirmDeleteAssignment(assignment)
-                : null,
-            onGrade: _canManageAssignments
-                ? () => context.push(
-                    AppRoutes.gradeAssignmentPath(
-                      widget.courseId,
-                      assignment.id,
-                    ),
-                  )
-                : null,
+          final submission = _studentSubmissions[assignment.id];
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: _AssignmentCard(
+                assignment: assignment,
+                submission: submission,
+                showInstructorControls: _canManageAssignments,
+                showStudentStatus: !_hasInstructorRole,
+                onTap: () => context.push(
+                  AppRoutes.assignmentPath(widget.courseId, assignment.id),
+                ),
+                onEdit: () => _editAssignment(assignment.id),
+                onReview: () => context.push(
+                  AppRoutes.gradeAssignmentPath(widget.courseId, assignment.id),
+                ),
+                onDelete: () => _confirmDeleteAssignment(assignment),
+              ),
+            ),
           );
         },
       ),
@@ -229,39 +273,42 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
   Future<void> _confirmDeleteAssignment(AssignmentModel assignment) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.delete_outline, color: AppColors.error),
         title: const Text('Delete assignment?'),
         content: Text(
-          '"${assignment.title}" and all student submissions will be permanently removed.',
+          '"${assignment.title}" and all student submissions will be '
+          'permanently removed. This cannot be undone.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
-
     if (confirmed != true || !mounted) return;
 
     try {
-      await context.read<AssignmentRepository>().deleteAssignment(assignment.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Assignment deleted.')),
+      await context.read<AssignmentRepository>().deleteAssignment(
+        assignment.id,
       );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Assignment deleted.')));
       _loadAssignments();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Unable to delete this assignment.'),
+        const SnackBar(
+          content: Text('Unable to delete this assignment.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -271,131 +318,162 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
 
 class _AssignmentCard extends StatelessWidget {
   final AssignmentModel assignment;
+  final SubmissionModel? submission;
+  final bool showInstructorControls;
+  final bool showStudentStatus;
   final VoidCallback onTap;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final VoidCallback? onGrade;
+  final VoidCallback onEdit;
+  final VoidCallback onReview;
+  final VoidCallback onDelete;
 
   const _AssignmentCard({
     required this.assignment,
+    required this.submission,
+    required this.showInstructorControls,
+    required this.showStudentStatus,
     required this.onTap,
-    this.onEdit,
-    this.onDelete,
-    this.onGrade,
+    required this.onEdit,
+    required this.onReview,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isPastDue = assignment.isPastDue;
-    final timeRemaining = assignment.timeRemaining;
+    final status =
+        submission?.classroomStatus(assignment) ??
+        (assignment.isPastDue
+            ? ClassroomSubmissionStatus.missing
+            : ClassroomSubmissionStatus.assigned);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isPastDue
-              ? AppColors.error.withValues(alpha: 0.5)
-              : AppColors.border,
-        ),
-      ),
+    return Material(
+      color: AppColors.backgroundSecondary,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
           padding: const EdgeInsets.all(16),
-          child: Column(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.code, color: AppColors.primary, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.assignment_outlined,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          assignment.title,
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                        Expanded(
+                          child: Text(
+                            assignment.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          assignment.description,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
+                        if (showInstructorControls && !assignment.isPublished)
+                          const _CardBadge(
+                            label: 'Draft',
+                            color: AppColors.warning,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        if (showStudentStatus)
+                          _CardBadge(
+                            label: status.displayName,
+                            color: _statusColor(status),
+                          ),
                       ],
                     ),
-                  ),
-                  if (onEdit != null)
-                    PopupMenuButton<String>(
-                      onSelected: (action) {
-                        if (action == 'edit') {
-                          onEdit!();
-                        } else if (action == 'grade') {
-                          onGrade!();
-                        } else if (action == 'delete') {
-                          onDelete!();
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'edit',
-                          child: Text('Edit assignment'),
+                    if (assignment.description.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        assignment.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
                         ),
-                        PopupMenuItem(
-                          value: 'grade',
-                          child: Text('Grade submissions'),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 7,
+                      children: [
+                        _CardMeta(
+                          icon: Icons.event_outlined,
+                          label: assignment.dueDate == null
+                              ? 'No due date'
+                              : 'Due ${DateFormat('MMM d, h:mm a').format(assignment.dueDate!.toLocal())}',
                         ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text(
-                            'Delete assignment',
-                            style: TextStyle(color: AppColors.error),
+                        _CardMeta(
+                          icon: Icons.star_outline,
+                          label: '${assignment.maxPoints} points',
+                        ),
+                        if (assignment.attachments.isNotEmpty)
+                          _CardMeta(
+                            icon: Icons.attach_file,
+                            label:
+                                '${assignment.attachments.length} material${assignment.attachments.length == 1 ? '' : 's'}',
                           ),
-                        ),
+                        if (assignment.isCodeActivity)
+                          _CardMeta(
+                            icon: Icons.code,
+                            label: assignment.language.displayName,
+                          ),
                       ],
-                    )
-                  else
-                    Icon(Icons.chevron_right, color: AppColors.textMuted),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _buildMetaChip(
-                    icon: Icons.code,
-                    label: assignment.language.displayName,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildMetaChip(
-                    icon: Icons.star_outline,
-                    label: '${assignment.maxPoints} pts',
-                  ),
-                  if (assignment.dueDate != null) ...[
-                    const Spacer(),
-                    _buildDueDate(isPastDue, timeRemaining),
+                    ),
                   ],
-                ],
+                ),
               ),
+              if (showInstructorControls)
+                PopupMenuButton<String>(
+                  onSelected: (action) {
+                    if (action == 'edit') onEdit();
+                    if (action == 'review') onReview();
+                    if (action == 'delete') onDelete();
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit assignment'),
+                    ),
+                    PopupMenuItem(
+                      value: 'review',
+                      child: Text('Review submissions'),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(
+                        'Delete assignment',
+                        style: TextStyle(color: AppColors.error),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: Icon(Icons.chevron_right),
+                ),
             ],
           ),
         ),
@@ -403,68 +481,62 @@ class _AssignmentCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMetaChip({
-    required IconData icon,
-    required String label,
-    Color? color,
-  }) {
-    final chipColor = color ?? AppColors.textSecondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: chipColor),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: chipColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
+  static Color _statusColor(ClassroomSubmissionStatus status) {
+    return switch (status) {
+      ClassroomSubmissionStatus.assigned => AppColors.info,
+      ClassroomSubmissionStatus.submitted => AppColors.success,
+      ClassroomSubmissionStatus.done => AppColors.success,
+      ClassroomSubmissionStatus.missing => AppColors.error,
+      ClassroomSubmissionStatus.late => AppColors.warning,
+    };
   }
+}
 
-  Widget _buildDueDate(bool isPastDue, Duration? timeRemaining) {
-    String label;
-    Color color;
+class _CardMeta extends StatelessWidget {
+  final IconData icon;
+  final String label;
 
-    if (isPastDue) {
-      label = 'Past due';
-      color = AppColors.error;
-    } else if (timeRemaining != null && timeRemaining.inDays < 1) {
-      label = 'Due soon';
-      color = AppColors.warning;
-    } else if (timeRemaining != null) {
-      label = '${timeRemaining.inDays} days left';
-      color = AppColors.success;
-    } else {
-      label = 'No due date';
-      color = AppColors.textSecondary;
-    }
+  const _CardMeta({required this.icon, required this.label});
 
+  @override
+  Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.schedule, size: 14, color: color),
+        Icon(icon, size: 15, color: AppColors.textSecondary),
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: color,
-            fontWeight: FontWeight.w500,
-          ),
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
       ],
+    );
+  }
+}
+
+class _CardBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _CardBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

@@ -39,6 +39,7 @@ class AssignmentDetailLoaded extends AssignmentState {
   final bool hasChanges;
   final bool isSaving;
   final bool isSubmitting;
+  final bool isUnsubmitting;
 
   const AssignmentDetailLoaded({
     required this.assignment,
@@ -47,6 +48,7 @@ class AssignmentDetailLoaded extends AssignmentState {
     this.hasChanges = false,
     this.isSaving = false,
     this.isSubmitting = false,
+    this.isUnsubmitting = false,
   });
 
   @override
@@ -57,6 +59,7 @@ class AssignmentDetailLoaded extends AssignmentState {
     hasChanges,
     isSaving,
     isSubmitting,
+    isUnsubmitting,
   ];
 
   AssignmentDetailLoaded copyWith({
@@ -66,6 +69,7 @@ class AssignmentDetailLoaded extends AssignmentState {
     bool? hasChanges,
     bool? isSaving,
     bool? isSubmitting,
+    bool? isUnsubmitting,
   }) {
     return AssignmentDetailLoaded(
       assignment: assignment ?? this.assignment,
@@ -74,6 +78,7 @@ class AssignmentDetailLoaded extends AssignmentState {
       hasChanges: hasChanges ?? this.hasChanges,
       isSaving: isSaving ?? this.isSaving,
       isSubmitting: isSubmitting ?? this.isSubmitting,
+      isUnsubmitting: isUnsubmitting ?? this.isUnsubmitting,
     );
   }
 }
@@ -93,6 +98,24 @@ class AssignmentSubmitted extends AssignmentState {
   final SubmissionModel submission;
 
   const AssignmentSubmitted({required this.submission});
+
+  @override
+  List<Object?> get props => [submission];
+}
+
+class AssignmentMarkedDone extends AssignmentState {
+  final SubmissionModel submission;
+
+  const AssignmentMarkedDone({required this.submission});
+
+  @override
+  List<Object?> get props => [submission];
+}
+
+class AssignmentUnsubmitted extends AssignmentState {
+  final SubmissionModel submission;
+
+  const AssignmentUnsubmitted({required this.submission});
 
   @override
   List<Object?> get props => [submission];

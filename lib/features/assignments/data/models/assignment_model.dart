@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'assignment_attachment.dart';
+
 /// Programming language type for code assignments
 enum ProgrammingLanguage {
   dart,
@@ -97,6 +99,8 @@ class AssignmentModel extends Equatable {
   final ProgrammingLanguage language;
   final String? starterCode; // Initial code provided to students
   final String? solutionCode; // Reference solution (hidden from students)
+  final List<AssignmentAttachment> attachments;
+  final bool requiresAttachment;
   final int maxPoints;
   final DateTime? dueDate;
   final bool allowLateSubmission;
@@ -115,6 +119,8 @@ class AssignmentModel extends Equatable {
     required this.language,
     this.starterCode,
     this.solutionCode,
+    this.attachments = const [],
+    this.requiresAttachment = false,
     this.maxPoints = 100,
     this.dueDate,
     this.allowLateSubmission = true,
@@ -135,6 +141,8 @@ class AssignmentModel extends Equatable {
     language,
     starterCode,
     solutionCode,
+    attachments,
+    requiresAttachment,
     maxPoints,
     dueDate,
     allowLateSubmission,
@@ -157,6 +165,14 @@ class AssignmentModel extends Equatable {
       ),
       starterCode: map['starterCode'] as String?,
       solutionCode: map['solutionCode'] as String?,
+      attachments: ((map['attachments'] as List<dynamic>?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                AssignmentAttachment.fromMap(Map<String, dynamic>.from(item)),
+          )
+          .toList(growable: false),
+      requiresAttachment: map['requiresAttachment'] as bool? ?? false,
       maxPoints: map['maxPoints'] as int? ?? 100,
       dueDate: map['dueDate'] != null
           ? DateTime.parse(map['dueDate'] as String)
@@ -182,6 +198,8 @@ class AssignmentModel extends Equatable {
       'language': language.name,
       'starterCode': starterCode,
       'solutionCode': solutionCode,
+      'attachments': attachments.map((item) => item.toMap()).toList(),
+      'requiresAttachment': requiresAttachment,
       'maxPoints': maxPoints,
       'dueDate': dueDate?.toIso8601String(),
       'allowLateSubmission': allowLateSubmission,
@@ -202,6 +220,8 @@ class AssignmentModel extends Equatable {
     ProgrammingLanguage? language,
     String? starterCode,
     String? solutionCode,
+    List<AssignmentAttachment>? attachments,
+    bool? requiresAttachment,
     int? maxPoints,
     DateTime? dueDate,
     bool? allowLateSubmission,
@@ -220,6 +240,8 @@ class AssignmentModel extends Equatable {
       language: language ?? this.language,
       starterCode: starterCode ?? this.starterCode,
       solutionCode: solutionCode ?? this.solutionCode,
+      attachments: attachments ?? this.attachments,
+      requiresAttachment: requiresAttachment ?? this.requiresAttachment,
       maxPoints: maxPoints ?? this.maxPoints,
       dueDate: dueDate ?? this.dueDate,
       allowLateSubmission: allowLateSubmission ?? this.allowLateSubmission,
@@ -235,6 +257,12 @@ class AssignmentModel extends Equatable {
     if (dueDate == null) return false;
     return DateTime.now().isAfter(dueDate!);
   }
+
+  /// Plain activities use attachments; code activities keep the code editor.
+  bool get isCodeActivity =>
+      language != ProgrammingLanguage.plaintext ||
+      (starterCode?.trim().isNotEmpty ?? false) ||
+      (solutionCode?.trim().isNotEmpty ?? false);
 
   /// Get time remaining until due date
   Duration? get timeRemaining {

@@ -2,14 +2,19 @@ import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../models/models.dart';
 
 /// Repository for assignment operations.
 class AssignmentRepository {
   static const String _assignmentsTable = 'assignments';
   static const String _submissionsTable = 'submissions';
+  static const String _attachmentBucket = 'assignment_attachments';
+  static const int maxAttachmentBytes = 25 * 1024 * 1024;
+  static const int maxAttachments = 10;
 
   static const String _demoStudentUserId = 'demo-user-1';
   static const String _legacyDemoStudentUserId = 'demo_user';
@@ -57,6 +62,8 @@ class AssignmentRepository {
       'language': row['language'],
       'starterCode': row['starter_code'],
       'solutionCode': row['solution_code'],
+      'attachments': row['attachments'],
+      'requiresAttachment': row['requires_attachment'],
       'maxPoints': row['max_points'],
       'dueDate': row['due_date']?.toString(),
       'allowLateSubmission': row['allow_late_submission'],
@@ -79,6 +86,7 @@ class AssignmentRepository {
       'userId': row['user_id'],
       'userDisplayName': row['user_display_name'],
       'code': row['code'],
+      'attachments': row['attachments'],
       'status': row['status'],
       'score': row['score'],
       'feedback': row['feedback'],
@@ -93,6 +101,82 @@ class AssignmentRepository {
 
   SubmissionModel _submissionFromRow(Map<String, dynamic> row) {
     return SubmissionModel.fromMap(_rowToSubmissionMap(row));
+  }
+
+  Map<String, dynamic> _assignmentToRow(
+    AssignmentModel assignment, {
+    required bool includeCreatedAt,
+  }) {
+    return {
+      'id': assignment.id,
+      'course_id': assignment.courseId,
+      'lesson_id': assignment.lessonId,
+      'title': assignment.title,
+      'description': assignment.description,
+      'instructions': assignment.instructions,
+      'language': assignment.language.name,
+      'starter_code': assignment.starterCode,
+      'solution_code': assignment.solutionCode,
+      'attachments': assignment.attachments
+          .map((attachment) => attachment.toMap())
+          .toList(),
+      'requires_attachment': assignment.requiresAttachment,
+      'max_points': assignment.maxPoints,
+      'due_date': assignment.dueDate?.toUtc().toIso8601String(),
+      'allow_late_submission': assignment.allowLateSubmission,
+      'late_penalty_percent': assignment.latePenaltyPercent,
+      'is_published': assignment.isPublished,
+      if (includeCreatedAt)
+        'created_at': assignment.createdAt.toUtc().toIso8601String(),
+      'updated_at': (assignment.updatedAt ?? DateTime.now())
+          .toUtc()
+          .toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> _submissionToRow(SubmissionModel submission) {
+    return {
+      'id': submission.id,
+      'assignment_id': submission.assignmentId,
+      'course_id': submission.courseId,
+      'user_id': submission.userId,
+      'user_display_name': submission.userDisplayName,
+      'code': submission.code,
+      'attachments': submission.attachments
+          .map((attachment) => attachment.toMap())
+          .toList(),
+      'status': submission.status.name,
+      'score': submission.score,
+      'feedback': submission.feedback,
+      'graded_by': submission.gradedBy,
+      'graded_at': submission.gradedAt?.toUtc().toIso8601String(),
+      'is_late': submission.isLate,
+      'created_at': submission.createdAt.toUtc().toIso8601String(),
+      'updated_at': (submission.updatedAt ?? DateTime.now())
+          .toUtc()
+          .toIso8601String(),
+      'submitted_at': submission.submittedAt?.toUtc().toIso8601String(),
+    };
+  }
+
+  void _cacheDemoSubmission(SubmissionModel submission) {
+    for (final key in _demoUserKeys(submission.userId)) {
+      _submissionsByUser[key] ??= {};
+      _submissionsByUser[key]![submission.assignmentId] = submission;
+    }
+
+    final submissions = _submissionsByAssignment[submission.assignmentId] ?? [];
+    final index = submissions.indexWhere(
+      (item) =>
+          _normalizeDemoUserId(item.userId) ==
+          _normalizeDemoUserId(submission.userId),
+    );
+    if (index >= 0) {
+      submissions[index] = submission;
+    } else {
+      submissions.add(submission);
+    }
+    _submissionsByAssignment[submission.assignmentId] = submissions;
   }
 
   void _initDemoData() {
@@ -450,12 +534,19 @@ class _CounterPageState extends State<CounterPage> {
     };
   }
 
-  /// Get all assignments for a course
-  Future<List<AssignmentModel>> getAssignmentsForCourse(String courseId) async {
+  /// Get assignments for a course. Managers may include unpublished drafts.
+  Future<List<AssignmentModel>> getAssignmentsForCourse(
+    String courseId, {
+    bool includeDrafts = false,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       return _assignments.values
-          .where((a) => a.courseId == courseId && a.isPublished)
+          .where(
+            (assignment) =>
+                assignment.courseId == courseId &&
+                (includeDrafts || assignment.isPublished),
+          )
           .toList()
         ..sort(
           (a, b) => a.dueDate?.compareTo(b.dueDate ?? DateTime.now()) ?? 0,
@@ -463,12 +554,14 @@ class _CounterPageState extends State<CounterPage> {
     }
 
     try {
-      final rows = await _supabase!
+      var query = _supabase!
           .from(_assignmentsTable)
           .select()
-          .eq('course_id', courseId)
-          .eq('is_published', true)
-          .order('due_date', ascending: true);
+          .eq('course_id', courseId);
+      if (!includeDrafts) {
+        query = query.eq('is_published', true);
+      }
+      final rows = await query.order('due_date', ascending: true);
 
       final assignments = (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -514,36 +607,7 @@ class _CounterPageState extends State<CounterPage> {
 
   /// Create a new assignment (instructor only)
   Future<AssignmentModel> createAssignment(AssignmentModel assignment) async {
-    if (EnvironmentConfig.isDemoMode) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      _assignments[assignment.id] = assignment;
-      return assignment;
-    }
-
-    await _supabase!.from(_assignmentsTable).upsert({
-      'id': assignment.id,
-      'course_id': assignment.courseId,
-      'lesson_id': assignment.lessonId,
-      'title': assignment.title,
-      'description': assignment.description,
-      'instructions': assignment.instructions,
-      'language': assignment.language.name,
-      'starter_code': assignment.starterCode,
-      'solution_code': assignment.solutionCode,
-      'max_points': assignment.maxPoints,
-      'due_date': assignment.dueDate?.toIso8601String(),
-      'allow_late_submission': assignment.allowLateSubmission,
-      'late_penalty_percent': assignment.latePenaltyPercent,
-      'is_published': assignment.isPublished,
-      'created_at': assignment.createdAt.toIso8601String(),
-      'updated_at': assignment.updatedAt?.toIso8601String(),
-    });
-
-    return assignment;
-  }
-
-  /// Update an assignment (instructor only)
-  Future<AssignmentModel> updateAssignment(AssignmentModel assignment) async {
+    _validateAttachments(assignment.attachments);
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       _assignments[assignment.id] = assignment;
@@ -552,24 +616,25 @@ class _CounterPageState extends State<CounterPage> {
 
     await _supabase!
         .from(_assignmentsTable)
-        .update({
-          'course_id': assignment.courseId,
-          'lesson_id': assignment.lessonId,
-          'title': assignment.title,
-          'description': assignment.description,
-          'instructions': assignment.instructions,
-          'language': assignment.language.name,
-          'starter_code': assignment.starterCode,
-          'solution_code': assignment.solutionCode,
-          'max_points': assignment.maxPoints,
-          'due_date': assignment.dueDate?.toIso8601String(),
-          'allow_late_submission': assignment.allowLateSubmission,
-          'late_penalty_percent': assignment.latePenaltyPercent,
-          'is_published': assignment.isPublished,
-          'updated_at':
-              assignment.updatedAt?.toIso8601String() ??
-              DateTime.now().toIso8601String(),
-        })
+        .insert(_assignmentToRow(assignment, includeCreatedAt: true));
+
+    return assignment;
+  }
+
+  /// Update an assignment (instructor only)
+  Future<AssignmentModel> updateAssignment(AssignmentModel assignment) async {
+    _validateAttachments(assignment.attachments);
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _assignments[assignment.id] = assignment;
+      return assignment;
+    }
+
+    final row = _assignmentToRow(assignment, includeCreatedAt: false)
+      ..remove('id');
+    await _supabase!
+        .from(_assignmentsTable)
+        .update(row)
         .eq('id', assignment.id);
 
     return assignment;
@@ -581,14 +646,125 @@ class _CounterPageState extends State<CounterPage> {
       await Future.delayed(const Duration(milliseconds: 300));
       _assignments.remove(assignmentId);
       _submissionsByAssignment.remove(assignmentId);
+      for (final submissions in _submissionsByUser.values) {
+        submissions.remove(assignmentId);
+      }
       return;
+    }
+
+    final assignment = await getAssignment(assignmentId);
+    final submissions = await getAssignmentSubmissions(assignmentId);
+    final storagePaths = <String>{
+      ...?assignment?.attachments
+          .map((attachment) => attachment.storagePath)
+          .whereType<String>(),
+      ...submissions
+          .expand((submission) => submission.attachments)
+          .map((attachment) => attachment.storagePath)
+          .whereType<String>(),
+    };
+    if (storagePaths.isNotEmpty) {
+      await _supabase!.storage
+          .from(_attachmentBucket)
+          .remove(storagePaths.toList());
     }
 
     await _supabase!
         .from(_submissionsTable)
         .delete()
         .eq('assignment_id', assignmentId);
-    await _supabase!.from(_assignmentsTable).delete().eq('id', assignmentId);
+    await _supabase.from(_assignmentsTable).delete().eq('id', assignmentId);
+  }
+
+  Future<AssignmentAttachment> uploadAttachment({
+    required String courseId,
+    required String assignmentId,
+    required String userId,
+    required String fileName,
+    required String mimeType,
+    required Uint8List bytes,
+    required bool isSubmission,
+  }) async {
+    if (bytes.isEmpty) throw Exception('The selected file is empty.');
+    if (bytes.length > maxAttachmentBytes) {
+      throw Exception('Attachments must be 25 MB or smaller.');
+    }
+
+    final attachmentId = const Uuid().v4();
+    final normalizedName = _safeFileName(fileName);
+    final scope = isSubmission ? 'submissions' : 'materials';
+    final storagePath =
+        '$scope/$courseId/$assignmentId/$userId/$attachmentId-$normalizedName';
+
+    if (!EnvironmentConfig.isDemoMode) {
+      await _supabase!.storage
+          .from(_attachmentBucket)
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(contentType: mimeType, upsert: false),
+          );
+    }
+
+    return AssignmentAttachment(
+      id: attachmentId,
+      name: fileName.trim(),
+      kind: AssignmentAttachmentKind.file,
+      storagePath: storagePath,
+      mimeType: mimeType,
+      sizeBytes: bytes.length,
+    );
+  }
+
+  Future<void> deleteStoredAttachment(AssignmentAttachment attachment) async {
+    final path = attachment.storagePath;
+    if (EnvironmentConfig.isDemoMode || path == null || path.isEmpty) return;
+    await _supabase!.storage.from(_attachmentBucket).remove([path]);
+  }
+
+  Future<String> getAttachmentUrl(AssignmentAttachment attachment) async {
+    if (attachment.isLink) {
+      final url = attachment.url;
+      if (url == null || url.isEmpty) throw Exception('This link is invalid.');
+      return normalizeWebUrl(url).toString();
+    }
+
+    final path = attachment.storagePath;
+    if (path == null || path.isEmpty) {
+      throw Exception('This file is no longer available.');
+    }
+    if (EnvironmentConfig.isDemoMode) {
+      return 'https://example.com/$path';
+    }
+    return _supabase!.storage
+        .from(_attachmentBucket)
+        .createSignedUrl(path, 10 * 60);
+  }
+
+  String _safeFileName(String value) {
+    var result = value
+        .trim()
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    if (result.isEmpty) result = 'attachment';
+    if (result.length > 120) result = result.substring(result.length - 120);
+    return result;
+  }
+
+  void _validateAttachments(List<AssignmentAttachment> attachments) {
+    if (attachments.length > maxAttachments) {
+      throw Exception('You can attach up to 10 items.');
+    }
+    for (final attachment in attachments) {
+      if (attachment.name.trim().isEmpty) {
+        throw Exception('Every attachment needs a name.');
+      }
+      if (attachment.isLink) {
+        normalizeWebUrl(attachment.url ?? '');
+      } else if (attachment.storagePath?.trim().isEmpty ?? true) {
+        throw Exception('An attached file is missing its storage path.');
+      }
+    }
   }
 
   /// Get user's submission for an assignment
@@ -661,80 +837,41 @@ class _CounterPageState extends State<CounterPage> {
     required String userId,
     required String userDisplayName,
     required String code,
+    List<AssignmentAttachment>? attachments,
   }) async {
-    if (EnvironmentConfig.isDemoMode) {
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      final normalizedUserId = _normalizeDemoUserId(userId);
-      final existingSubmission =
-          _submissionsByUser[normalizedUserId]?[assignmentId];
-
-      final submission = SubmissionModel(
-        id:
-            existingSubmission?.id ??
-            'submission-${DateTime.now().millisecondsSinceEpoch}',
-        assignmentId: assignmentId,
-        courseId: courseId,
-        userId: normalizedUserId,
-        userDisplayName: userDisplayName,
-        code: code,
-        status: SubmissionStatus.draft,
-        createdAt: existingSubmission?.createdAt ?? DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      for (final key in _demoUserKeys(normalizedUserId)) {
-        _submissionsByUser[key] ??= {};
-        _submissionsByUser[key]![assignmentId] = submission;
-      }
-
-      final assignmentSubmissions =
-          _submissionsByAssignment[assignmentId] ?? [];
-      final existingIndex = assignmentSubmissions.indexWhere(
-        (s) => _normalizeDemoUserId(s.userId) == normalizedUserId,
-      );
-      if (existingIndex >= 0) {
-        assignmentSubmissions[existingIndex] = submission;
-      } else {
-        assignmentSubmissions.add(submission);
-      }
-      _submissionsByAssignment[assignmentId] = assignmentSubmissions;
-
-      return submission;
-    }
-
     final existing = await getUserSubmission(assignmentId, userId);
+    if (existing != null && existing.status != SubmissionStatus.draft) {
+      throw Exception('Unsubmit this work before making changes.');
+    }
+    final draftAttachments =
+        attachments ?? existing?.attachments ?? const <AssignmentAttachment>[];
+    _validateAttachments(draftAttachments);
+
+    final normalizedUserId = EnvironmentConfig.isDemoMode
+        ? _normalizeDemoUserId(userId)
+        : userId;
+    final now = DateTime.now();
     final submission = SubmissionModel(
-      id: existing?.id ?? 'submission-${DateTime.now().millisecondsSinceEpoch}',
+      id: existing?.id ?? const Uuid().v4(),
       assignmentId: assignmentId,
       courseId: courseId,
-      userId: userId,
+      userId: normalizedUserId,
       userDisplayName: userDisplayName,
       code: code,
+      attachments: draftAttachments,
       status: SubmissionStatus.draft,
-      createdAt: existing?.createdAt ?? DateTime.now(),
-      updatedAt: DateTime.now(),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
     );
 
-    await _supabase!.from(_submissionsTable).upsert({
-      'id': submission.id,
-      'assignment_id': submission.assignmentId,
-      'course_id': submission.courseId,
-      'user_id': submission.userId,
-      'user_display_name': submission.userDisplayName,
-      'code': submission.code,
-      'status': submission.status.name,
-      'score': submission.score,
-      'feedback': submission.feedback,
-      'graded_by': submission.gradedBy,
-      'graded_at': submission.gradedAt?.toIso8601String(),
-      'is_late': submission.isLate,
-      'created_at': submission.createdAt.toIso8601String(),
-      'updated_at':
-          submission.updatedAt?.toIso8601String() ??
-          DateTime.now().toIso8601String(),
-      'submitted_at': submission.submittedAt?.toIso8601String(),
-    });
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _cacheDemoSubmission(submission);
+    } else {
+      await _supabase!
+          .from(_submissionsTable)
+          .upsert(_submissionToRow(submission));
+    }
 
     return submission;
   }
@@ -746,6 +883,7 @@ class _CounterPageState extends State<CounterPage> {
     required String userId,
     required String userDisplayName,
     required String code,
+    List<AssignmentAttachment>? attachments,
   }) async {
     final assignment = await getAssignment(assignmentId);
     if (assignment == null || assignment.courseId != courseId) {
@@ -755,92 +893,158 @@ class _CounterPageState extends State<CounterPage> {
       throw Exception('This assignment is not available for submission.');
     }
 
+    final now = DateTime.now();
     final isLate =
-        assignment.dueDate != null && DateTime.now().isAfter(assignment.dueDate!);
+        assignment.dueDate != null && now.isAfter(assignment.dueDate!);
     if (isLate && !assignment.allowLateSubmission) {
-      throw Exception('The deadline has passed and late submissions are closed.');
-    }
-
-    if (EnvironmentConfig.isDemoMode) {
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      final normalizedUserId = _normalizeDemoUserId(userId);
-      final existingSubmission =
-          _submissionsByUser[normalizedUserId]?[assignmentId];
-
-      final submission = SubmissionModel(
-        id:
-            existingSubmission?.id ??
-            'submission-${DateTime.now().millisecondsSinceEpoch}',
-        assignmentId: assignmentId,
-        courseId: courseId,
-        userId: normalizedUserId,
-        userDisplayName: userDisplayName,
-        code: code,
-        status: SubmissionStatus.submitted,
-        isLate: isLate,
-        createdAt: existingSubmission?.createdAt ?? DateTime.now(),
-        updatedAt: DateTime.now(),
-        submittedAt: DateTime.now(),
+      throw Exception(
+        'The deadline has passed and late submissions are closed.',
       );
-
-      for (final key in _demoUserKeys(normalizedUserId)) {
-        _submissionsByUser[key] ??= {};
-        _submissionsByUser[key]![assignmentId] = submission;
-      }
-
-      final assignmentSubmissions =
-          _submissionsByAssignment[assignmentId] ?? [];
-      final existingIndex = assignmentSubmissions.indexWhere(
-        (s) => _normalizeDemoUserId(s.userId) == normalizedUserId,
-      );
-      if (existingIndex >= 0) {
-        assignmentSubmissions[existingIndex] = submission;
-      } else {
-        assignmentSubmissions.add(submission);
-      }
-      _submissionsByAssignment[assignmentId] = assignmentSubmissions;
-
-      return submission;
     }
 
     final existing = await getUserSubmission(assignmentId, userId);
+    if (existing != null && existing.status != SubmissionStatus.draft) {
+      throw Exception('This work is already submitted. Unsubmit it first.');
+    }
+    final submittedAttachments =
+        attachments ?? existing?.attachments ?? const <AssignmentAttachment>[];
+    _validateAttachments(submittedAttachments);
+    if (assignment.requiresAttachment && submittedAttachments.isEmpty) {
+      throw Exception('Attach at least one file or link before submitting.');
+    }
+    if (assignment.isCodeActivity && code.trim().isEmpty) {
+      throw Exception('Enter your work in the code editor before submitting.');
+    }
 
     final submission = SubmissionModel(
-      id: existing?.id ?? 'submission-${DateTime.now().millisecondsSinceEpoch}',
+      id: existing?.id ?? const Uuid().v4(),
       assignmentId: assignmentId,
       courseId: courseId,
-      userId: userId,
+      userId: EnvironmentConfig.isDemoMode
+          ? _normalizeDemoUserId(userId)
+          : userId,
       userDisplayName: userDisplayName,
       code: code,
+      attachments: submittedAttachments,
       status: SubmissionStatus.submitted,
       isLate: isLate,
-      createdAt: existing?.createdAt ?? DateTime.now(),
-      updatedAt: DateTime.now(),
-      submittedAt: DateTime.now(),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      submittedAt: now,
     );
 
-    await _supabase!.from(_submissionsTable).upsert({
-      'id': submission.id,
-      'assignment_id': submission.assignmentId,
-      'course_id': submission.courseId,
-      'user_id': submission.userId,
-      'user_display_name': submission.userDisplayName,
-      'code': submission.code,
-      'status': submission.status.name,
-      'score': submission.score,
-      'feedback': submission.feedback,
-      'graded_by': submission.gradedBy,
-      'graded_at': submission.gradedAt?.toIso8601String(),
-      'is_late': submission.isLate,
-      'created_at': submission.createdAt.toIso8601String(),
-      'updated_at':
-          submission.updatedAt?.toIso8601String() ??
-          DateTime.now().toIso8601String(),
-      'submitted_at': submission.submittedAt?.toIso8601String(),
-    });
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      _cacheDemoSubmission(submission);
+    } else {
+      await _supabase!
+          .from(_submissionsTable)
+          .upsert(_submissionToRow(submission));
+    }
 
     return submission;
+  }
+
+  Future<SubmissionModel> markAsDone({
+    required String assignmentId,
+    required String courseId,
+    required String userId,
+    required String userDisplayName,
+    String code = '',
+    List<AssignmentAttachment>? attachments,
+  }) async {
+    final assignment = await getAssignment(assignmentId);
+    if (assignment == null || assignment.courseId != courseId) {
+      throw Exception('Assignment not found for this course.');
+    }
+    if (!assignment.isPublished) {
+      throw Exception('This assignment is not available for completion.');
+    }
+    if (assignment.requiresAttachment || assignment.isCodeActivity) {
+      throw Exception('This assignment must be submitted with work.');
+    }
+
+    final now = DateTime.now();
+    final isLate =
+        assignment.dueDate != null && now.isAfter(assignment.dueDate!);
+    if (isLate && !assignment.allowLateSubmission) {
+      throw Exception(
+        'The deadline has passed and late submissions are closed.',
+      );
+    }
+
+    final existing = await getUserSubmission(assignmentId, userId);
+    if (existing != null && existing.status != SubmissionStatus.draft) {
+      throw Exception('This activity is already completed.');
+    }
+
+    final completedAttachments =
+        attachments ?? existing?.attachments ?? const <AssignmentAttachment>[];
+    _validateAttachments(completedAttachments);
+
+    final submission = SubmissionModel(
+      id: existing?.id ?? const Uuid().v4(),
+      assignmentId: assignmentId,
+      courseId: courseId,
+      userId: EnvironmentConfig.isDemoMode
+          ? _normalizeDemoUserId(userId)
+          : userId,
+      userDisplayName: userDisplayName,
+      code: code,
+      attachments: completedAttachments,
+      status: SubmissionStatus.done,
+      isLate: isLate,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      submittedAt: now,
+    );
+
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      _cacheDemoSubmission(submission);
+    } else {
+      await _supabase!
+          .from(_submissionsTable)
+          .upsert(_submissionToRow(submission));
+    }
+    return submission;
+  }
+
+  Future<SubmissionModel> unsubmitAssignment({
+    required String assignmentId,
+    required String userId,
+  }) async {
+    final assignment = await getAssignment(assignmentId);
+    final existing = await getUserSubmission(assignmentId, userId);
+    if (assignment == null || existing == null) {
+      throw Exception('Submitted work was not found.');
+    }
+    if (!existing.canUnsubmit(assignment)) {
+      throw Exception(
+        'Work can only be unsubmitted before the deadline and grading.',
+      );
+    }
+
+    if (EnvironmentConfig.isDemoMode) {
+      final draft = existing.copyWith(
+        status: SubmissionStatus.draft,
+        isLate: false,
+        updatedAt: DateTime.now(),
+        clearSubmittedAt: true,
+      );
+      _cacheDemoSubmission(draft);
+      return draft;
+    }
+
+    await _supabase!.rpc(
+      'unsubmit_assignment',
+      params: {'p_assignment_id': assignmentId},
+    );
+    final draft = await getUserSubmission(assignmentId, userId);
+    if (draft == null || draft.status != SubmissionStatus.draft) {
+      throw Exception('The submission could not be taken back.');
+    }
+    return draft;
   }
 
   /// Grade a submission (instructor only)
@@ -894,7 +1098,7 @@ class _CounterPageState extends State<CounterPage> {
         })
         .eq('id', submissionId);
 
-    final row = await _supabase!
+    final row = await _supabase
         .from(_submissionsTable)
         .select()
         .eq('id', submissionId)
@@ -917,7 +1121,8 @@ class _CounterPageState extends State<CounterPage> {
           submissions.where(
             (s) =>
                 s.courseId == courseId &&
-                s.status == SubmissionStatus.submitted,
+                (s.status == SubmissionStatus.submitted ||
+                    s.status == SubmissionStatus.done),
           ),
         );
       }
@@ -929,7 +1134,10 @@ class _CounterPageState extends State<CounterPage> {
           .from(_submissionsTable)
           .select()
           .eq('course_id', courseId)
-          .eq('status', SubmissionStatus.submitted.name);
+          .inFilter('status', [
+            SubmissionStatus.submitted.name,
+            SubmissionStatus.done.name,
+          ]);
 
       return (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()

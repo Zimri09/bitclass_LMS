@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../data/models/models.dart';
+
 /// Assignment Bloc Events
 abstract class AssignmentEvent extends Equatable {
   const AssignmentEvent();
@@ -11,11 +13,12 @@ abstract class AssignmentEvent extends Equatable {
 /// Load assignments for a course
 class LoadAssignments extends AssignmentEvent {
   final String courseId;
+  final bool includeDrafts;
 
-  const LoadAssignments({required this.courseId});
+  const LoadAssignments({required this.courseId, this.includeDrafts = false});
 
   @override
-  List<Object?> get props => [courseId];
+  List<Object?> get props => [courseId, includeDrafts];
 }
 
 /// Load a single assignment detail
@@ -49,6 +52,7 @@ class SaveDraft extends AssignmentEvent {
   final String userId;
   final String userDisplayName;
   final String code;
+  final List<AssignmentAttachment>? attachments;
 
   const SaveDraft({
     required this.assignmentId,
@@ -56,6 +60,7 @@ class SaveDraft extends AssignmentEvent {
     required this.userId,
     required this.userDisplayName,
     required this.code,
+    this.attachments,
   });
 
   @override
@@ -65,6 +70,7 @@ class SaveDraft extends AssignmentEvent {
     userId,
     userDisplayName,
     code,
+    attachments,
   ];
 }
 
@@ -75,6 +81,7 @@ class SubmitAssignment extends AssignmentEvent {
   final String userId;
   final String userDisplayName;
   final String code;
+  final List<AssignmentAttachment>? attachments;
 
   const SubmitAssignment({
     required this.assignmentId,
@@ -82,6 +89,7 @@ class SubmitAssignment extends AssignmentEvent {
     required this.userId,
     required this.userDisplayName,
     required this.code,
+    this.attachments,
   });
 
   @override
@@ -91,7 +99,46 @@ class SubmitAssignment extends AssignmentEvent {
     userId,
     userDisplayName,
     code,
+    attachments,
   ];
+}
+
+class MarkAssignmentDone extends AssignmentEvent {
+  final String assignmentId;
+  final String courseId;
+  final String userId;
+  final String userDisplayName;
+  final String code;
+  final List<AssignmentAttachment>? attachments;
+
+  const MarkAssignmentDone({
+    required this.assignmentId,
+    required this.courseId,
+    required this.userId,
+    required this.userDisplayName,
+    this.code = '',
+    this.attachments,
+  });
+
+  @override
+  List<Object?> get props => [
+    assignmentId,
+    courseId,
+    userId,
+    userDisplayName,
+    code,
+    attachments,
+  ];
+}
+
+class UnsubmitAssignment extends AssignmentEvent {
+  final String assignmentId;
+  final String userId;
+
+  const UnsubmitAssignment({required this.assignmentId, required this.userId});
+
+  @override
+  List<Object?> get props => [assignmentId, userId];
 }
 
 /// Grade a submission (instructor only)

@@ -15,6 +15,8 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
     on<UpdateCode>(_onUpdateCode);
     on<SaveDraft>(_onSaveDraft);
     on<SubmitAssignment>(_onSubmitAssignment);
+    on<MarkAssignmentDone>(_onMarkAssignmentDone);
+    on<UnsubmitAssignment>(_onUnsubmitAssignment);
     on<GradeSubmission>(_onGradeSubmission);
     on<LoadSubmissions>(_onLoadSubmissions);
   }
@@ -27,6 +29,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
     try {
       final assignments = await assignmentRepository.getAssignmentsForCourse(
         event.courseId,
+        includeDrafts: event.includeDrafts,
       );
       emit(
         AssignmentsLoaded(assignments: assignments, courseId: event.courseId),
@@ -101,6 +104,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
           userId: event.userId,
           userDisplayName: event.userDisplayName,
           code: event.code,
+          attachments: event.attachments,
         );
         emit(
           currentState.copyWith(
@@ -119,8 +123,8 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
           ),
         );
       } catch (e) {
-        emit(currentState.copyWith(isSaving: false));
         emit(AssignmentError(message: 'Failed to save draft: $e'));
+        emit(currentState.copyWith(isSaving: false));
       }
     }
   }
@@ -139,6 +143,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
           userId: event.userId,
           userDisplayName: event.userDisplayName,
           code: event.code,
+          attachments: event.attachments,
         );
         emit(AssignmentSubmitted(submission: submission));
         // Re-emit the loaded state with submitted submission
@@ -150,9 +155,68 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
           ),
         );
       } catch (e) {
-        emit(currentState.copyWith(isSubmitting: false));
         emit(AssignmentError(message: 'Failed to submit assignment: $e'));
+        emit(currentState.copyWith(isSubmitting: false));
       }
+    }
+  }
+
+  Future<void> _onMarkAssignmentDone(
+    MarkAssignmentDone event,
+    Emitter<AssignmentState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! AssignmentDetailLoaded) return;
+
+    emit(currentState.copyWith(isSubmitting: true));
+    try {
+      final submission = await assignmentRepository.markAsDone(
+        assignmentId: event.assignmentId,
+        courseId: event.courseId,
+        userId: event.userId,
+        userDisplayName: event.userDisplayName,
+        code: event.code,
+        attachments: event.attachments,
+      );
+      emit(AssignmentMarkedDone(submission: submission));
+      emit(
+        currentState.copyWith(
+          submission: submission,
+          isSubmitting: false,
+          hasChanges: false,
+        ),
+      );
+    } catch (e) {
+      emit(AssignmentError(message: 'Failed to mark as done: $e'));
+      emit(currentState.copyWith(isSubmitting: false));
+    }
+  }
+
+  Future<void> _onUnsubmitAssignment(
+    UnsubmitAssignment event,
+    Emitter<AssignmentState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! AssignmentDetailLoaded) return;
+
+    emit(currentState.copyWith(isUnsubmitting: true));
+    try {
+      final submission = await assignmentRepository.unsubmitAssignment(
+        assignmentId: event.assignmentId,
+        userId: event.userId,
+      );
+      emit(AssignmentUnsubmitted(submission: submission));
+      emit(
+        currentState.copyWith(
+          submission: submission,
+          isUnsubmitting: false,
+          currentCode: submission.code,
+          hasChanges: false,
+        ),
+      );
+    } catch (e) {
+      emit(AssignmentError(message: 'Failed to unsubmit assignment: $e'));
+      emit(currentState.copyWith(isUnsubmitting: false));
     }
   }
 

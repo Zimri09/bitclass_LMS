@@ -1,12 +1,16 @@
 import 'package:equatable/equatable.dart';
 
+import 'assignment_attachment.dart';
+import 'assignment_model.dart';
+
 /// Submission status enum
 enum SubmissionStatus {
   draft,
   submitted,
   grading,
   graded,
-  returned;
+  returned,
+  done;
 
   static SubmissionStatus fromString(String value) {
     return SubmissionStatus.values.firstWhere(
@@ -27,6 +31,31 @@ enum SubmissionStatus {
         return 'Graded';
       case SubmissionStatus.returned:
         return 'Returned';
+      case SubmissionStatus.done:
+        return 'Done';
+    }
+  }
+}
+
+enum ClassroomSubmissionStatus {
+  assigned,
+  submitted,
+  done,
+  missing,
+  late;
+
+  String get displayName {
+    switch (this) {
+      case ClassroomSubmissionStatus.assigned:
+        return 'Assigned';
+      case ClassroomSubmissionStatus.submitted:
+        return 'Submitted';
+      case ClassroomSubmissionStatus.done:
+        return 'Done';
+      case ClassroomSubmissionStatus.missing:
+        return 'Missing';
+      case ClassroomSubmissionStatus.late:
+        return 'Late';
     }
   }
 }
@@ -39,6 +68,7 @@ class SubmissionModel extends Equatable {
   final String userId;
   final String userDisplayName;
   final String code;
+  final List<AssignmentAttachment> attachments;
   final SubmissionStatus status;
   final int? score;
   final String? feedback;
@@ -56,6 +86,7 @@ class SubmissionModel extends Equatable {
     required this.userId,
     required this.userDisplayName,
     required this.code,
+    this.attachments = const [],
     this.status = SubmissionStatus.draft,
     this.score,
     this.feedback,
@@ -75,6 +106,7 @@ class SubmissionModel extends Equatable {
     userId,
     userDisplayName,
     code,
+    attachments,
     status,
     score,
     feedback,
@@ -94,6 +126,13 @@ class SubmissionModel extends Equatable {
       userId: map['userId'] as String,
       userDisplayName: map['userDisplayName'] as String? ?? 'Unknown User',
       code: map['code'] as String? ?? '',
+      attachments: ((map['attachments'] as List<dynamic>?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                AssignmentAttachment.fromMap(Map<String, dynamic>.from(item)),
+          )
+          .toList(growable: false),
       status: SubmissionStatus.fromString(map['status'] as String? ?? 'draft'),
       score: map['score'] as int?,
       feedback: map['feedback'] as String?,
@@ -120,6 +159,7 @@ class SubmissionModel extends Equatable {
       'userId': userId,
       'userDisplayName': userDisplayName,
       'code': code,
+      'attachments': attachments.map((item) => item.toMap()).toList(),
       'status': status.name,
       'score': score,
       'feedback': feedback,
@@ -139,6 +179,7 @@ class SubmissionModel extends Equatable {
     String? userId,
     String? userDisplayName,
     String? code,
+    List<AssignmentAttachment>? attachments,
     SubmissionStatus? status,
     int? score,
     String? feedback,
@@ -148,6 +189,7 @@ class SubmissionModel extends Equatable {
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? submittedAt,
+    bool clearSubmittedAt = false,
   }) {
     return SubmissionModel(
       id: id ?? this.id,
@@ -156,6 +198,7 @@ class SubmissionModel extends Equatable {
       userId: userId ?? this.userId,
       userDisplayName: userDisplayName ?? this.userDisplayName,
       code: code ?? this.code,
+      attachments: attachments ?? this.attachments,
       status: status ?? this.status,
       score: score ?? this.score,
       feedback: feedback ?? this.feedback,
@@ -164,7 +207,7 @@ class SubmissionModel extends Equatable {
       isLate: isLate ?? this.isLate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      submittedAt: submittedAt ?? this.submittedAt,
+      submittedAt: clearSubmittedAt ? null : submittedAt ?? this.submittedAt,
     );
   }
 
@@ -176,7 +219,38 @@ class SubmissionModel extends Equatable {
       status == SubmissionStatus.submitted ||
       status == SubmissionStatus.grading ||
       status == SubmissionStatus.graded ||
-      status == SubmissionStatus.returned;
+      status == SubmissionStatus.returned ||
+      status == SubmissionStatus.done;
+
+  bool get isCompleted => isSubmitted;
+
+  ClassroomSubmissionStatus classroomStatus(
+    AssignmentModel assignment, {
+    DateTime? now,
+  }) {
+    final currentTime = now ?? DateTime.now();
+    if (isCompleted) {
+      if (isLate) return ClassroomSubmissionStatus.late;
+      if (status == SubmissionStatus.done) {
+        return ClassroomSubmissionStatus.done;
+      }
+      return ClassroomSubmissionStatus.submitted;
+    }
+    if (assignment.dueDate != null &&
+        currentTime.isAfter(assignment.dueDate!)) {
+      return ClassroomSubmissionStatus.missing;
+    }
+    return ClassroomSubmissionStatus.assigned;
+  }
+
+  bool canUnsubmit(AssignmentModel assignment, {DateTime? now}) {
+    if (status != SubmissionStatus.submitted &&
+        status != SubmissionStatus.done) {
+      return false;
+    }
+    final dueDate = assignment.dueDate;
+    return dueDate == null || !(now ?? DateTime.now()).isAfter(dueDate);
+  }
 
   /// Get percentage score
   double? getPercentage(int maxPoints) {

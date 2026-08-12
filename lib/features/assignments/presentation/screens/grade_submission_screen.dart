@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -12,6 +13,7 @@ import '../../data/repositories/assignment_repository.dart';
 import '../bloc/assignment_bloc.dart';
 import '../bloc/assignment_event.dart';
 import '../bloc/assignment_state.dart';
+import '../widgets/assignment_attachment_tile.dart';
 
 /// Screen for instructors to view and grade assignment submissions
 class GradeSubmissionScreen extends StatefulWidget {
@@ -61,6 +63,12 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
   }
 
   void _gradeSubmission() {
+    if (_selectedSubmission?.isCompleted != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This work has not been turned in yet.')),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     final authState = context.read<AuthBloc>().state;
@@ -155,11 +163,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 64,
-              color: AppColors.textMuted,
-            ),
+            Icon(Icons.inbox_outlined, size: 64, color: AppColors.textMuted),
             const SizedBox(height: 16),
             Text('No submissions yet', style: AppTextStyles.h4),
             const SizedBox(height: 8),
@@ -295,6 +299,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
     final statusColor = switch (submission.status) {
       SubmissionStatus.graded => AppColors.success,
       SubmissionStatus.submitted => AppColors.warning,
+      SubmissionStatus.done => AppColors.success,
       SubmissionStatus.grading => AppColors.info,
       SubmissionStatus.returned => AppColors.secondary,
       _ => AppColors.textMuted,
@@ -310,10 +315,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
           submission.userDisplayName.isNotEmpty
               ? submission.userDisplayName[0].toUpperCase()
               : '?',
-          style: TextStyle(
-            color: statusColor,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: statusColor, fontWeight: FontWeight.bold),
         ),
       ),
       title: Text(
@@ -323,20 +325,15 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
         ),
       ),
       subtitle: Text(
-        submission.status.displayName +
-            (submission.isLate ? ' (Late)' : '') +
+        (submission.isLate ? 'Late' : submission.status.displayName) +
             (submission.isGraded
-                ? ' — ${submission.score}/${assignment.maxPoints}'
+                ? ' - ${submission.score}/${assignment.maxPoints}'
                 : ''),
         style: AppTextStyles.caption.copyWith(color: statusColor),
       ),
       trailing: submission.isGraded
           ? Icon(Icons.check_circle, color: AppColors.success, size: 20)
-          : Icon(
-              Icons.pending_outlined,
-              color: AppColors.textMuted,
-              size: 20,
-            ),
+          : Icon(Icons.pending_outlined, color: AppColors.textMuted, size: 20),
     );
   }
 
@@ -345,11 +342,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.touch_app_outlined,
-            size: 48,
-            color: AppColors.textMuted,
-          ),
+          Icon(Icons.touch_app_outlined, size: 48, color: AppColors.textMuted),
           const SizedBox(height: 16),
           Text(
             'Select a submission to grade',
@@ -396,10 +389,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        submission.userDisplayName,
-                        style: AppTextStyles.h4,
-                      ),
+                      Text(submission.userDisplayName, style: AppTextStyles.h4),
                       Text(
                         'Status: ${submission.status.displayName}'
                         '${submission.isLate ? ' (Late)' : ''}',
@@ -420,35 +410,65 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Student's code
-          Text('Submitted Code', style: AppTextStyles.h4),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(maxHeight: 400),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E2E),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.border,
-                width: 1,
-              ),
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: SelectableText(
-                submission.code.isNotEmpty
-                    ? submission.code
-                    : '// No code submitted',
-                style: GoogleFonts.firaCode(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  height: 1.5,
+          if (submission.attachments.isNotEmpty) ...[
+            Text('Attached Work', style: AppTextStyles.h4),
+            const SizedBox(height: 8),
+            ...submission.attachments.map(
+              (attachment) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: AssignmentAttachmentTile(
+                  attachment: attachment,
+                  onOpen: () => _openAttachment(attachment),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 16),
+          ],
+
+          if (submission.code.trim().isNotEmpty) ...[
+            Text('Submitted Code', style: AppTextStyles.h4),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 400),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E2E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: SelectableText(
+                  submission.code,
+                  style: GoogleFonts.firaCode(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          if (submission.code.trim().isEmpty &&
+              submission.attachments.isEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                submission.status == SubmissionStatus.done
+                    ? 'The student marked this activity as done.'
+                    : 'No attached work was submitted.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Grading form
           Text('Grade Submission', style: AppTextStyles.h4),
@@ -516,10 +536,16 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _gradeSubmission,
+                      onPressed: submission.isCompleted
+                          ? _gradeSubmission
+                          : null,
                       icon: Icon(Icons.check),
                       label: Text(
-                        submission.isGraded ? 'Update Grade' : 'Submit Grade',
+                        !submission.isCompleted
+                            ? 'Not turned in'
+                            : submission.isGraded
+                            ? 'Update Grade'
+                            : 'Submit Grade',
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,
@@ -585,8 +611,30 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.month}/${date.day}/${date.year} '
-        '${date.hour.toString().padLeft(2, '0')}:'
-        '${date.minute.toString().padLeft(2, '0')}';
+    final local = date.toLocal();
+    return '${local.month}/${local.day}/${local.year} '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _openAttachment(AssignmentAttachment attachment) async {
+    try {
+      final value = await context.read<AssignmentRepository>().getAttachmentUrl(
+        attachment,
+      );
+      final opened = await launchUrl(
+        Uri.parse(value),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw Exception('No app can open this attachment.');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This attachment could not be opened.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }
