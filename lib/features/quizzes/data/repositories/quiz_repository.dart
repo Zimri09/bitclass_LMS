@@ -316,12 +316,18 @@ class QuizRepository {
     required int questionCount,
     required QuizGenerationQuestionType questionType,
     required QuizGenerationDifficulty difficulty,
-    required int pointsPerQuestion,
+    required QuizGenerationPoints points,
     String? instructions,
   }) async {
     if (EnvironmentConfig.isDemoMode) {
       throw const QuizGenerationException(
         'AI quiz generation requires a connected Supabase project.',
+      );
+    }
+
+    if (points.values.any((value) => value < 1 || value > 10)) {
+      throw const QuizGenerationException(
+        'Generated question points must be between 1 and 10.',
       );
     }
 
@@ -337,7 +343,8 @@ class QuizRepository {
               'questionCount': questionCount,
               'questionType': questionType.apiValue,
               'difficulty': difficulty.apiValue,
-              'pointsPerQuestion': pointsPerQuestion,
+              // Kept for compatibility with already-deployed function versions.
+              'pointsPerQuestion': points.multipleChoice,
               if (instructions?.trim().isNotEmpty == true)
                 'instructions': instructions!.trim(),
             },
@@ -359,14 +366,7 @@ class QuizRepository {
         expectedCount: questionCount,
       );
       const uuid = Uuid();
-      return [
-        for (var index = 0; index < generated.questions.length; index++)
-          generated.questions[index].toQuestionModel(
-            createId: uuid.v4,
-            order: index,
-            points: pointsPerQuestion,
-          ),
-      ];
+      return generated.toQuestionModels(createId: uuid.v4, points: points);
     } on TimeoutException {
       throw const QuizGenerationException(
         'Question generation timed out. Try a smaller file or fewer questions.',

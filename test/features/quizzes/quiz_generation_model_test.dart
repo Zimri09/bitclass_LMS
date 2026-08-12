@@ -22,18 +22,36 @@ void main() {
             'correctAnswer': 'True',
             'explanation': 'The search eliminates ordered halves of the input.',
           },
+          {
+            'type': 'shortAnswer',
+            'questionText': 'Which ordering does a queue use?',
+            'options': <String>[],
+            'correctAnswer': 'First in, first out',
+            'explanation': 'Queue items leave in the order they entered.',
+          },
         ],
-      }, expectedCount: 2);
+      }, expectedCount: 3);
 
       var nextId = 0;
       String createId() => 'generated-${nextId++}';
+      final questionModels = generated.toQuestionModels(
+        createId: createId,
+        points: QuizGenerationPoints.defaults,
+        startingOrder: 3,
+      );
       final multipleChoice = generated.questions.first.toQuestionModel(
         createId: createId,
         order: 3,
         points: 2,
       );
 
-      expect(generated.questions.last.type, QuestionType.trueFalse);
+      final shortAnswer = generated.questions.last.toQuestionModel(
+        createId: createId,
+        order: 5,
+        points: QuizGenerationPoints.defaults.forType(QuestionType.shortAnswer),
+      );
+
+      expect(generated.questions[1].type, QuestionType.trueFalse);
       expect(multipleChoice.type, QuestionType.multipleChoice);
       expect(multipleChoice.options, hasLength(4));
       expect(
@@ -45,6 +63,12 @@ void main() {
       ]);
       expect(multipleChoice.order, 3);
       expect(multipleChoice.points, 2);
+      expect(shortAnswer.type, QuestionType.shortAnswer);
+      expect(shortAnswer.options, isEmpty);
+      expect(shortAnswer.correctAnswers, ['First in, first out']);
+      expect(shortAnswer.points, 3);
+      expect(questionModels.map((question) => question.points), [2, 1, 3]);
+      expect(questionModels.map((question) => question.order), [3, 4, 5]);
     });
 
     test('rejects a correct answer that is not one of the choices', () {
@@ -74,6 +98,23 @@ void main() {
               'options': ['Queue', 'queue', 'Tree', 'Graph'],
               'correctAnswer': 'Queue',
               'explanation': 'A queue is a data structure.',
+            },
+          ],
+        }, expectedCount: 1),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects answer choices on a short-answer question', () {
+      expect(
+        () => GeneratedQuizQuestions.fromMap({
+          'questions': [
+            {
+              'type': 'shortAnswer',
+              'questionText': 'What does FIFO mean?',
+              'options': ['First in, first out'],
+              'correctAnswer': 'First in, first out',
+              'explanation': 'FIFO describes queue ordering.',
             },
           ],
         }, expectedCount: 1),

@@ -44,15 +44,17 @@ class StartQuizAttempt extends QuizEvent {
   final String quizId;
   final String userId;
   final String? enrollmentId;
+  final bool previewOnly;
 
   const StartQuizAttempt({
     required this.quizId,
     required this.userId,
     this.enrollmentId,
+    this.previewOnly = false,
   });
 
   @override
-  List<Object?> get props => [quizId, userId, enrollmentId];
+  List<Object?> get props => [quizId, userId, enrollmentId, previewOnly];
 }
 
 /// Answer a question
@@ -196,6 +198,7 @@ class QuizInProgress extends QuizState {
   final int currentQuestionIndex;
   final int remainingSeconds; // -1 = no time limit
   final bool isSubmitting;
+  final bool isPreview;
 
   const QuizInProgress({
     required this.quiz,
@@ -204,6 +207,7 @@ class QuizInProgress extends QuizState {
     this.currentQuestionIndex = 0,
     this.remainingSeconds = -1,
     this.isSubmitting = false,
+    this.isPreview = false,
   });
 
   QuestionModel get currentQuestion => questions[currentQuestionIndex];
@@ -225,6 +229,7 @@ class QuizInProgress extends QuizState {
     currentQuestionIndex,
     remainingSeconds,
     isSubmitting,
+    isPreview,
   ];
 
   QuizInProgress copyWith({
@@ -234,6 +239,7 @@ class QuizInProgress extends QuizState {
     int? currentQuestionIndex,
     int? remainingSeconds,
     bool? isSubmitting,
+    bool? isPreview,
   }) {
     return QuizInProgress(
       quiz: quiz ?? this.quiz,
@@ -242,6 +248,7 @@ class QuizInProgress extends QuizState {
       currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
       remainingSeconds: remainingSeconds ?? this.remainingSeconds,
       isSubmitting: isSubmitting ?? this.isSubmitting,
+      isPreview: isPreview ?? this.isPreview,
     );
   }
 }
@@ -394,11 +401,22 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
         return;
       }
 
-      final attempt = await quizRepository.startAttempt(
-        quizId: event.quizId,
-        userId: event.userId,
-        enrollmentId: event.enrollmentId,
-      );
+      final attempt = event.previewOnly
+          ? QuizAttemptModel(
+              id: 'preview-${event.quizId}',
+              quizId: event.quizId,
+              userId: event.userId,
+              startedAt: DateTime.now(),
+              totalPoints: questions.fold(
+                0,
+                (sum, question) => sum + question.points,
+              ),
+            )
+          : await quizRepository.startAttempt(
+              quizId: event.quizId,
+              userId: event.userId,
+              enrollmentId: event.enrollmentId,
+            );
 
       // Shuffle questions if enabled
       final orderedQuestions = quiz.shuffleQuestions
@@ -407,7 +425,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
 
       // Start timer if time limit exists
       int remainingSeconds = -1;
-      if (quiz.timeLimitMinutes > 0) {
+      if (!event.previewOnly && quiz.timeLimitMinutes > 0) {
         remainingSeconds = quiz.timeLimitMinutes * 60;
         _startTimer(remainingSeconds);
       }
@@ -419,6 +437,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
           attempt: attempt,
           currentQuestionIndex: 0,
           remainingSeconds: remainingSeconds,
+          isPreview: event.previewOnly,
         ),
       );
     } catch (e) {

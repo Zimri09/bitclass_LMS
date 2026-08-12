@@ -1,6 +1,11 @@
 import 'question_model.dart';
 
-enum QuizGenerationQuestionType { multipleChoice, trueFalse, mixed }
+enum QuizGenerationQuestionType {
+  multipleChoice,
+  trueFalse,
+  shortAnswer,
+  mixed,
+}
 
 extension QuizGenerationQuestionTypeX on QuizGenerationQuestionType {
   String get apiValue => name;
@@ -8,8 +13,38 @@ extension QuizGenerationQuestionTypeX on QuizGenerationQuestionType {
   String get label => switch (this) {
     QuizGenerationQuestionType.multipleChoice => 'Multiple Choice',
     QuizGenerationQuestionType.trueFalse => 'True/False',
+    QuizGenerationQuestionType.shortAnswer => 'Short Answer',
     QuizGenerationQuestionType.mixed => 'Mixed',
   };
+}
+
+class QuizGenerationPoints {
+  final int multipleChoice;
+  final int trueFalse;
+  final int shortAnswer;
+
+  const QuizGenerationPoints({
+    required this.multipleChoice,
+    required this.trueFalse,
+    required this.shortAnswer,
+  });
+
+  static const defaults = QuizGenerationPoints(
+    multipleChoice: 2,
+    trueFalse: 1,
+    shortAnswer: 3,
+  );
+
+  int forType(QuestionType type) => switch (type) {
+    QuestionType.multipleChoice => multipleChoice,
+    QuestionType.trueFalse => trueFalse,
+    QuestionType.shortAnswer => shortAnswer,
+    QuestionType.multipleSelect || QuestionType.coding => throw ArgumentError(
+      'Unsupported generated question type: ${type.name}',
+    ),
+  };
+
+  List<int> get values => [multipleChoice, trueFalse, shortAnswer];
 }
 
 enum QuizGenerationDifficulty { easy, medium, hard, mixed }
@@ -44,25 +79,35 @@ class GeneratedQuizQuestion {
     final type = switch (map['type']) {
       'multipleChoice' => QuestionType.multipleChoice,
       'trueFalse' => QuestionType.trueFalse,
+      'shortAnswer' => QuestionType.shortAnswer,
       _ => throw const FormatException('Unsupported generated question type.'),
     };
     final questionText = _requiredText(map['questionText'], 'question text');
     final explanation = _requiredText(map['explanation'], 'explanation');
     final correctAnswer = _requiredText(map['correctAnswer'], 'correct answer');
     final rawOptions = map['options'];
-    if (rawOptions is! List) {
+    if (rawOptions is! List && type != QuestionType.shortAnswer) {
       throw const FormatException('Generated answer choices are missing.');
     }
-    final options = rawOptions
-        .map((option) => _requiredText(option, 'answer choice'))
-        .toList(growable: false);
-    final expectedCount = type == QuestionType.trueFalse ? 2 : 4;
+    final options = rawOptions is List
+        ? rawOptions
+              .map((option) => _requiredText(option, 'answer choice'))
+              .toList(growable: false)
+        : const <String>[];
+    final expectedCount = switch (type) {
+      QuestionType.multipleChoice => 4,
+      QuestionType.trueFalse => 2,
+      QuestionType.shortAnswer => 0,
+      QuestionType.multipleSelect || QuestionType.coding => 0,
+    };
     if (options.length != expectedCount) {
-      throw FormatException(
-        type == QuestionType.trueFalse
-            ? 'True/False questions must contain two choices.'
-            : 'Multiple-choice questions must contain four choices.',
-      );
+      throw FormatException(switch (type) {
+        QuestionType.trueFalse =>
+          'True/False questions must contain two choices.',
+        QuestionType.shortAnswer =>
+          'Short-answer questions must not contain answer choices.',
+        _ => 'Multiple-choice questions must contain four choices.',
+      });
     }
 
     final normalizedOptions = options
@@ -79,10 +124,14 @@ class GeneratedQuizQuestion {
       );
     }
 
-    final matchingAnswer = options.where(
-      (option) => option.toLowerCase() == correctAnswer.toLowerCase(),
-    );
-    if (matchingAnswer.length != 1) {
+    final matchingAnswer = type == QuestionType.shortAnswer
+        ? const <String>[]
+        : options
+              .where(
+                (option) => option.toLowerCase() == correctAnswer.toLowerCase(),
+              )
+              .toList(growable: false);
+    if (type != QuestionType.shortAnswer && matchingAnswer.length != 1) {
       throw const FormatException(
         'A generated correct answer does not match its choices.',
       );
@@ -92,7 +141,9 @@ class GeneratedQuizQuestion {
       type: type,
       questionText: questionText,
       options: options,
-      correctAnswer: matchingAnswer.single,
+      correctAnswer: type == QuestionType.shortAnswer
+          ? correctAnswer
+          : matchingAnswer.single,
       explanation: explanation,
     );
   }
@@ -102,6 +153,19 @@ class GeneratedQuizQuestion {
     required int order,
     required int points,
   }) {
+    if (type == QuestionType.shortAnswer) {
+      return QuestionModel(
+        id: createId(),
+        quizId: '',
+        type: type,
+        questionText: questionText,
+        correctAnswers: [correctAnswer],
+        explanation: explanation,
+        points: points,
+        order: order,
+      );
+    }
+
     final answerOptions = options
         .map((option) {
           return AnswerOptionModel(
@@ -160,6 +224,21 @@ class GeneratedQuizQuestions {
         .toList(growable: false);
 
     return GeneratedQuizQuestions(questions);
+  }
+
+  List<QuestionModel> toQuestionModels({
+    required String Function() createId,
+    required QuizGenerationPoints points,
+    int startingOrder = 0,
+  }) {
+    return [
+      for (var index = 0; index < questions.length; index++)
+        questions[index].toQuestionModel(
+          createId: createId,
+          order: startingOrder + index,
+          points: points.forType(questions[index].type),
+        ),
+    ];
   }
 }
 

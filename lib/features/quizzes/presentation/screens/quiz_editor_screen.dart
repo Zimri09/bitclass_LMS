@@ -53,7 +53,9 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   QuizGenerationDifficulty _generationDifficulty =
       QuizGenerationDifficulty.mixed;
   int _generationQuestionCount = 10;
-  int _generationPoints = 1;
+  int _multipleChoicePoints = QuizGenerationPoints.defaults.multipleChoice;
+  int _trueFalsePoints = QuizGenerationPoints.defaults.trueFalse;
+  int _shortAnswerPoints = QuizGenerationPoints.defaults.shortAnswer;
 
   // Quiz settings
   int _timeLimitMinutes = 0;
@@ -197,6 +199,10 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
       if (question.points < 1 || question.points > 100) {
         return '$label must be worth between 1 and 100 points.';
       }
+      if (question.type == QuestionType.shortAnswer &&
+          !question.correctAnswers.any((answer) => answer.trim().isNotEmpty)) {
+        return '$label needs at least one accepted answer.';
+      }
       if (!_isChoiceQuestion(question.type)) continue;
 
       if (question.options.length < 2 ||
@@ -306,7 +312,11 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             questionCount: _generationQuestionCount,
             questionType: _generationType,
             difficulty: _generationDifficulty,
-            pointsPerQuestion: _generationPoints,
+            points: QuizGenerationPoints(
+              multipleChoice: _multipleChoicePoints,
+              trueFalse: _trueFalsePoints,
+              shortAnswer: _shortAnswerPoints,
+            ),
             instructions: _generationInstructionsController.text,
           );
       if (!mounted) return;
@@ -783,6 +793,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                   width: 190,
                   child: DropdownButtonFormField<int>(
                     initialValue: _generationQuestionCount,
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Number of questions',
                     ),
@@ -806,7 +817,9 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                 SizedBox(
                   width: 190,
                   child: DropdownButtonFormField<QuizGenerationQuestionType>(
+                    key: const ValueKey('generation-question-type'),
                     initialValue: _generationType,
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Question type',
                     ),
@@ -831,6 +844,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                   width: 190,
                   child: DropdownButtonFormField<QuizGenerationDifficulty>(
                     initialValue: _generationDifficulty,
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Difficulty'),
                     items: QuizGenerationDifficulty.values
                         .map(
@@ -849,32 +863,31 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                           },
                   ),
                 ),
-                SizedBox(
-                  width: 190,
-                  child: DropdownButtonFormField<int>(
-                    initialValue: _generationPoints,
-                    decoration: const InputDecoration(
-                      labelText: 'Points per question',
-                    ),
-                    items: List.generate(10, (index) => index + 1)
-                        .map(
-                          (points) => DropdownMenuItem(
-                            value: points,
-                            child: Text(
-                              '$points point${points == 1 ? '' : 's'}',
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _isGenerating
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() => _generationPoints = value);
-                            }
-                          },
+                if (_generationType == QuizGenerationQuestionType.mixed ||
+                    _generationType ==
+                        QuizGenerationQuestionType.multipleChoice)
+                  _buildGenerationPointsField(
+                    type: QuestionType.multipleChoice,
+                    label: 'Multiple choice points',
+                    value: _multipleChoicePoints,
+                    onChanged: (value) => _multipleChoicePoints = value,
                   ),
-                ),
+                if (_generationType == QuizGenerationQuestionType.mixed ||
+                    _generationType == QuizGenerationQuestionType.trueFalse)
+                  _buildGenerationPointsField(
+                    type: QuestionType.trueFalse,
+                    label: 'True/False points',
+                    value: _trueFalsePoints,
+                    onChanged: (value) => _trueFalsePoints = value,
+                  ),
+                if (_generationType == QuizGenerationQuestionType.mixed ||
+                    _generationType == QuizGenerationQuestionType.shortAnswer)
+                  _buildGenerationPointsField(
+                    type: QuestionType.shortAnswer,
+                    label: 'Short answer points',
+                    value: _shortAnswerPoints,
+                    onChanged: (value) => _shortAnswerPoints = value,
+                  ),
               ],
             ),
             const SizedBox(height: 14),
@@ -952,6 +965,38 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildGenerationPointsField({
+    required QuestionType type,
+    required String label,
+    required int value,
+    required ValueChanged<int> onChanged,
+  }) {
+    return SizedBox(
+      width: 190,
+      child: DropdownButtonFormField<int>(
+        key: ValueKey('generation-${type.name}-points'),
+        initialValue: value,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: label),
+        items: List.generate(10, (index) => index + 1)
+            .map(
+              (points) => DropdownMenuItem(
+                value: points,
+                child: Text('$points point${points == 1 ? '' : 's'}'),
+              ),
+            )
+            .toList(),
+        onChanged: _isGenerating
+            ? null
+            : (newValue) {
+                if (newValue != null) {
+                  setState(() => onChanged(newValue));
+                }
+              },
       ),
     );
   }
@@ -1090,6 +1135,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
   late TextEditingController _questionTextController;
   late TextEditingController _explanationController;
   late TextEditingController _pointsController;
+  late TextEditingController _acceptedAnswersController;
   late List<TextEditingController> _optionControllers;
 
   @override
@@ -1104,6 +1150,11 @@ class _QuestionEditorState extends State<_QuestionEditor> {
     _pointsController = TextEditingController(
       text: widget.question.points.toString(),
     );
+    _acceptedAnswersController = TextEditingController(
+      text: widget.question.type == QuestionType.shortAnswer
+          ? widget.question.correctAnswers.join('\n')
+          : '',
+    );
     _optionControllers = widget.question.options
         .map((o) => TextEditingController(text: o.text))
         .toList();
@@ -1114,6 +1165,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
     _questionTextController.dispose();
     _explanationController.dispose();
     _pointsController.dispose();
+    _acceptedAnswersController.dispose();
     for (final c in _optionControllers) {
       c.dispose();
     }
@@ -1139,6 +1191,19 @@ class _QuestionEditorState extends State<_QuestionEditor> {
       );
     }
 
+    final correctAnswers = widget.question.type == QuestionType.shortAnswer
+        ? _acceptedAnswersController.text
+              .split('\n')
+              .map((answer) => answer.trim())
+              .where((answer) => answer.isNotEmpty)
+              .toList(growable: false)
+        : _isChoiceQuestion(widget.question.type)
+        ? options
+              .where((option) => option.isCorrect)
+              .map((option) => option.id)
+              .toList(growable: false)
+        : widget.question.correctAnswers;
+
     widget.onUpdate(
       widget.question.copyWith(
         questionText: _questionTextController.text,
@@ -1147,10 +1212,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
             : _explanationController.text,
         points: int.tryParse(_pointsController.text) ?? 1,
         options: options,
-        correctAnswers: options
-            .where((o) => o.isCorrect)
-            .map((o) => o.id)
-            .toList(),
+        correctAnswers: correctAnswers,
       ),
     );
   }
@@ -1217,7 +1279,23 @@ class _QuestionEditorState extends State<_QuestionEditor> {
 
   void _changeQuestionType(QuestionType? type) {
     if (type == null) return;
-    widget.onUpdate(widget.question.copyWith(type: type));
+    final answerKindChanged =
+        (type == QuestionType.shortAnswer) !=
+        (widget.question.type == QuestionType.shortAnswer);
+    if (answerKindChanged && type == QuestionType.shortAnswer) {
+      _acceptedAnswersController.clear();
+    }
+    widget.onUpdate(
+      widget.question.copyWith(
+        type: type,
+        options: type == QuestionType.shortAnswer
+            ? const []
+            : widget.question.options,
+        correctAnswers: answerKindChanged
+            ? const []
+            : widget.question.correctAnswers,
+      ),
+    );
   }
 
   @override
@@ -1294,6 +1372,22 @@ class _QuestionEditorState extends State<_QuestionEditor> {
                       icon: Icon(Icons.add),
                       label: const Text('Add Option'),
                     ),
+                  ],
+
+                  if (widget.question.type == QuestionType.shortAnswer) ...[
+                    TextFormField(
+                      key: ValueKey('${widget.question.id}-accepted-answers'),
+                      controller: _acceptedAnswersController,
+                      decoration: const InputDecoration(
+                        labelText: 'Accepted Answers',
+                        hintText: 'Enter one accepted answer per line',
+                        helperText: 'Matching ignores capitalization.',
+                      ),
+                      minLines: 2,
+                      maxLines: 4,
+                      onChanged: (_) => _updateQuestion(),
+                    ),
+                    const SizedBox(height: 16),
                   ],
 
                   // Explanation

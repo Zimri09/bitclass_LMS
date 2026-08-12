@@ -5,6 +5,10 @@ PDF or UTF-8 TXT file. The function verifies the instructor role and course
 ownership before sending the document to Gemini. It does not save or publish a
 quiz.
 
+Generated drafts can contain multiple-choice, true/false, and short-answer
+questions. The Flutter editor assigns configurable points by question type and
+requires instructors to review the generated answers before publishing.
+
 ## Configuration
 
 Set the production secret and optional model override:

@@ -108,7 +108,7 @@ class _QuizScreenState extends State<QuizScreen> {
       title = state.quiz.title;
     } else if (state is QuizInProgress) {
       title = state.quiz.title;
-      if (state.remainingSeconds > 0) {
+      if (!state.isPreview && state.remainingSeconds > 0) {
         timerWidget = _buildTimer(state.remainingSeconds);
       }
     } else if (state is QuizCompleted) {
@@ -360,28 +360,20 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
             ],
           ] else ...[
-            Container(
+            SizedBox(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.info.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.visibility, color: AppColors.info, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Instructor preview mode',
-                    style: TextStyle(
-                      color: AppColors.info,
-                      fontWeight: FontWeight.w600,
-                    ),
+              child: OutlinedButton.icon(
+                onPressed: _startInstructorPreview,
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('Instructor preview mode'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.info,
+                  side: BorderSide(
+                    color: AppColors.info.withValues(alpha: 0.4),
                   ),
-                ],
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: AppColors.info.withValues(alpha: 0.08),
+                ),
               ),
             ),
           ],
@@ -454,9 +446,43 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
+  void _startInstructorPreview() {
+    _quizBloc.add(
+      StartQuizAttempt(
+        quizId: widget.quizId,
+        userId: _currentUserId,
+        previewOnly: true,
+      ),
+    );
+  }
+
   Widget _buildQuizInProgress(BuildContext context, QuizInProgress state) {
     return Column(
       children: [
+        if (state.isPreview)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            color: AppColors.info.withValues(alpha: 0.08),
+            child: SafeArea(
+              bottom: false,
+              child: Row(
+                children: [
+                  Icon(Icons.visibility, color: AppColors.info, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Previewing quiz questions only. No answers will be saved.',
+                      style: TextStyle(
+                        color: AppColors.info,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         // Progress bar
         LinearProgressIndicator(
           value: (state.currentQuestionIndex + 1) / state.questions.length,
@@ -547,6 +573,22 @@ class _QuizScreenState extends State<QuizScreen> {
         const SizedBox(height: 24),
         // Answer area
         _buildAnswerArea(question, state),
+        if (state.isPreview &&
+            question.explanation?.trim().isNotEmpty == true) ...[
+          const SizedBox(height: 24),
+          _buildPreviewResponseCard(
+            icon: Icons.info_outline,
+            title: 'Explanation',
+            child: Text(
+              question.explanation!.trim(),
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
         // Hint
         if (question.hint != null) ...[
           const SizedBox(height: 24),
@@ -582,6 +624,10 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   Widget _buildAnswerArea(QuestionModel question, QuizInProgress state) {
+    if (state.isPreview) {
+      return _buildPreviewAnswerArea(question);
+    }
+
     switch (question.type) {
       case QuestionType.multipleChoice:
       case QuestionType.trueFalse:
@@ -595,12 +641,27 @@ class _QuizScreenState extends State<QuizScreen> {
     }
   }
 
+  Widget _buildPreviewAnswerArea(QuestionModel question) {
+    switch (question.type) {
+      case QuestionType.multipleChoice:
+      case QuestionType.trueFalse:
+        return _buildMultipleChoice(question, null, singleSelect: true);
+      case QuestionType.multipleSelect:
+        return _buildMultipleChoice(question, null, singleSelect: false);
+      case QuestionType.shortAnswer:
+        return _buildShortAnswerPreview(question);
+      case QuestionType.coding:
+        return _buildCodingAnswerPreview(question);
+    }
+  }
+
   Widget _buildMultipleChoice(
     QuestionModel question,
-    QuizInProgress state, {
+    QuizInProgress? state, {
     required bool singleSelect,
   }) {
     final options = question.options;
+    final isPreview = state?.isPreview ?? true;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -619,42 +680,56 @@ class _QuizScreenState extends State<QuizScreen> {
           ),
         ...options.map((option) {
           final isSelected = _selectedAnswers.contains(option.id);
+          final isCorrect = option.isCorrect;
+          final borderColor = isPreview
+              ? isCorrect
+                    ? AppColors.success
+                    : AppColors.surfaceLight
+              : isSelected
+              ? AppColors.primary
+              : AppColors.surfaceLight;
+          final backgroundColor = isPreview
+              ? isCorrect
+                    ? AppColors.success.withValues(alpha: 0.1)
+                    : AppColors.surface
+              : isSelected
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : AppColors.surface;
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: InkWell(
-              onTap: () {
-                setState(() {
-                  if (singleSelect) {
-                    _selectedAnswers.clear();
-                    _selectedAnswers.add(option.id);
-                  } else {
-                    if (isSelected) {
-                      _selectedAnswers.remove(option.id);
-                    } else {
-                      _selectedAnswers.add(option.id);
-                    }
-                  }
-                });
-                _saveAnswer(question, state);
-              },
+              onTap: state == null
+                  ? null
+                  : () {
+                      setState(() {
+                        if (singleSelect) {
+                          _selectedAnswers.clear();
+                          _selectedAnswers.add(option.id);
+                        } else {
+                          if (isSelected) {
+                            _selectedAnswers.remove(option.id);
+                          } else {
+                            _selectedAnswers.add(option.id);
+                          }
+                        }
+                      });
+                      _saveAnswer(question, state);
+                    },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary.withValues(alpha: 0.1)
-                      : AppColors.surface,
+                  color: backgroundColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.surfaceLight,
-                    width: isSelected ? 2 : 1,
+                    color: borderColor,
+                    width: (isPreview ? isCorrect : isSelected) ? 2 : 1,
                   ),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
                       width: 24,
@@ -666,22 +741,26 @@ class _QuizScreenState extends State<QuizScreen> {
                         borderRadius: singleSelect
                             ? null
                             : BorderRadius.circular(4),
-                        color: isSelected
+                        color: isPreview
+                            ? isCorrect
+                                  ? AppColors.success
+                                  : Colors.transparent
+                            : isSelected
                             ? AppColors.primary
                             : Colors.transparent,
                         border: Border.all(
-                          color: isSelected
+                          color: isPreview
+                              ? isCorrect
+                                    ? AppColors.success
+                                    : AppColors.textSecondary
+                              : isSelected
                               ? AppColors.primary
                               : AppColors.textSecondary,
                           width: 2,
                         ),
                       ),
-                      child: isSelected
-                          ? Icon(
-                              Icons.check,
-                              size: 16,
-                              color: Colors.white,
-                            )
+                      child: (isPreview ? isCorrect : isSelected)
+                          ? Icon(Icons.check, size: 16, color: Colors.white)
                           : null,
                     ),
                     const SizedBox(width: 12),
@@ -713,6 +792,29 @@ class _QuizScreenState extends State<QuizScreen> {
                               ),
                             ),
                           ],
+                          if (isPreview && isCorrect) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.success.withValues(
+                                  alpha: 0.14,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'Correct answer',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -729,6 +831,7 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget _buildShortAnswer(QuestionModel question, QuizInProgress state) {
     return TextField(
       controller: _textController,
+      readOnly: state.isPreview,
       decoration: InputDecoration(
         hintText: 'Type your answer here...',
         filled: true,
@@ -751,6 +854,23 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
+  Widget _buildShortAnswerPreview(QuestionModel question) {
+    return _buildPreviewResponseCard(
+      icon: Icons.short_text,
+      title: 'Expected response',
+      child: Text(
+        question.correctAnswers.isEmpty
+            ? 'Review the prompt and scoring guide in the editor for the expected response.'
+            : question.correctAnswers.join('\n'),
+        style: TextStyle(
+          fontSize: 14,
+          color: AppColors.textPrimary,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
   Widget _buildCodingAnswer(QuestionModel question, QuizInProgress state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -764,6 +884,7 @@ class _QuizScreenState extends State<QuizScreen> {
           ),
           child: TextField(
             controller: _codeController,
+            readOnly: state.isPreview,
             maxLines: null,
             expands: true,
             decoration: InputDecoration(
@@ -835,7 +956,112 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
+  Widget _buildCodingAnswerPreview(QuestionModel question) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildPreviewResponseCard(
+          icon: Icons.code,
+          title: 'Expected solution',
+          child: Text(
+            question.correctAnswers.isEmpty
+                ? 'Review the prompt, visible test cases, and explanation to validate this coding question.'
+                : question.correctAnswers.join('\n\n'),
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 13,
+              color: AppColors.textPrimary,
+              height: 1.5,
+            ),
+          ),
+        ),
+        if (question.testCases != null && question.testCases!.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Visible Test Cases',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...question.testCases!
+              .where((tc) => !tc.isHidden)
+              .map(
+                (tc) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Input: ${tc.input}',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Expected: ${tc.expectedOutput}',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12,
+                          color: AppColors.success,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPreviewResponseCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.success),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.success,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
   void _saveAnswer(QuestionModel question, QuizInProgress state) {
+    if (state.isPreview) return;
+
     _quizBloc.add(
       AnswerQuestion(
         attemptId: state.attempt.id,
@@ -870,9 +1096,9 @@ class _QuizScreenState extends State<QuizScreen> {
               itemCount: state.questions.length,
               itemBuilder: (context, index) {
                 final question = state.questions[index];
-                final isAnswered = state.attempt.answers.containsKey(
-                  question.id,
-                );
+                final isAnswered =
+                    !state.isPreview &&
+                    state.attempt.answers.containsKey(question.id);
                 final isCurrent = index == state.currentQuestionIndex;
 
                 return GestureDetector(
@@ -938,10 +1164,14 @@ class _QuizScreenState extends State<QuizScreen> {
               if (state.isLastQuestion)
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: state.isSubmitting
+                    onPressed: state.isPreview
+                        ? _loadQuiz
+                        : state.isSubmitting
                         ? null
                         : () => _showSubmitConfirmation(context, state),
-                    icon: state.isSubmitting
+                    icon: state.isPreview
+                        ? const Icon(Icons.arrow_back, size: 18)
+                        : state.isSubmitting
                         ? const SizedBox(
                             width: 18,
                             height: 18,
@@ -950,11 +1180,15 @@ class _QuizScreenState extends State<QuizScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : Icon(Icons.check, size: 18),
-                    label: const Text('Submit'),
+                        : const Icon(Icons.check, size: 18),
+                    label: Text(
+                      state.isPreview ? 'Back to Overview' : 'Submit',
+                    ),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: AppColors.success,
+                      backgroundColor: state.isPreview
+                          ? AppColors.primary
+                          : AppColors.success,
                     ),
                   ),
                 )
@@ -1237,6 +1471,10 @@ class _QuizScreenState extends State<QuizScreen> {
 
   void _showExitConfirmation(BuildContext context, QuizState state) {
     if (state is QuizInProgress) {
+      if (state.isPreview) {
+        _loadQuiz();
+        return;
+      }
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
