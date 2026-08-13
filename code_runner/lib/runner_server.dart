@@ -39,9 +39,15 @@ class RunnerConfig {
     }
     final port = int.tryParse(environment['RUNNER_PORT'] ?? '') ?? 8080;
     final maxConcurrent =
+<<<<<<< HEAD
         int.tryParse(environment['RUNNER_MAX_CONCURRENT'] ?? '') ?? 1;
     final memoryLimitMb =
         int.tryParse(environment['RUNNER_MEMORY_LIMIT_MB'] ?? '') ?? 1024;
+=======
+        int.tryParse(environment['RUNNER_MAX_CONCURRENT'] ?? '') ?? 2;
+    final memoryLimitMb =
+        int.tryParse(environment['RUNNER_MEMORY_LIMIT_MB'] ?? '') ?? 512;
+>>>>>>> 183c496669d7a2cd43bd71dc171b6b070aa75846
     final runtime = environment['CONTAINER_RUNTIME']?.trim().isNotEmpty == true
         ? environment['CONTAINER_RUNTIME']!.trim()
         : 'runsc';
