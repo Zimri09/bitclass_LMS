@@ -11,6 +11,7 @@ class RunnerConfig {
   final String dockerBinary;
   final String containerRuntime;
   final int maxConcurrentJobs;
+  final int memoryLimitMb;
 
   const RunnerConfig({
     required this.bindAddress,
@@ -20,6 +21,7 @@ class RunnerConfig {
     required this.dockerBinary,
     required this.containerRuntime,
     required this.maxConcurrentJobs,
+    required this.memoryLimitMb,
   });
 
   factory RunnerConfig.fromEnvironment(Map<String, String> environment) {
@@ -37,12 +39,21 @@ class RunnerConfig {
     }
     final port = int.tryParse(environment['RUNNER_PORT'] ?? '') ?? 8080;
     final maxConcurrent =
-        int.tryParse(environment['RUNNER_MAX_CONCURRENT'] ?? '') ?? 4;
+        int.tryParse(environment['RUNNER_MAX_CONCURRENT'] ?? '') ?? 2;
+    final memoryLimitMb =
+        int.tryParse(environment['RUNNER_MEMORY_LIMIT_MB'] ?? '') ?? 512;
     final runtime = environment['CONTAINER_RUNTIME']?.trim().isNotEmpty == true
         ? environment['CONTAINER_RUNTIME']!.trim()
         : 'runsc';
-    if (port < 1 || port > 65535 || maxConcurrent < 1 || maxConcurrent > 32) {
-      throw StateError('Runner port or concurrency configuration is invalid.');
+    if (port < 1 ||
+        port > 65535 ||
+        maxConcurrent < 1 ||
+        maxConcurrent > 32 ||
+        memoryLimitMb < 256 ||
+        memoryLimitMb > 1024) {
+      throw StateError(
+        'Runner port, concurrency, or memory configuration is invalid.',
+      );
     }
     if (runtime != 'runsc') {
       throw StateError('CONTAINER_RUNTIME must be runsc.');
@@ -59,6 +70,7 @@ class RunnerConfig {
           : 'docker',
       containerRuntime: runtime,
       maxConcurrentJobs: maxConcurrent,
+      memoryLimitMb: memoryLimitMb,
     );
   }
 }
@@ -262,8 +274,8 @@ class CodeRunnerServer {
         '--user=65534:65534',
         '--cap-drop=ALL',
         '--security-opt=no-new-privileges:true',
-        '--memory=256m',
-        '--memory-swap=256m',
+        '--memory=${config.memoryLimitMb}m',
+        '--memory-swap=${config.memoryLimitMb}m',
         '--cpus=0.5',
         '--pids-limit=32',
         '--ulimit=nofile=64:64',

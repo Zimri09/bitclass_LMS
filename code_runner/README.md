@@ -12,7 +12,8 @@ Each execution uses a fixed command and enforces:
 - no container network
 - non-root user and all Linux capabilities dropped
 - read-only root filesystem and source mount
-- 256 MB memory, 0.5 CPU, 32 process, and 5 second limits
+- a bounded memory limit (512 MB by default), 0.5 CPU, 32 process, and 5
+  second limits
 - 32 KB each for stdout and stderr
 - no image pulls during requests
 - immediate container and workspace deletion
@@ -31,6 +32,8 @@ source code nor program input.
    `docker image inspect --format '{{index .RepoDigests 0}}' IMAGE_NAME`.
 6. Set the variables shown in `.env.example`. Use the same random shared secret
    for `CODE_RUNNER_SHARED_SECRET` in Supabase.
+   Size `RUNNER_MAX_CONCURRENT` so its combined memory limits leave capacity for
+   the host; the example uses two 512 MB jobs on a 2 GB VM.
 7. Start the service with `dart run bin/server.dart` from this directory.
 8. Place an HTTPS reverse proxy in front of the loopback listener and allow
    requests only from the Supabase relay where infrastructure permits.
@@ -44,4 +47,3 @@ run on an otherwise disposable, dedicated VM.
 `GET /healthz` returns `{"status":"ok"}` without running a container. Program
 execution requires `POST /v1/execute/python` with the private `X-Runner-Token`
 header. Never expose that token to Flutter clients.
-
