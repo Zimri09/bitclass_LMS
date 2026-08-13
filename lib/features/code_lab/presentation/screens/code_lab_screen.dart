@@ -20,14 +20,16 @@ class CodeLabScreen extends StatefulWidget {
 }
 
 class _CodeLabScreenState extends State<CodeLabScreen> {
-  static const _starterCode = '''name = input().strip() or "BitClass"
-print(f"Hello, {name}!")''';
+  static const _starterCode = '''for number in range(5):
+    print(number)''';
 
-  final _stdinController = TextEditingController(text: 'Student');
+  final _stdinController = TextEditingController();
   String _source = _starterCode;
   CodeExecutionResult? _result;
   String? _error;
+  String _submittedStdin = '';
   bool _isRunning = false;
+  bool _showProgramInput = false;
   int _editorRevision = 0;
 
   @override
@@ -38,8 +40,9 @@ print(f"Hello, {name}!")''';
 
   Future<void> _runCode() async {
     if (_isRunning) return;
+    final stdin = _stdinController.text;
     final sourceBytes = utf8.encode(_source).length;
-    final stdinBytes = utf8.encode(_stdinController.text).length;
+    final stdinBytes = utf8.encode(stdin).length;
     if (_source.trim().isEmpty ||
         sourceBytes > CodeExecutionRepository.maxSourceBytes ||
         stdinBytes > CodeExecutionRepository.maxStdinBytes) {
@@ -57,11 +60,12 @@ print(f"Hello, {name}!")''';
       _isRunning = true;
       _result = null;
       _error = null;
+      _submittedStdin = stdin;
     });
     try {
       final result = await context
           .read<CodeExecutionRepository>()
-          .executePython(source: _source, stdin: _stdinController.text);
+          .executePython(source: _source, stdin: stdin);
       if (!mounted) return;
       setState(() => _result = result);
     } catch (error) {
@@ -73,12 +77,23 @@ print(f"Hello, {name}!")''';
   }
 
   void _reset() {
+    FocusScope.of(context).unfocus();
     setState(() {
       _source = _starterCode;
-      _stdinController.text = 'Student';
+      _stdinController.clear();
       _result = null;
       _error = null;
+      _submittedStdin = '';
+      _showProgramInput = false;
       _editorRevision++;
+    });
+  }
+
+  void _removeProgramInput() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _stdinController.clear();
+      _showProgramInput = false;
     });
   }
 
@@ -237,27 +252,7 @@ print(f"Hello, {name}!")''';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Program input', style: AppTextStyles.h4),
-        const SizedBox(height: 10),
-        TextField(
-          key: const ValueKey('code-lab-stdin'),
-          controller: _stdinController,
-          enabled: !_isRunning,
-          minLines: 3,
-          maxLines: 6,
-          style: AppTextStyles.codeSmall,
-          decoration: const InputDecoration(
-            hintText: 'Text passed to input()',
-            alignLabelWithHint: true,
-          ),
-          onChanged: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${utf8.encode(_stdinController.text).length} / ${CodeExecutionRepository.maxStdinBytes} bytes',
-          textAlign: TextAlign.end,
-          style: AppTextStyles.caption,
-        ),
+        _buildProgramInput(colors),
         const SizedBox(height: 14),
         FilledButton.icon(
           key: const ValueKey('code-lab-run'),
@@ -284,9 +279,79 @@ print(f"Hello, {name}!")''';
     );
   }
 
+  Widget _buildProgramInput(AppColorScheme colors) {
+    if (!_showProgramInput) {
+      return OutlinedButton.icon(
+        key: const ValueKey('code-lab-add-input'),
+        onPressed: _isRunning
+            ? null
+            : () => setState(() => _showProgramInput = true),
+        icon: const Icon(Icons.keyboard_alt_outlined),
+        label: const Text('Add program input'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      );
+    }
+
+    final stdinBytes = utf8.encode(_stdinController.text).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Program inputs (optional)',
+                style: AppTextStyles.h4,
+              ),
+            ),
+            TextButton.icon(
+              key: const ValueKey('code-lab-remove-input'),
+              onPressed: _isRunning ? null : _removeProgramInput,
+              icon: const Icon(Icons.close, size: 17),
+              label: const Text('Remove'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Enter one answer per line. Each input() call reads the next line.',
+          style: AppTextStyles.bodySmall.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          key: const ValueKey('code-lab-stdin'),
+          controller: _stdinController,
+          enabled: !_isRunning,
+          minLines: 3,
+          maxLines: 6,
+          style: AppTextStyles.codeSmall,
+          decoration: const InputDecoration(
+            hintText: 'Maria\n20\nManila',
+            alignLabelWithHint: true,
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '$stdinBytes / ${CodeExecutionRepository.maxStdinBytes} bytes',
+          textAlign: TextAlign.end,
+          style: AppTextStyles.caption.copyWith(
+            color: stdinBytes > CodeExecutionRepository.maxStdinBytes
+                ? AppColors.error
+                : colors.textMuted,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOutput(AppColorScheme colors) {
     final result = _result;
     final hasError = _error != null || (result != null && !result.succeeded);
+    final showSubmittedInput =
+        _submittedStdin.isNotEmpty && (_error != null || result != null);
     final output =
         _error ??
         (result == null
@@ -342,6 +407,36 @@ print(f"Hello, {name}!")''';
               ],
             ),
           ),
+          if (showSubmittedInput) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Input supplied',
+                    style: AppTextStyles.caption.copyWith(
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  SelectableText(
+                    _submittedStdin
+                        .split('\n')
+                        .map((line) => '> $line')
+                        .join('\n'),
+                    key: const ValueKey('code-lab-input-echo'),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: const Color(0xFFFFD166),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colors.border),
+          ],
           Padding(
             padding: const EdgeInsets.all(14),
             child: SelectableText(
