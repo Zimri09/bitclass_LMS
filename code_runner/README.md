@@ -12,13 +12,8 @@ Each execution uses a fixed command and enforces:
 - no container network
 - non-root user and all Linux capabilities dropped
 - read-only root filesystem and source mount
-<<<<<<< HEAD
 - a bounded memory limit (1 GB by default), 0.5 CPU, 32 process, 256 open
   file, and 5 second limits
-=======
-- a bounded memory limit (512 MB by default), 0.5 CPU, 32 process, and 5
-  second limits
->>>>>>> 183c496669d7a2cd43bd71dc171b6b070aa75846
 - 32 KB each for stdout and stderr
 - no image pulls during requests
 - immediate container and workspace deletion
@@ -38,11 +33,7 @@ source code nor program input.
 6. Set the variables shown in `.env.example`. Use the same random shared secret
    for `CODE_RUNNER_SHARED_SECRET` in Supabase.
    Size `RUNNER_MAX_CONCURRENT` so its combined memory limits leave capacity for
-<<<<<<< HEAD
    the host; the example uses one 1 GB job on a 2 GB VM.
-=======
-   the host; the example uses two 512 MB jobs on a 2 GB VM.
->>>>>>> 183c496669d7a2cd43bd71dc171b6b070aa75846
 7. Start the service with `dart run bin/server.dart` from this directory.
 8. Place an HTTPS reverse proxy in front of the loopback listener and allow
    requests only from the Supabase relay where infrastructure permits.
