@@ -16,7 +16,7 @@ Each execution uses a fixed command and enforces:
   file, and 5 second limits
 - 32 KB each for stdout and stderr
 - no image pulls during requests
-- immediate container and workspace deletion
+- immediate container cleanup
 
 The service sends bounded source and program input to a fixed Python bootstrap
 over standard input. It does not accept shell commands, filenames, compiler

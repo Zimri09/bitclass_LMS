@@ -269,6 +269,7 @@ class CodeRunnerServer {
         '--pull=never',
         '--label=app=bitclass-code-runner',
         '--init',
+        '--interactive',
         '--runtime=${config.containerRuntime}',
         '--network=none',
         '--read-only',
