@@ -278,7 +278,7 @@ class CodeRunnerServer {
         '--memory-swap=${config.memoryLimitMb}m',
         '--cpus=0.5',
         '--pids-limit=32',
-        '--ulimit=nofile=64:64',
+        '--ulimit=nofile=256:256',
         '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m',
         '--mount=type=bind,src=${workspace.path},dst=/workspace,readonly',
         '--workdir=/workspace',
