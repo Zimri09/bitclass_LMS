@@ -82,6 +82,13 @@ class CodeRunnerServer {
   static const int _maxOutputBytesPerStream = 32 * 1024;
   static const int _requestsPerMinute = 10;
   static const Duration _executionTimeout = Duration(seconds: 5);
+  static const String _pythonBootstrap =
+      'import io,json,sys;'
+      'p=json.load(sys.stdin);'
+      'sys.stdin=io.TextIOWrapper(io.BytesIO(p["stdin"].encode("utf-8")),'
+      'encoding="utf-8");'
+      'g={"__name__":"__main__","__file__":"main.py"};'
+      'exec(compile(p["source"],"main.py","exec"),g,g)';
 
   final RunnerConfig config;
   final Map<String, List<DateTime>> _recentRequests = {};
@@ -250,17 +257,11 @@ class CodeRunnerServer {
   Future<_ExecutionResult> _execute(_ExecutionRequest request) async {
     final jobId = _randomId();
     final containerName = 'bitclass-python-$jobId';
-    final workspace = await Directory.systemTemp.createTemp('bitclass-code-');
-    final sourceFile = File(
-      '${workspace.path}${Platform.pathSeparator}main.py',
-    );
     final stopwatch = Stopwatch()..start();
     Process? process;
     var timedOut = false;
 
     try {
-      await sourceFile.writeAsString(request.source, flush: true);
-      await _setReadOnlyWorkspacePermissions(workspace.path, sourceFile.path);
       process = await Process.start(config.dockerBinary, [
         'run',
         '--name=$containerName',
@@ -280,20 +281,23 @@ class CodeRunnerServer {
         '--pids-limit=32',
         '--ulimit=nofile=256:256',
         '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m',
-        '--mount=type=bind,src=${workspace.path},dst=/workspace,readonly',
-        '--workdir=/workspace',
         '--env=PYTHONDONTWRITEBYTECODE=1',
         config.pythonImage,
         'python3',
         '-I',
         '-S',
         '-B',
-        '/workspace/main.py',
+        '-c',
+        _pythonBootstrap,
       ], mode: ProcessStartMode.normal);
 
       final stdoutFuture = _collect(process.stdout);
       final stderrFuture = _collect(process.stderr);
-      process.stdin.add(utf8.encode(request.stdin));
+      process.stdin.add(
+        utf8.encode(
+          jsonEncode({'source': request.source, 'stdin': request.stdin}),
+        ),
+      );
       await process.stdin.close();
 
       var exitCode = -1;
@@ -324,22 +328,6 @@ class CodeRunnerServer {
     } finally {
       process?.kill(ProcessSignal.sigkill);
       await _removeContainer(containerName);
-      try {
-        await workspace.delete(recursive: true);
-      } on FileSystemException {
-        stderr.writeln('Could not remove workspace for job $jobId');
-      }
-    }
-  }
-
-  Future<void> _setReadOnlyWorkspacePermissions(
-    String directory,
-    String sourceFile,
-  ) async {
-    final directoryResult = await Process.run('chmod', ['0755', directory]);
-    final fileResult = await Process.run('chmod', ['0444', sourceFile]);
-    if (directoryResult.exitCode != 0 || fileResult.exitCode != 0) {
-      throw StateError('Could not secure the execution workspace.');
     }
   }
 

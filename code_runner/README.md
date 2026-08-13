@@ -11,16 +11,17 @@ Each execution uses a fixed command and enforces:
 - gVisor's `runsc` OCI runtime
 - no container network
 - non-root user and all Linux capabilities dropped
-- read-only root filesystem and source mount
+- read-only root filesystem with no host directory mounted
 - a bounded memory limit (1 GB by default), 0.5 CPU, 32 process, 256 open
   file, and 5 second limits
 - 32 KB each for stdout and stderr
 - no image pulls during requests
 - immediate container and workspace deletion
 
-The service does not accept shell commands, filenames, compiler arguments,
-packages, environment variables, or mounts from the caller. It logs neither
-source code nor program input.
+The service sends bounded source and program input to a fixed Python bootstrap
+over standard input. It does not accept shell commands, filenames, compiler
+arguments, packages, environment variables, or mounts from the caller, and it
+logs neither source code nor program input.
 
 ## Host setup
 
