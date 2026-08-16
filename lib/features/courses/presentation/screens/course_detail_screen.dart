@@ -101,6 +101,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                 course: snapshot.data ?? state.course,
                 enrollment: state.enrollment,
                 selectedTab: _selectedTab,
+                onTabSelected: (index) {
+                  setState(() => _selectedTab = index);
+                },
               ),
             );
           }
@@ -168,11 +171,13 @@ class _CourseDetailContent extends StatefulWidget {
   final CourseModel course;
   final EnrollmentModel? enrollment;
   final int selectedTab;
+  final ValueChanged<int> onTabSelected;
 
   const _CourseDetailContent({
     required this.course,
     this.enrollment,
     required this.selectedTab,
+    required this.onTabSelected,
   });
 
   @override
@@ -254,6 +259,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
       );
     }
 
+    final viewWidth = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = viewWidth < 600
+        ? 16.0
+        : viewWidth < 1024
+        ? 24.0
+        : (viewWidth - 960) / 2;
+
     return CustomScrollView(
       slivers: [
         // Header
@@ -334,8 +346,11 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
 
         // Content
         SliverPadding(
-          padding: EdgeInsets.all(
-            MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            viewWidth < 600 ? 20 : 28,
+            horizontalPadding,
+            32,
           ),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
@@ -404,24 +419,36 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
 
               // Course content (syllabus)
               Text('Course Content', style: AppTextStyles.h3),
-              const SizedBox(height: 12),
-              _buildCourseSyllabus(),
+              const SizedBox(height: 6),
+              Text(
+                'Lessons are organized by topic so you can find what you need quickly.',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
               const SizedBox(height: 16),
-              _buildCourseMaterialsLink(context),
-              const SizedBox(height: 32),
+              _buildCourseSyllabus(),
+              const SizedBox(height: 20),
+              Text('Course resources', style: AppTextStyles.bodyLarge),
+              const SizedBox(height: 10),
+              _buildCourseResourceLinks(context),
 
-              // Course setup and content controls stay with the content tab.
+              // Instructor creation tools mirror the same grouped structure.
               if (isOwnCourse) ...[
+                const SizedBox(height: 24),
+                _buildInstructorContentSection(context),
+                const SizedBox(height: 32),
+                Text('Course settings', style: AppTextStyles.h3),
+                const SizedBox(height: 12),
                 _buildPublishToggleCard(context),
                 const SizedBox(height: 16),
                 _buildCourseCodeCard(context),
-                const SizedBox(height: 24),
-                _buildInstructorContentSection(context),
                 const SizedBox(height: 32),
               ],
 
               // Progress (if enrolled)
               if (isEnrolled && !isInstructor) ...[
+                const SizedBox(height: 32),
                 Text('Your Progress', style: AppTextStyles.h3),
                 const SizedBox(height: 12),
                 _buildProgressCard(),
@@ -859,7 +886,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     return CourseSyllabusWidget(
       key: ValueKey('syllabus-$_syllabusRefreshKey'),
       courseId: course.id,
-      showHeader: true,
+      showHeader: false,
       showStudentProgress: !isCourseOwner,
     );
   }
@@ -966,10 +993,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
   }
 
   Widget _buildInstructorContentSection(BuildContext context) {
-    return GlowCard(
-      glowColor: AppColors.primary,
-      glowIntensity: 0.08,
-      isHoverable: false,
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -981,13 +1011,20 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                 size: 22,
               ),
               const SizedBox(width: 8),
-              Text('Manage Content', style: AppTextStyles.h3),
+              Text('Create content', style: AppTextStyles.bodyLarge),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 6),
+          Text(
+            'Add lessons, activities, assignments, or supporting files.',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: 10,
+            runSpacing: 10,
             children: [
               _buildInstructorAction(
                 context,
@@ -1032,39 +1069,99 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     );
   }
 
-  Widget _buildCourseMaterialsLink(BuildContext context) {
-    return GlowCard(
-      glowColor: AppColors.success,
-      glowIntensity: 0.06,
+  Widget _buildCourseResourceLinks(BuildContext context) {
+    final materials = _buildCourseResourceCard(
+      icon: Icons.folder_outlined,
+      color: AppColors.success,
+      title: 'Learning materials',
+      description: 'Files, links, and supporting resources',
       onTap: () => context.push(AppRoutes.filesPath(course.id)),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.folder_outlined, color: AppColors.success),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Learning materials', style: AppTextStyles.bodyLarge),
-                const SizedBox(height: 4),
-                Text(
-                  'Open uploaded files and additional course resources.',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+    );
+    final classwork = _buildCourseResourceCard(
+      icon: Icons.assignment_outlined,
+      color: AppColors.warning,
+      title: 'Assignments & activities',
+      description: 'Quizzes, assignments, and class activities',
+      onTap: () => widget.onTabSelected(1),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 680) {
+          return Column(
+            children: [materials, const SizedBox(height: 10), classwork],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: materials),
+            const SizedBox(width: 12),
+            Expanded(child: classwork),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCourseResourceCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String description,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppColors.backgroundSecondary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              ],
-            ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: AppColors.textMuted),
+            ],
           ),
-          Icon(Icons.chevron_right, color: AppColors.textMuted),
-        ],
+        ),
       ),
     );
   }
@@ -1076,30 +1173,16 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: AppTextStyles.bodySmall.copyWith(
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        backgroundColor: color.withValues(alpha: 0.06),
+        side: BorderSide(color: color.withValues(alpha: 0.28)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }

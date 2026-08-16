@@ -472,6 +472,7 @@ class ModuleTile extends StatelessWidget {
   final int lessonCount;
   final int completedCount;
   final bool isExpanded;
+  final bool showProgress;
   final VoidCallback? onExpand;
   final List<Widget> lessons;
 
@@ -482,6 +483,7 @@ class ModuleTile extends StatelessWidget {
     required this.lessonCount,
     required this.completedCount,
     required this.isExpanded,
+    this.showProgress = true,
     this.onExpand,
     required this.lessons,
   });
@@ -491,40 +493,64 @@ class ModuleTile extends StatelessWidget {
     final progress = lessonCount > 0 ? completedCount / lessonCount : 0.0;
 
     return Card(
-      color: AppColors.surface,
-      margin: const EdgeInsets.only(bottom: 8),
+      color: AppColors.backgroundSecondary,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           InkWell(
             onTap: onExpand,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Progress indicator
-                  SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          value: progress,
-                          backgroundColor: AppColors.surfaceLight,
-                          valueColor: AlwaysStoppedAnimation(
-                            progress == 1.0
-                                ? AppColors.success
-                                : AppColors.primary,
+                  if (showProgress)
+                    SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            value: progress,
+                            backgroundColor: AppColors.surfaceLight,
+                            valueColor: AlwaysStoppedAnimation(
+                              progress == 1.0
+                                  ? AppColors.success
+                                  : AppColors.primary,
+                            ),
+                            strokeWidth: 3,
                           ),
-                          strokeWidth: 3,
-                        ),
-                        if (progress == 1.0)
-                          Icon(Icons.check, color: AppColors.success, size: 20),
-                      ],
+                          if (progress == 1.0)
+                            Icon(
+                              Icons.check,
+                              color: AppColors.success,
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.folder_outlined,
+                        color: AppColors.primary,
+                        size: 21,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   // Title and description
                   Expanded(
                     child: Column(
@@ -552,7 +578,9 @@ class ModuleTile extends StatelessWidget {
                         ],
                         const SizedBox(height: 4),
                         Text(
-                          '$completedCount/$lessonCount lessons completed',
+                          showProgress
+                              ? '$completedCount/$lessonCount lessons completed'
+                              : '$lessonCount ${lessonCount == 1 ? 'lesson' : 'lessons'}',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
@@ -562,9 +590,18 @@ class ModuleTile extends StatelessWidget {
                     ),
                   ),
                   // Expand icon
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.textSecondary,
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: AppColors.textSecondary,
+                      size: 21,
+                    ),
                   ),
                 ],
               ),
@@ -609,10 +646,12 @@ class LessonTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasDescription = description?.trim().isNotEmpty == true;
+
     return InkWell(
       onTap: isLocked ? null : onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(color: AppColors.surfaceLight, width: 1),
@@ -647,7 +686,7 @@ class LessonTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            // Title and duration
+            // Title, description and duration
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -662,13 +701,36 @@ class LessonTile extends StatelessWidget {
                           : AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$durationMinutes min',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                  if (hasDescription) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      description!.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
+                  ],
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule,
+                        size: 13,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$durationMinutes min',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
