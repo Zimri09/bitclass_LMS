@@ -1,8 +1,6 @@
-import 'dart:io' as io show File;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' as fp;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
@@ -19,6 +17,11 @@ import '../../data/repositories/quiz_repository.dart';
 enum _QuestionCreationMode { manual, file }
 
 enum _QuizExitAction { keepEditing, discard, saveDraft }
+
+String _fileExtension(String name) {
+  final dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+}
 
 /// Screen for creating and editing quizzes
 class QuizEditorScreen extends StatefulWidget {
@@ -321,21 +324,20 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     setState(() => _isPickingSource = true);
 
     try {
-      final result = await fp.FilePicker.platform.pickFiles(
+      final file = await fp.FilePicker.pickFile(
         type: fp.FileType.custom,
         allowedExtensions: const ['pdf', 'txt'],
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (file == null) return;
 
-      final file = result.files.single;
-      final extension = (file.extension ?? '').toLowerCase();
+      final extension = _fileExtension(file.name);
       final maxBytes = extension == 'pdf' ? _maxPdfBytes : _maxTextBytes;
       if (extension != 'pdf' && extension != 'txt') {
         _showError('Only PDF and TXT files are supported right now.');
         return;
       }
-      if (file.size <= 0 || file.size > maxBytes) {
+      final fileSize = await file.length();
+      if (fileSize <= 0 || fileSize > maxBytes) {
         _showError(
           extension == 'pdf'
               ? 'Select a PDF that is no larger than 8 MB.'
@@ -344,13 +346,8 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         return;
       }
 
-      Uint8List? bytes = file.bytes;
-      if (bytes == null && !kIsWeb && file.path != null) {
-        try {
-          bytes = await io.File(file.path!).readAsBytes();
-        } catch (_) {}
-      }
-      if (bytes == null || bytes.isEmpty) {
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
         _showError('Could not read the selected file. Please try again.');
         return;
       }
@@ -378,7 +375,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
     setState(() => _isGenerating = true);
     try {
-      final extension = (file.extension ?? '').toLowerCase();
+      final extension = _fileExtension(file.name);
       final generated = await context
           .read<QuizRepository>()
           .generateQuestionsFromFile(
@@ -834,7 +831,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                                 ),
                               ),
                               Text(
-                                _formatBytes(_sourceFile!.size),
+                                _formatBytes(_sourceBytes!.length),
                                 style: AppTextStyles.caption.copyWith(
                                   color: colors.textSecondary,
                                 ),
