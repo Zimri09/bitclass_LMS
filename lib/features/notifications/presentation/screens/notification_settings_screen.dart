@@ -39,7 +39,7 @@ class NotificationSettingsScreen extends StatelessWidget {
   }
 }
 
-class NotificationSettingsView extends StatelessWidget {
+class NotificationSettingsView extends StatefulWidget {
   final String userId;
   final bool isInstructor;
 
@@ -50,47 +50,87 @@ class NotificationSettingsView extends StatelessWidget {
   });
 
   @override
+  State<NotificationSettingsView> createState() =>
+      _NotificationSettingsViewState();
+}
+
+class _NotificationSettingsViewState extends State<NotificationSettingsView> {
+  NotificationSettings? _lastSettings;
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Notification Settings')),
-      body: BlocConsumer<NotificationBloc, NotificationState>(
-        listener: (context, state) {
-          if (state is NotificationSettingsUpdated) {
-            // Reload settings to refresh UI
-            context.read<NotificationBloc>().add(
-              LoadNotificationSettings(userId: userId),
-            );
-          }
-        },
-        builder: (context, state) {
-          if (state is NotificationSettingsLoading) {
-            return Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
+      body: SafeArea(
+        top: false,
+        child: BlocConsumer<NotificationBloc, NotificationState>(
+          listener: (context, state) {
+            if (state is NotificationSettingsLoaded) {
+              _lastSettings = state.settings;
+            } else if (state is NotificationSettingsUpdated) {
+              _lastSettings = state.settings;
+            } else if (state is NotificationError && _lastSettings != null) {
+              final messenger = ScaffoldMessenger.of(context);
+              messenger
+                ..clearSnackBars()
+                ..showSnackBar(SnackBar(content: Text(state.message)));
+            }
+          },
+          builder: (context, state) {
+            final stateSettings = switch (state) {
+              NotificationSettingsLoaded(:final settings) => settings,
+              NotificationSettingsUpdated(:final settings) => settings,
+              _ => null,
+            };
+            final settings = stateSettings ?? _lastSettings;
 
-          if (state is NotificationError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, color: AppColors.error, size: 48),
-                  const SizedBox(height: 16),
-                  Text(
-                    state.message,
-                    style: TextStyle(color: AppColors.textSecondary),
+            if (settings != null) {
+              return _buildSettings(context, settings);
+            }
+
+            if (state is NotificationSettingsLoading) {
+              return Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+
+            if (state is NotificationError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: AppColors.error,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        state.message,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () {
+                          context.read<NotificationBloc>().add(
+                            LoadNotificationSettings(userId: widget.userId),
+                          );
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Try again'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }
+                ),
+              );
+            }
 
-          if (state is NotificationSettingsLoaded) {
-            return _buildSettings(context, state.settings);
-          }
-
-          return const SizedBox.shrink();
-        },
+            return const SizedBox.shrink();
+          },
+        ),
       ),
     );
   }
@@ -117,7 +157,10 @@ class NotificationSettingsView extends StatelessWidget {
               activeThumbColor: AppColors.primary,
               onChanged: (value) {
                 context.read<NotificationBloc>().add(
-                  TogglePushNotifications(userId: userId, enabled: value),
+                  TogglePushNotifications(
+                    userId: widget.userId,
+                    enabled: value,
+                  ),
                 );
               },
             ),
@@ -139,8 +182,8 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.newLesson,
                   Icons.book,
-                  isInstructor ? 'Lesson Updates' : 'New Lessons',
-                  isInstructor
+                  widget.isInstructor ? 'Lesson Updates' : 'New Lessons',
+                  widget.isInstructor
                       ? 'When lesson/content changes happen in your courses'
                       : 'When new content is added to your courses',
                 ),
@@ -150,8 +193,8 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.newAssignment,
                   Icons.assignment,
-                  isInstructor ? 'Submissions' : 'Assignments',
-                  isInstructor
+                  widget.isInstructor ? 'Submissions' : 'Assignments',
+                  widget.isInstructor
                       ? 'New assignment submissions that need review'
                       : 'New assignments and due date reminders',
                 ),
@@ -161,8 +204,8 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.assignmentGraded,
                   Icons.grade,
-                  isInstructor ? 'Submission Reviews' : 'Grades',
-                  isInstructor
+                  widget.isInstructor ? 'Submission Reviews' : 'Grades',
+                  widget.isInstructor
                       ? 'Status updates while grading student work'
                       : 'When your work is graded',
                 ),
@@ -172,8 +215,8 @@ class NotificationSettingsView extends StatelessWidget {
                   settings,
                   NotificationType.quizAvailable,
                   Icons.quiz,
-                  isInstructor ? 'Quiz Activity' : 'Quizzes',
-                  isInstructor
+                  widget.isInstructor ? 'Quiz Activity' : 'Quizzes',
+                  widget.isInstructor
                       ? 'Quiz publishing and learner activity updates'
                       : 'Quiz availability and results',
                 ),
@@ -184,7 +227,7 @@ class NotificationSettingsView extends StatelessWidget {
                   NotificationType.discussionReply,
                   Icons.chat_bubble,
                   'Discussions',
-                  isInstructor
+                  widget.isInstructor
                       ? 'Replies, mentions, and student questions'
                       : 'Replies to your posts and mentions',
                 ),
@@ -229,7 +272,7 @@ class NotificationSettingsView extends StatelessWidget {
                   onChanged: (value) {
                     context.read<NotificationBloc>().add(
                       UpdateQuietHours(
-                        userId: userId,
+                        userId: widget.userId,
                         enabled: value,
                         startHour: settings.quietHoursStart,
                         endHour: settings.quietHoursEnd,
@@ -347,7 +390,7 @@ class NotificationSettingsView extends StatelessWidget {
             ? (value) {
                 context.read<NotificationBloc>().add(
                   ToggleNotificationType(
-                    userId: userId,
+                    userId: widget.userId,
                     type: type,
                     enabled: value,
                   ),
@@ -387,7 +430,7 @@ class NotificationSettingsView extends StatelessWidget {
 
     context.read<NotificationBloc>().add(
       UpdateQuietHours(
-        userId: userId,
+        userId: widget.userId,
         enabled: settings.quietHoursEnabled,
         startHour: isStart ? selected.hour : settings.quietHoursStart,
         endHour: isStart ? settings.quietHoursEnd : selected.hour,
