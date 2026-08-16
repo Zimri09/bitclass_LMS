@@ -23,6 +23,9 @@ import '../../../quizzes/presentation/widgets/quiz_delete_button.dart';
 import '../../data/models/course_model.dart';
 import '../../data/repositories/course_repository.dart';
 import '../bloc/course_bloc.dart';
+import '../widgets/instructor/instructor_content_actions.dart';
+import '../widgets/shared/course_resource_links.dart';
+import '../widgets/student/student_course_progress_card.dart';
 
 /// Course detail screen showing course information and enrollment options
 class CourseDetailScreen extends StatefulWidget {
@@ -431,12 +434,18 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               const SizedBox(height: 20),
               Text('Course resources', style: AppTextStyles.bodyLarge),
               const SizedBox(height: 10),
-              _buildCourseResourceLinks(context),
+              CourseResourceLinks(
+                courseId: course.id,
+                onOpenClasswork: () => widget.onTabSelected(1),
+              ),
 
               // Instructor creation tools mirror the same grouped structure.
               if (isOwnCourse) ...[
                 const SizedBox(height: 24),
-                _buildInstructorContentSection(context),
+                InstructorContentActions(
+                  courseId: course.id,
+                  onContentChanged: _refreshContent,
+                ),
                 const SizedBox(height: 32),
                 Text('Course settings', style: AppTextStyles.h3),
                 const SizedBox(height: 12),
@@ -487,13 +496,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
             colors: [
-              statusColor.withOpacity(0.12),
-              statusColor.withOpacity(0.04),
+              statusColor.withValues(alpha: 0.12),
+              statusColor.withValues(alpha: 0.04),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          border: Border.all(color: statusColor.withOpacity(0.35)),
+          border: Border.all(color: statusColor.withValues(alpha: 0.35)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Row(
@@ -502,7 +511,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.18),
+                color: statusColor.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(statusIcon, color: statusColor, size: 22),
@@ -526,7 +535,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.18),
+                          color: statusColor.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -571,9 +580,11 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                       )
                     : Switch(
                         value: isPublished,
-                        activeColor: AppColors.success,
+                        activeThumbColor: AppColors.success,
                         inactiveThumbColor: AppColors.warning,
-                        inactiveTrackColor: AppColors.warning.withOpacity(0.3),
+                        inactiveTrackColor: AppColors.warning.withValues(
+                          alpha: 0.3,
+                        ),
                         onChanged: (newValue) async {
                           // Confirm before toggling
                           final confirmed = await showDialog<bool>(
@@ -642,13 +653,15 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
             colors: [
-              AppColors.secondary.withOpacity(0.15),
-              AppColors.primary.withOpacity(0.08),
+              AppColors.secondary.withValues(alpha: 0.15),
+              AppColors.primary.withValues(alpha: 0.08),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          border: Border.all(color: AppColors.secondary.withOpacity(0.3)),
+          border: Border.all(
+            color: AppColors.secondary.withValues(alpha: 0.3),
+          ),
         ),
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -659,7 +672,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.secondary.withOpacity(0.2),
+                    color: AppColors.secondary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -702,10 +715,10 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               decoration: BoxDecoration(
-                color: AppColors.background.withOpacity(0.5),
+                color: AppColors.background.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: AppColors.secondary.withOpacity(0.4),
+                  color: AppColors.secondary.withValues(alpha: 0.4),
                   width: 1.5,
                 ),
               ),
@@ -736,54 +749,6 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildEnrolledStudentsSection(BuildContext context) {
-    return GlowCard(
-      glowColor: AppColors.primary,
-      glowIntensity: 0.05,
-      isHoverable: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.people, color: AppColors.primary, size: 22),
-              const SizedBox(width: 8),
-              Text('Enrolled Students', style: AppTextStyles.h3),
-              const Spacer(),
-              Text(
-                '${course.enrollmentCount}',
-                style: AppTextStyles.h3.copyWith(color: AppColors.primary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'View and manage students enrolled in your course.',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                context.push(AppRoutes.courseStudentsPath(course.id));
-              },
-              icon: Icon(Icons.visibility),
-              label: const Text('View All Students'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: AppColors.primary),
-                foregroundColor: AppColors.primary,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -992,281 +957,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     }
   }
 
-  Widget _buildInstructorContentSection(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.build_circle_outlined,
-                color: AppColors.primary,
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Text('Create content', style: AppTextStyles.bodyLarge),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Add lessons, activities, assignments, or supporting files.',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _buildInstructorAction(
-                context,
-                icon: Icons.video_library_outlined,
-                label: 'Add Lesson',
-                color: AppColors.primary,
-                onTap: () => context
-                    .push('/courses/${course.id}/lessons/create')
-                    .then((_) => _refreshContent()),
-              ),
-              _buildInstructorAction(
-                context,
-                icon: Icons.quiz_outlined,
-                label: 'Add Quiz',
-                color: AppColors.secondary,
-                onTap: () => context
-                    .push('/courses/${course.id}/quizzes/create')
-                    .then((_) => _refreshContent()),
-              ),
-              _buildInstructorAction(
-                context,
-                icon: Icons.assignment_outlined,
-                label: 'Add Assignment',
-                color: AppColors.warning,
-                onTap: () => context
-                    .push('/courses/${course.id}/assignments/create')
-                    .then((_) => _refreshContent()),
-              ),
-              _buildInstructorAction(
-                context,
-                icon: Icons.folder_copy_outlined,
-                label: 'Course materials',
-                color: AppColors.success,
-                onTap: () => context
-                    .push(AppRoutes.filesPath(course.id))
-                    .then((_) => _refreshContent()),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCourseResourceLinks(BuildContext context) {
-    final materials = _buildCourseResourceCard(
-      icon: Icons.folder_outlined,
-      color: AppColors.success,
-      title: 'Learning materials',
-      description: 'Files, links, and supporting resources',
-      onTap: () => context.push(AppRoutes.filesPath(course.id)),
-    );
-    final classwork = _buildCourseResourceCard(
-      icon: Icons.assignment_outlined,
-      color: AppColors.warning,
-      title: 'Assignments & activities',
-      description: 'Quizzes, assignments, and class activities',
-      onTap: () => widget.onTabSelected(1),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 680) {
-          return Column(
-            children: [materials, const SizedBox(height: 10), classwork],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: materials),
-            const SizedBox(width: 12),
-            Expanded(child: classwork),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildCourseResourceCard({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String description,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: AppColors.backgroundSecondary,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right, color: AppColors.textMuted),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInstructorAction(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: color,
-        backgroundColor: color.withValues(alpha: 0.06),
-        side: BorderSide(color: color.withValues(alpha: 0.28)),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
   Widget _buildProgressCard() {
-    return _StudentCourseProgressCard(
+    return StudentCourseProgressCard(
       courseId: course.id,
       enrollmentId: enrollment!.id,
     );
   }
 
-  Widget _buildDiscussionsLink(BuildContext context) {
-    return GlowCard(
-      glowColor: AppColors.primary,
-      glowIntensity: 0.08,
-      onTap: () => context.push('/courses/${course.id}/discussions'),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.forum_outlined, color: AppColors.primary),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Course Discussions', style: AppTextStyles.bodyLarge),
-                const SizedBox(height: 4),
-                Text(
-                  'Ask questions, share ideas, and collaborate',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.chevron_right, color: AppColors.textMuted),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildManageAssignmentsLink(BuildContext context) {
-    return GlowCard(
-      glowColor: AppColors.warning,
-      glowIntensity: 0.08,
-      onTap: () => context.push('/courses/${course.id}/assignments'),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.assignment_outlined, color: AppColors.warning),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Manage Assignments', style: AppTextStyles.bodyLarge),
-                const SizedBox(height: 4),
-                Text(
-                  'View assignments and manage submissions',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.chevron_right, color: AppColors.textMuted),
-        ],
-      ),
-    );
-  }
 }
 
 class _CourseWorkTab extends StatelessWidget {
@@ -1539,121 +1236,6 @@ class _PersonTile extends StatelessWidget {
             ),
     );
   }
-}
-
-class _StudentCourseProgressCard extends StatefulWidget {
-  final String courseId;
-  final String enrollmentId;
-
-  const _StudentCourseProgressCard({
-    required this.courseId,
-    required this.enrollmentId,
-  });
-
-  @override
-  State<_StudentCourseProgressCard> createState() =>
-      _StudentCourseProgressCardState();
-}
-
-class _StudentCourseProgressCardState
-    extends State<_StudentCourseProgressCard> {
-  late Future<_CourseProgressSummary> _progressFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _progressFuture = _loadProgress();
-  }
-
-  @override
-  void didUpdateWidget(covariant _StudentCourseProgressCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.courseId != widget.courseId ||
-        oldWidget.enrollmentId != widget.enrollmentId) {
-      _progressFuture = _loadProgress();
-    }
-  }
-
-  Future<_CourseProgressSummary> _loadProgress() async {
-    final lessonRepository = context.read<LessonRepository>();
-    final lessons = await lessonRepository.getLessons(widget.courseId);
-    final lessonProgress = await lessonRepository.getCourseProgress(
-      widget.courseId,
-      widget.enrollmentId,
-    );
-
-    return _CourseProgressSummary(
-      completedLessons: lessonProgress
-          .where((progress) => progress.isCompleted)
-          .length,
-      totalLessons: lessons.length,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<_CourseProgressSummary>(
-      future: _progressFuture,
-      builder: (context, snapshot) {
-        final summary = snapshot.data;
-        final completedLessons = summary?.completedLessons ?? 0;
-        final totalLessons = summary?.totalLessons ?? 0;
-        final progress = totalLessons == 0
-            ? 0.0
-            : completedLessons / totalLessons;
-
-        return GlowCard(
-          glowColor: progress >= 1.0 ? AppColors.success : AppColors.primary,
-          glowIntensity: 0.1,
-          isHoverable: false,
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Overall Progress', style: AppTextStyles.bodyMedium),
-                  Text(
-                    '${(progress * 100).toInt()}%',
-                    style: AppTextStyles.h4.copyWith(
-                      color: progress >= 1.0
-                          ? AppColors.success
-                          : AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    progress >= 1.0 ? AppColors.success : AppColors.primary,
-                  ),
-                  minHeight: 8,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '$completedLessons of $totalLessons lessons completed',
-                style: AppTextStyles.bodySmall,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CourseProgressSummary {
-  final int completedLessons;
-  final int totalLessons;
-
-  const _CourseProgressSummary({
-    required this.completedLessons,
-    required this.totalLessons,
-  });
 }
 
 /// Widget showing quizzes for a course
