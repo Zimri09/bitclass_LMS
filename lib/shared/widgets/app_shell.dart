@@ -618,9 +618,11 @@ class _AppShellState extends State<AppShell> {
     return [
       classes,
       _NavItem(
-        icon: Icons.check_box_outline_blank,
-        activeIcon: Icons.check_box,
-        label: 'Todos',
+        icon: isInstructor
+            ? Icons.fact_check_outlined
+            : Icons.check_box_outline_blank,
+        activeIcon: isInstructor ? Icons.fact_check : Icons.check_box,
+        label: isInstructor ? 'Work Queue' : 'To-do',
         path: AppRoutes.todos,
       ),
       _NavItem(

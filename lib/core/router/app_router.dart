@@ -13,6 +13,7 @@ import '../../features/auth/presentation/screens/startup_screen.dart';
 import '../../features/todos/presentation/screens/todos_list_screen.dart';
 import '../../features/todos/presentation/state/todos_cubit.dart';
 import '../../features/todos/data/repositories/todos_repository.dart';
+import '../../features/todos/data/models/todo_model.dart';
 
 import '../../features/courses/presentation/screens/classroom_landing_screen.dart';
 import '../../features/code_lab/presentation/screens/screens.dart';
@@ -97,19 +98,25 @@ class AppRouter {
           GoRoute(
             path: AppRoutes.todos,
             name: 'todos',
-            pageBuilder: (context, state) => AppTransitions.fadeTransition(
-              context: context,
-              state: state,
-              child: MultiBlocProvider(
-                providers: [
-                  BlocProvider<TodosCubit>(
-                    create: (context) =>
-                        TodosCubit(todosRepository: TodosRepository())..load(),
-                  ),
-                ],
-                child: const TodosListScreen(),
-              ),
-            ),
+            pageBuilder: (context, state) {
+              final authState = context.read<AuthBloc>().state;
+              final audience =
+                  authState is AuthAuthenticated &&
+                      authState.user.isInstructor
+                  ? TodoAudience.instructor
+                  : TodoAudience.student;
+              return AppTransitions.fadeTransition(
+                context: context,
+                state: state,
+                child: BlocProvider<TodosCubit>(
+                  create: (context) => TodosCubit(
+                    todosRepository: TodosRepository(),
+                    audience: audience,
+                  )..load(),
+                  child: TodosListScreen(audience: audience),
+                ),
+              );
+            },
           ),
           GoRoute(
             path: AppRoutes.profile,

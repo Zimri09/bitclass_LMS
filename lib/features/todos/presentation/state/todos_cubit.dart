@@ -31,13 +31,15 @@ class TodosState {
 
 class TodosCubit extends Cubit<TodosState> {
   final TodosRepository todosRepository;
+  final TodoAudience audience;
 
-  TodosCubit({required this.todosRepository}) : super(const TodosState());
+  TodosCubit({required this.todosRepository, required this.audience})
+    : super(const TodosState());
 
   Future<void> load() async {
     emit(state.copyWith(status: TodosStatus.loading, errorMessage: null));
     try {
-      final todos = await todosRepository.getTodos();
+      final todos = await todosRepository.getTodos(audience: audience);
       emit(state.copyWith(status: TodosStatus.loaded, todos: todos));
     } catch (e) {
       emit(
@@ -49,12 +51,19 @@ class TodosCubit extends Cubit<TodosState> {
     }
   }
 
-  Future<void> toggle({required String todoId}) async {
+  Future<void> toggle({required TodoModel todo}) async {
+    if (!todo.isPersonal) return;
     try {
-      await todosRepository.toggleCompleted(todoId: todoId);
+      await todosRepository.toggleCompleted(todoId: todo.id);
       await load();
     } catch (_) {
       // Keep UI stable on failure
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await todosRepository.dispose();
+    return super.close();
   }
 }
