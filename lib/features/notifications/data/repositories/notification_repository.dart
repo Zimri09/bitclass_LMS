@@ -290,15 +290,11 @@ class NotificationRepository {
       throw Exception('Notification not found');
     }
 
-    await _supabase!
+    final row = await _supabase!
         .from(_notificationsTable)
         .update({'is_read': true})
-        .eq('id', notificationId);
-
-    final row = await _supabase
-        .from(_notificationsTable)
-        .select()
         .eq('id', notificationId)
+        .select()
         .maybeSingle();
 
     if (row == null) {

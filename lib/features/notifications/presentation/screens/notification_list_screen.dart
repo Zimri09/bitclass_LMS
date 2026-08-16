@@ -299,12 +299,18 @@ class _NotificationListViewState extends State<NotificationListView> {
                           ),
                         ),
                         if (!notification.isRead)
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
+                          Semantics(
+                            label: 'Unread notification',
+                            child: Container(
+                              key: Key(
+                                'notification-unread-indicator-${notification.id}',
+                              ),
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.error,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
                       ],
@@ -341,18 +347,38 @@ class _NotificationListViewState extends State<NotificationListView> {
     if (_isOpeningNotification) return;
 
     final bloc = context.read<NotificationBloc>();
-    // Mark as read
+    setState(() => _isOpeningNotification = true);
+
+    // Persist the read state before opening the destination. The bloc emits an
+    // updated list only after Supabase confirms the update, which removes the
+    // unread indicator and keeps the state correct after an app restart.
     if (!notification.isRead) {
-      bloc.add(
-        MarkNotificationRead(notificationId: notification.id),
+      final readResult = bloc.stream.firstWhere(
+        (state) =>
+            state is NotificationError ||
+            (state is NotificationsLoaded &&
+                state.notifications.any(
+                  (item) => item.id == notification.id && item.isRead,
+                )),
       );
+      bloc.add(MarkNotificationRead(notificationId: notification.id));
+      final readState = await readResult;
+      if (!mounted) return;
+      if (readState is NotificationError) {
+        setState(() => _isOpeningNotification = false);
+        return;
+      }
     }
 
     final destination = AppRoutes.notificationDestination(
       notification.actionUrl,
     );
-    if (notification.actionUrl == null) return;
+    if (notification.actionUrl == null) {
+      setState(() => _isOpeningNotification = false);
+      return;
+    }
     if (destination == null) {
+      setState(() => _isOpeningNotification = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -363,7 +389,6 @@ class _NotificationListViewState extends State<NotificationListView> {
       return;
     }
 
-    setState(() => _isOpeningNotification = true);
     try {
       await context.push(destination);
     } catch (_) {
