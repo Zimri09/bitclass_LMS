@@ -1,6 +1,4 @@
 import 'dart:developer';
-import 'dart:typed_data';
-
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

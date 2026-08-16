@@ -602,7 +602,9 @@ class CourseRepository {
         extension: thumbnailExtension,
         mimeType: thumbnailMimeType,
       );
-      return updateCourse(course.id, {'thumbnailUrl': uploadedThumbnailUrl});
+      return await updateCourse(course.id, {
+        'thumbnailUrl': uploadedThumbnailUrl,
+      });
     } catch (error, stackTrace) {
       // Keep course creation atomic from the instructor's perspective.
       try {

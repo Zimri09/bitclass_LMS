@@ -289,7 +289,7 @@ class AuthRepository {
           user.emailConfirmedAt == null) {
         throw Exception('Email verification did not create a valid session.');
       }
-      return _resolveProfileForUser(
+      return await _resolveProfileForUser(
         user,
         defaultRole: _safeSelfRegisteredRole(user.userMetadata?['role']),
       );

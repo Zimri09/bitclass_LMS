@@ -88,13 +88,15 @@ class _GlowCardContentState extends State<_GlowCardContent> {
           borderRadius: BorderRadius.circular(widget.borderRadius),
           border: Border.all(
             color: _isHovered
-                ? widget.glowColor.withOpacity(0.5)
+                ? widget.glowColor.withValues(alpha: 0.5)
                 : AppColors.border,
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: widget.glowColor.withOpacity(effectiveGlowIntensity * 0.3),
+              color: widget.glowColor.withValues(
+                alpha: effectiveGlowIntensity * 0.3,
+              ),
               blurRadius: _isHovered ? 20 : 12,
               spreadRadius: _isHovered ? 2 : 0,
             ),

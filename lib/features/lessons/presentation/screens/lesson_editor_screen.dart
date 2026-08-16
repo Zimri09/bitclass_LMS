@@ -358,7 +358,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                 // Module picker
                 if (_modules.isNotEmpty) ...[
                   DropdownButtonFormField<String>(
-                    value: _moduleId,
+                    initialValue: _moduleId,
                     decoration: const InputDecoration(labelText: 'Module'),
                     items: _modules.map<DropdownMenuItem<String>>((m) {
                       return DropdownMenuItem<String>(

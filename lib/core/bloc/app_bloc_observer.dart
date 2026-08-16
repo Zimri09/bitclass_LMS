@@ -8,8 +8,9 @@ class AppBlocObserver extends BlocObserver {
   @override
   void onCreate(BlocBase bloc) {
     super.onCreate(bloc);
-    if (kDebugMode)
+    if (kDebugMode) {
       log('🟢 onCreate: ${bloc.runtimeType}', name: 'BlocObserver');
+    }
   }
 
   @override
@@ -45,11 +46,12 @@ class AppBlocObserver extends BlocObserver {
   @override
   void onEvent(Bloc bloc, Object? event) {
     super.onEvent(bloc, event);
-    if (kDebugMode)
+    if (kDebugMode) {
       log(
         '📩 onEvent: ${bloc.runtimeType}\n   Event: $event',
         name: 'BlocObserver',
       );
+    }
   }
 
   @override

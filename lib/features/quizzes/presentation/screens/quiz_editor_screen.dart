@@ -1142,9 +1142,8 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             physics: const NeverScrollableScrollPhysics(),
             buildDefaultDragHandles: false,
             itemCount: _questions.length,
-            onReorder: (oldIndex, newIndex) {
+            onReorderItem: (oldIndex, newIndex) {
               setState(() {
-                if (newIndex > oldIndex) newIndex--;
                 final item = _questions.removeAt(oldIndex);
                 _questions.insert(newIndex, item);
                 // Update order values
@@ -1419,7 +1418,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
               ),
             ),
             const SizedBox(height: 8),
-            ..._buildOptionEditors(),
+            _buildOptionEditors(),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: _addOption,
@@ -1571,13 +1570,13 @@ class _QuestionEditorState extends State<_QuestionEditor> {
     );
   }
 
-  List<Widget> _buildOptionEditors() {
+  Widget _buildOptionEditors() {
     // Ensure controllers match options
     while (_optionControllers.length < widget.question.options.length) {
       _optionControllers.add(TextEditingController());
     }
 
-    return List.generate(widget.question.options.length, (index) {
+    final editors = List.generate(widget.question.options.length, (index) {
       final option = widget.question.options[index];
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
@@ -1585,10 +1584,8 @@ class _QuestionEditorState extends State<_QuestionEditor> {
           children: [
             // Correct answer indicator
             if (widget.question.type == QuestionType.multipleChoice)
-              Radio<bool>(
-                value: true,
-                groupValue: option.isCorrect,
-                onChanged: (_) => _toggleCorrectAnswer(index),
+              Radio<int>(
+                value: index,
                 activeColor: AppColors.success,
               )
             else
@@ -1621,6 +1618,23 @@ class _QuestionEditorState extends State<_QuestionEditor> {
         ),
       );
     });
+
+    if (widget.question.type == QuestionType.multipleChoice) {
+      final selectedIndex = widget.question.options.indexWhere(
+        (option) => option.isCorrect,
+      );
+      return RadioGroup<int>(
+        groupValue: selectedIndex < 0 ? null : selectedIndex,
+        onChanged: (index) {
+          if (index != null) {
+            _toggleCorrectAnswer(index);
+          }
+        },
+        child: Column(children: editors),
+      );
+    }
+
+    return Column(children: editors);
   }
 
   bool _isChoiceQuestion(QuestionType type) {

@@ -519,7 +519,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(
-                                  color: AppColors.secondary.withOpacity(0.1),
+                                  color: AppColors.secondary.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
