@@ -16,6 +16,55 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   testWidgets(
+    'admin uses the instructor class list with controls and pull-to-refresh',
+    (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final authRepository = _FakeAuthRepository();
+      final authBloc = AuthBloc(authRepository: authRepository)
+        ..add(AuthUserUpdated(_admin));
+      await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+
+      final courseRepository = _FakeCourseRepository();
+      addTearDown(courseRepository.dispose);
+      addTearDown(() async {
+        await authBloc.close();
+        await authRepository.dispose();
+      });
+
+      await tester.pumpWidget(
+        MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<CourseRepository>.value(value: courseRepository),
+          ],
+          child: BlocProvider<AuthBloc>.value(
+            value: authBloc,
+            child: const MaterialApp(home: ClassroomLandingScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Teaching'), findsOneWidget);
+      expect(find.byType(RefreshIndicator), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+      expect(find.text('Search your classes...'), findsNothing);
+      expect(find.text('Join class'), findsNothing);
+
+      final refreshIndicator = tester.widget<RefreshIndicator>(
+        find.byType(RefreshIndicator),
+      );
+      await refreshIndicator.onRefresh();
+      await tester.pumpAndSettle();
+
+      expect(courseRepository.getInstructorCoursesCalls, 1);
+    },
+  );
+
+  testWidgets(
     'student courses remain visible and reload after returning from a course',
     (tester) async {
       tester.view.physicalSize = const Size(400, 800);
@@ -104,6 +153,15 @@ final _student = UserModel(
   createdAt: DateTime.utc(2026, 8, 8),
 );
 
+final _admin = UserModel(
+  id: 'instructor-1',
+  email: 'admin@example.com',
+  firstName: 'Test',
+  lastName: 'Admin',
+  role: 'admin',
+  createdAt: DateTime.utc(2026, 8, 18),
+);
+
 final _course = CourseModel(
   id: 'course-1',
   title: 'Algorithms 101',
@@ -119,6 +177,7 @@ class _FakeCourseRepository extends CourseRepository {
   final SupabaseClient _client;
   final Completer<List<CourseModel>> _refreshCompleter = Completer();
   int getCoursesCalls = 0;
+  int getInstructorCoursesCalls = 0;
 
   factory _FakeCourseRepository() {
     final client = SupabaseClient('http://localhost:54321', 'test-anon-key');
@@ -144,6 +203,16 @@ class _FakeCourseRepository extends CourseRepository {
 
   @override
   Future<CourseModel?> getCourse(String courseId) async => _course;
+
+  @override
+  Future<List<CourseModel>> getInstructorCourses(String instructorId) async {
+    getInstructorCoursesCalls++;
+    return [_course];
+  }
+
+  @override
+  Stream<List<CourseModel>> watchInstructorCourses(String instructorId) =>
+      Stream.value([_course]);
 
   @override
   Stream<CourseModel?> watchCourse(String courseId) => Stream.value(_course);

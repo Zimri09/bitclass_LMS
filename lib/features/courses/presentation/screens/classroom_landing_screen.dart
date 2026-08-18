@@ -23,7 +23,7 @@ class ClassroomLandingScreen extends StatelessWidget {
         if (state is AuthAuthenticated && state.isOffline) {
           return const _OfflineHomeScreen();
         }
-        if (state is AuthAuthenticated && state.user.role == 'instructor') {
+        if (state is AuthAuthenticated && state.user.isStaff) {
           return const MyCoursesScreen();
         }
         return BlocProvider(

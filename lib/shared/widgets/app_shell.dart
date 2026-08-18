@@ -68,7 +68,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     final isInstructor =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+        authState is AuthAuthenticated && authState.user.isStaff;
     final isOffline = authState is AuthAuthenticated && authState.isOffline;
     _syncOfflineRetry(isOffline);
     final width = MediaQuery.sizeOf(context).width;

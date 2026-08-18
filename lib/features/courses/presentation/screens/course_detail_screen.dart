@@ -211,7 +211,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     final isInstructor =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+        authState is AuthAuthenticated && authState.user.isStaff;
     final isStudent =
         authState is AuthAuthenticated && authState.user.role == 'student';
     final isOwnCourse =
@@ -288,8 +288,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
               }
               final authState = context.read<AuthBloc>().state;
               context.go(
-                authState is AuthAuthenticated &&
-                        authState.user.role == 'instructor'
+                authState is AuthAuthenticated && authState.user.isStaff
                     ? AppRoutes.myCourses
                     : AppRoutes.dashboard,
               );

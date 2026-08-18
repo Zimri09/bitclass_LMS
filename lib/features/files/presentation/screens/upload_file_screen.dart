@@ -170,9 +170,8 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   void _uploadFile(BuildContext blocContext) {
     if (_isUploading) return;
     final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthAuthenticated ||
-        authState.user.role != 'instructor') {
-      _showError('Only instructors can upload files.');
+    if (authState is! AuthAuthenticated || !authState.user.isStaff) {
+      _showError('Only staff can upload files.');
       return;
     }
 
@@ -215,9 +214,8 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   Future<void> _saveUrlResource() async {
     if (_isUploading) return;
     final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthAuthenticated ||
-        authState.user.role != 'instructor') {
-      _showError('Only instructors can add learning materials.');
+    if (authState is! AuthAuthenticated || !authState.user.isStaff) {
+      _showError('Only staff can add learning materials.');
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -274,8 +272,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
-    final canUpload =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+    final canUpload = authState is AuthAuthenticated && authState.user.isStaff;
 
     if (!canUpload) {
       return Scaffold(
@@ -283,7 +280,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(24),
-            child: Text('Only instructors can upload files to a course.'),
+            child: Text('Only staff can upload files to a course.'),
           ),
         ),
       );

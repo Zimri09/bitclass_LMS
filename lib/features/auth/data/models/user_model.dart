@@ -134,6 +134,12 @@ class UserModel extends Equatable {
   /// Check if user is an admin
   bool get isAdmin => role == 'admin';
 
+  /// Check whether the user should receive staff/teaching experiences.
+  ///
+  /// Admin remains a distinct database role, but it includes instructor
+  /// capabilities in the learning app.
+  bool get isStaff => isInstructor || isAdmin;
+
   /// Get display name or fallback to email prefix
   String get displayNameOrEmail => displayName ?? email.split('@').first;
 

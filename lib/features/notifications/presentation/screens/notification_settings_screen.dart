@@ -26,7 +26,7 @@ class NotificationSettingsScreen extends StatelessWidget {
     final userId = _currentUserId(context);
     final authState = context.read<AuthBloc>().state;
     final isInstructor =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+        authState is AuthAuthenticated && authState.user.isStaff;
     return BlocProvider(
       create: (context) => NotificationBloc(
         notificationRepository: context.read<NotificationRepository>(),

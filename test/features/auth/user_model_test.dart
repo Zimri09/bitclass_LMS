@@ -30,6 +30,21 @@ void main() {
       );
 
       expect(instructor.isInstructor, true);
+      expect(instructor.isStaff, true);
+    });
+
+    test('admin keeps a distinct role and receives staff capabilities', () {
+      final admin = UserModel(
+        id: 'user-3',
+        email: 'admin@example.com',
+        firstName: 'Admin',
+        role: 'admin',
+        createdAt: DateTime(2024, 1, 1),
+      );
+
+      expect(admin.isAdmin, true);
+      expect(admin.isInstructor, false);
+      expect(admin.isStaff, true);
     });
 
     test('displayNameOrEmail returns display name when available', () {

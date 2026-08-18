@@ -38,8 +38,7 @@ class _FileListScreenState extends State<FileListScreen> {
 
   bool get _canUpload {
     final authState = context.read<AuthBloc>().state;
-    return authState is AuthAuthenticated &&
-        authState.user.role == 'instructor';
+    return authState is AuthAuthenticated && authState.user.isStaff;
   }
 
   @override
@@ -330,9 +329,7 @@ class _FileListScreenState extends State<FileListScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  file.isExternalLink
-                      ? Icons.link
-                      : _getTypeIcon(file.type),
+                  file.isExternalLink ? Icons.link : _getTypeIcon(file.type),
                   color: _getTypeColor(file.type),
                   size: 24,
                 ),
@@ -687,10 +684,7 @@ class _FileListScreenState extends State<FileListScreen> {
   Future<void> _openExternalLink(CourseFile file) async {
     try {
       final uri = normalizeWebUrl(file.url);
-      final opened = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened) throw StateError('No application accepted this URL.');
     } catch (_) {
       if (!mounted) return;
