@@ -18,6 +18,16 @@ enum _QuestionCreationMode { manual, file }
 
 enum _QuizExitAction { keepEditing, discard, saveDraft }
 
+typedef QuizSourcePicker = Future<QuizSourceDocument?> Function();
+
+@immutable
+class QuizSourceDocument {
+  final String name;
+  final Uint8List bytes;
+
+  const QuizSourceDocument({required this.name, required this.bytes});
+}
+
 String _fileExtension(String name) {
   final dot = name.lastIndexOf('.');
   return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
@@ -27,8 +37,14 @@ String _fileExtension(String name) {
 class QuizEditorScreen extends StatefulWidget {
   final String courseId;
   final String? quizId; // null = create new, otherwise edit
+  final QuizSourcePicker? sourcePicker;
 
-  const QuizEditorScreen({super.key, required this.courseId, this.quizId});
+  const QuizEditorScreen({
+    super.key,
+    required this.courseId,
+    this.quizId,
+    this.sourcePicker,
+  });
 
   @override
   State<QuizEditorScreen> createState() => _QuizEditorScreenState();
@@ -53,8 +69,8 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   bool _isExitDialogOpen = false;
   QuizModel? _quiz;
   List<QuestionModel> _questions = [];
-  fp.PlatformFile? _sourceFile;
-  Uint8List? _sourceBytes;
+  QuizSourceDocument? _sourceDocument;
+  int _generationRequestId = 0;
   _QuestionCreationMode _creationMode = _QuestionCreationMode.manual;
   QuizGenerationQuestionType _generationType = QuizGenerationQuestionType.mixed;
   QuizGenerationDifficulty _generationDifficulty =
@@ -85,6 +101,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
   @override
   void dispose() {
+    _generationRequestId++;
     _titleController.dispose();
     _descriptionController.dispose();
     _generationInstructionsController.dispose();
@@ -209,7 +226,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   }
 
   Future<void> _handleExitRequest() async {
-    if (_isExitDialogOpen || _isSaving || _isGenerating) return;
+    if (_isExitDialogOpen || _isSaving) return;
     _isExitDialogOpen = true;
     final action = await showDialog<_QuizExitAction>(
       context: context,
@@ -217,10 +234,14 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
       builder: (dialogContext) => AlertDialog(
         icon: Icon(Icons.warning_amber_rounded, color: AppColors.warning),
         title: const Text('Leave quiz editor?'),
-        content: const Text(
-          'Your created or generated questions have not been saved yet. '
-          'If you leave now, they will be lost. You can save the quiz as a '
-          'draft and finish it later.',
+        content: Text(
+          _isGenerating
+              ? 'Question generation is still running. Leaving or saving now '
+                    'will stop it. Any other unsaved quiz changes can still be '
+                    'saved as a draft.'
+              : 'Your created or generated questions have not been saved yet. '
+                    'If you leave now, they will be lost. You can save the quiz '
+                    'as a draft and finish it later.',
         ),
         actions: [
           TextButton(
@@ -247,9 +268,11 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
     switch (action) {
       case _QuizExitAction.discard:
+        _cancelGeneration(showMessage: false);
         _leaveEditor();
         return;
       case _QuizExitAction.saveDraft:
+        _cancelGeneration(showMessage: false);
         await _saveQuiz(asDraft: true);
         return;
       case _QuizExitAction.keepEditing:
@@ -324,19 +347,45 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     setState(() => _isPickingSource = true);
 
     try {
-      final file = await fp.FilePicker.pickFile(
-        type: fp.FileType.custom,
-        allowedExtensions: const ['pdf', 'txt'],
-      );
-      if (file == null) return;
+      QuizSourceDocument? source;
+      if (widget.sourcePicker != null) {
+        source = await widget.sourcePicker!();
+      } else {
+        final file = await fp.FilePicker.pickFile(
+          type: fp.FileType.custom,
+          allowedExtensions: const ['pdf', 'txt'],
+        );
+        if (file == null) return;
 
-      final extension = _fileExtension(file.name);
+        final extension = _fileExtension(file.name);
+        final maxBytes = extension == 'pdf' ? _maxPdfBytes : _maxTextBytes;
+        if (extension != 'pdf' && extension != 'txt') {
+          _showError('Only PDF and TXT files are supported right now.');
+          return;
+        }
+        final fileSize = await file.length();
+        if (fileSize <= 0 || fileSize > maxBytes) {
+          _showError(
+            extension == 'pdf'
+                ? 'Select a PDF that is no larger than 8 MB.'
+                : 'Select a TXT file that is no larger than 1 MB.',
+          );
+          return;
+        }
+        source = QuizSourceDocument(
+          name: file.name,
+          bytes: await file.readAsBytes(),
+        );
+      }
+      if (source == null) return;
+
+      final extension = _fileExtension(source.name);
       final maxBytes = extension == 'pdf' ? _maxPdfBytes : _maxTextBytes;
       if (extension != 'pdf' && extension != 'txt') {
         _showError('Only PDF and TXT files are supported right now.');
         return;
       }
-      final fileSize = await file.length();
+      final fileSize = source.bytes.length;
       if (fileSize <= 0 || fileSize > maxBytes) {
         _showError(
           extension == 'pdf'
@@ -346,16 +395,9 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         return;
       }
 
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
-        _showError('Could not read the selected file. Please try again.');
-        return;
-      }
-
       if (!mounted) return;
       setState(() {
-        _sourceFile = file;
-        _sourceBytes = bytes;
+        _sourceDocument = source;
       });
     } catch (error) {
       if (mounted) _showError('Failed to select file: $error');
@@ -365,24 +407,24 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   }
 
   Future<void> _generateQuestions() async {
-    final file = _sourceFile;
-    final bytes = _sourceBytes;
-    if (file == null || bytes == null) {
+    final source = _sourceDocument;
+    if (source == null) {
       _showError('Select a PDF or TXT file first.');
       return;
     }
     if (_isGenerating) return;
 
+    final requestId = ++_generationRequestId;
     setState(() => _isGenerating = true);
     try {
-      final extension = _fileExtension(file.name);
+      final extension = _fileExtension(source.name);
       final generated = await context
           .read<QuizRepository>()
           .generateQuestionsFromFile(
             courseId: widget.courseId,
-            fileName: file.name,
+            fileName: source.name,
             mimeType: extension == 'pdf' ? 'application/pdf' : 'text/plain',
-            bytes: bytes,
+            bytes: source.bytes,
             questionCount: _generationQuestionCount,
             questionType: _generationType,
             difficulty: _generationDifficulty,
@@ -393,7 +435,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
             ),
             instructions: _generationInstructionsController.text,
           );
-      if (!mounted) return;
+      if (!mounted || requestId != _generationRequestId) return;
 
       setState(() {
         final startingOrder = _questions.length;
@@ -413,9 +455,24 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         ),
       );
     } catch (error) {
-      if (mounted) _showError('Question generation failed: $error');
+      if (mounted && requestId == _generationRequestId) {
+        _showError('Question generation failed: $error');
+      }
     } finally {
-      if (mounted) setState(() => _isGenerating = false);
+      if (mounted && requestId == _generationRequestId) {
+        setState(() => _isGenerating = false);
+      }
+    }
+  }
+
+  void _cancelGeneration({bool showMessage = true}) {
+    if (!_isGenerating) return;
+    _generationRequestId++;
+    setState(() => _isGenerating = false);
+    if (showMessage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Question generation cancelled.')),
+      );
     }
   }
 
@@ -807,14 +864,14 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
               child: Row(
                 children: [
                   Icon(
-                    _sourceFile == null
+                    _sourceDocument == null
                         ? Icons.upload_file_outlined
                         : Icons.description_outlined,
                     color: AppColors.primary,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _sourceFile == null
+                    child: _sourceDocument == null
                         ? Text(
                             'Choose a PDF (up to 8 MB) or TXT file (up to 1 MB).',
                             style: AppTextStyles.bodySmall,
@@ -823,7 +880,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _sourceFile!.name,
+                                _sourceDocument!.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.bodyMedium.copyWith(
@@ -831,7 +888,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                                 ),
                               ),
                               Text(
-                                _formatBytes(_sourceBytes!.length),
+                                _formatBytes(_sourceDocument!.bytes.length),
                                 style: AppTextStyles.caption.copyWith(
                                   color: colors.textSecondary,
                                 ),
@@ -839,15 +896,14 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                             ],
                           ),
                   ),
-                  if (_sourceFile != null)
+                  if (_sourceDocument != null)
                     IconButton(
                       tooltip: 'Remove file',
                       onPressed: _isGenerating
                           ? null
                           : () {
                               setState(() {
-                                _sourceFile = null;
-                                _sourceBytes = null;
+                                _sourceDocument = null;
                               });
                             },
                       icon: const Icon(Icons.close),
@@ -860,7 +916,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                 ],
               ),
             ),
-            if (_sourceFile != null) ...[
+            if (_sourceDocument != null) ...[
               const SizedBox(height: 10),
               TextButton.icon(
                 onPressed: _isGenerating ? null : _pickSourceFile,
@@ -990,9 +1046,15 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
               width: double.infinity,
               height: 48,
               child: FilledButton.icon(
-                onPressed: _sourceFile == null || _isGenerating
+                key: const ValueKey('quiz-generation-action'),
+                onPressed: _isGenerating
+                    ? _cancelGeneration
+                    : _sourceDocument == null
                     ? null
                     : _generateQuestions,
+                style: _isGenerating
+                    ? FilledButton.styleFrom(backgroundColor: AppColors.error)
+                    : null,
                 icon: _isGenerating
                     ? const SizedBox(
                         width: 18,
@@ -1005,11 +1067,21 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                     : const Icon(Icons.auto_awesome),
                 label: Text(
                   _isGenerating
-                      ? 'Reading file and generating questions...'
+                      ? 'Cancel Generation'
                       : 'Generate Draft Questions',
                 ),
               ),
             ),
+            if (_isGenerating) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Generating questions can take up to 90 seconds. You can '
+                'cancel at any time.',
+                style: AppTextStyles.caption.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,

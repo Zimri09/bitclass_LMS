@@ -80,6 +80,7 @@ Deno.serve(async (request) => {
     return json({ questions });
   } catch (error) {
     if (error instanceof HttpError) {
+      console.warn("Quiz generation request rejected", error.status, error.message);
       return json({ error: error.message }, error.status);
     }
     console.error(
@@ -132,17 +133,42 @@ function getSupabaseUrl(): string {
   return url;
 }
 
+async function fetchJsonWithTimeout<T>(
+  input: string | URL,
+  init: RequestInit,
+  timeoutMessage: string,
+  timeoutMs = 10_000,
+): Promise<{ response: Response; data: T }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    const data = await response.json() as T;
+    return { response, data };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new HttpError(504, timeoutMessage);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function loadAuthenticatedUser(
   authHeader: string,
 ): Promise<{ id: string }> {
-  const response = await fetch(`${getSupabaseUrl()}/auth/v1/user`, {
-    headers: {
-      apikey: getPublishableKey(),
-      Authorization: authHeader,
+  const { response, data: user } = await fetchJsonWithTimeout<{ id?: string }>(
+    `${getSupabaseUrl()}/auth/v1/user`,
+    {
+      headers: {
+        apikey: getPublishableKey(),
+        Authorization: authHeader,
+      },
     },
-  });
+    "Authentication verification timed out. Please try again.",
+  );
   if (!response.ok) throw new HttpError(401, "Your session has expired. Sign in again.");
-  const user = (await response.json()) as { id?: string };
   if (!user.id) throw new HttpError(401, "Your session has expired. Sign in again.");
   return { id: user.id };
 }
@@ -160,13 +186,19 @@ async function verifyInstructorCourseAccess(
   profileUrl.searchParams.set("id", `eq.${userId}`);
   profileUrl.searchParams.set("select", "role");
   profileUrl.searchParams.set("limit", "1");
-  const profileResponse = await fetch(profileUrl, { headers });
+  const { response: profileResponse, data: profiles } = await fetchJsonWithTimeout<
+    Array<{ role?: string }>
+  >(
+    profileUrl,
+    { headers },
+    "Instructor access verification timed out. Please try again.",
+  );
   if (!profileResponse.ok) {
     throw new HttpError(403, "Instructor access could not be verified.");
   }
-  const profiles = (await profileResponse.json()) as Array<{ role?: string }>;
-  if (profiles[0]?.role !== "instructor") {
-    throw new HttpError(403, "Only instructors can generate quiz questions.");
+  const role = profiles[0]?.role;
+  if (role !== "instructor" && role !== "admin") {
+    throw new HttpError(403, "Only course staff can generate quiz questions.");
   }
 
   const courseUrl = new URL(`${getSupabaseUrl()}/rest/v1/courses`);
@@ -174,11 +206,16 @@ async function verifyInstructorCourseAccess(
   courseUrl.searchParams.set("instructor_id", `eq.${userId}`);
   courseUrl.searchParams.set("select", "id");
   courseUrl.searchParams.set("limit", "1");
-  const courseResponse = await fetch(courseUrl, { headers });
+  const { response: courseResponse, data: courses } = await fetchJsonWithTimeout<
+    Array<{ id?: string }>
+  >(
+    courseUrl,
+    { headers },
+    "Course ownership verification timed out. Please try again.",
+  );
   if (!courseResponse.ok) {
     throw new HttpError(403, "Course ownership could not be verified.");
   }
-  const courses = (await courseResponse.json()) as Array<{ id?: string }>;
   if (courses.length !== 1) {
     throw new HttpError(
       403,
@@ -369,8 +406,8 @@ async function generateQuestions(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90_000);
-  let response: Response | undefined;
   try {
+    let response: Response | undefined;
     for (const [index, model] of models.entries()) {
       response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -397,6 +434,65 @@ async function generateQuestions(
       if (response.status !== 404 || index === models.length - 1) break;
       console.warn("Gemini model unavailable, trying fallback", model);
     }
+
+    if (!response) {
+      throw new HttpError(502, "No Gemini model could be selected.");
+    }
+
+    if (!response.ok) {
+      let providerMessage = "";
+      let providerStatus = "";
+      try {
+        const data = await response.json() as {
+          error?: { message?: string; status?: string };
+        };
+        providerMessage = data.error?.message ?? "";
+        providerStatus = data.error?.status ?? "";
+      } catch {
+        // Keep provider response details out of logs and client errors.
+      }
+      if (response.status === 429) {
+        throw new HttpError(
+          429,
+          "Gemini quota was reached. Please wait and try again.",
+        );
+      }
+      console.error(
+        "Gemini request failed",
+        response.status,
+        providerStatus,
+        providerMessage,
+      );
+      throw new HttpError(
+        502,
+        geminiErrorMessage(response.status, providerStatus, providerMessage),
+      );
+    }
+
+    const result = await response.json() as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string }> };
+        finishReason?: string;
+      }>;
+    };
+    const output = result.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text ?? "")
+      .join("")
+      .trim();
+    if (!output) {
+      throw new HttpError(
+        422,
+        "The document did not contain enough suitable content for a quiz.",
+      );
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(output);
+    } catch {
+      throw new HttpError(502, "The AI service returned an invalid quiz draft.");
+    }
+    return validateGeneratedQuestions(parsed, request);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new HttpError(
@@ -408,65 +504,6 @@ async function generateQuestions(
   } finally {
     clearTimeout(timeout);
   }
-
-  if (!response) {
-    throw new HttpError(502, "No Gemini model could be selected.");
-  }
-
-  if (!response.ok) {
-    let providerMessage = "";
-    let providerStatus = "";
-    try {
-      const data = await response.json() as {
-        error?: { message?: string; status?: string };
-      };
-      providerMessage = data.error?.message ?? "";
-      providerStatus = data.error?.status ?? "";
-    } catch {
-      // Keep provider response details out of logs and client errors.
-    }
-    if (response.status === 429) {
-      throw new HttpError(
-        429,
-        "Gemini quota was reached. Please wait and try again.",
-      );
-    }
-    console.error(
-      "Gemini request failed",
-      response.status,
-      providerStatus,
-      providerMessage,
-    );
-    throw new HttpError(
-      502,
-      geminiErrorMessage(response.status, providerStatus, providerMessage),
-    );
-  }
-
-  const result = await response.json() as {
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-      finishReason?: string;
-    }>;
-  };
-  const output = result.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text ?? "")
-    .join("")
-    .trim();
-  if (!output) {
-    throw new HttpError(
-      422,
-      "The document did not contain enough suitable content for a quiz.",
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(output);
-  } catch {
-    throw new HttpError(502, "The AI service returned an invalid quiz draft.");
-  }
-  return validateGeneratedQuestions(parsed, request);
 }
 
 function geminiErrorMessage(
