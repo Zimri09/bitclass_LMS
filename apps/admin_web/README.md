@@ -12,10 +12,13 @@ its routing, UI, and deployment independent.
 - Platform overview with users, courses, enrollments, and submission counts
 - Searchable user directory with role filters
 - Searchable published/draft course directory
+- Verified-admin role changes and account suspension
+- Immutable application audit history for sensitive admin and course actions
 
-User role changes, account deletion, enrollment mutation, and broadcast
-notifications are intentionally not exposed in this browser client. Those
-operations require a verified-admin Edge Function or another trusted backend.
+Account deletion, enrollment mutation, and broadcast notifications are not
+exposed in this browser client. Role and suspension changes are handled by the
+JWT-protected `admin-manage-user` Edge Function and recorded in
+`admin_audit_logs`; the service key remains server-side.
 
 ## Run locally
 
@@ -59,6 +62,21 @@ where email = 'chosen-admin@example.com';
 ```
 
 After promotion, sign out and back in before opening the admin dashboard.
+
+## Free admin security backend
+
+The migration and Edge Function used by the dashboard are included in this
+repository:
+
+```text
+supabase/migrations/20260818133000_admin_user_management_and_audit.sql
+supabase/functions/admin-manage-user/
+```
+
+The live BitClass project already has this migration and function deployed.
+For another project, apply the migration and deploy `admin-manage-user` with
+JWT verification enabled. This uses the Supabase Free plan's normal database
+and Edge Function quotas; paid Platform Audit Logs are not required.
 
 ## Validate and build
 

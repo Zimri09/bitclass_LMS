@@ -46,7 +46,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Algorithms'), findsOneWidget);
-    expect(find.text('Published'), findsWidgets);
+      expect(find.text('Published'), findsWidgets);
       expect(find.text('12 students'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -85,6 +85,10 @@ class _DirectoryRepository implements AdminRepository {
   Future<List<AdminCourse>> fetchCourses({int limit = 100}) async => courses;
 
   @override
+  Future<List<AdminAuditLog>> fetchAuditLogs({int limit = 100}) async =>
+      const [];
+
+  @override
   Future<AdminDashboardSnapshot> fetchOverview() async {
     return const AdminDashboardSnapshot(
       userCount: 2,
@@ -101,4 +105,18 @@ class _DirectoryRepository implements AdminRepository {
 
   @override
   Future<AdminAccount?> findAccount(String userId) async => users.first;
+
+  @override
+  Future<AdminAccount> setUserRole({
+    required String userId,
+    required String role,
+    String? reason,
+  }) async => users.firstWhere((user) => user.id == userId);
+
+  @override
+  Future<AdminAccount> setUserSuspension({
+    required String userId,
+    required bool suspended,
+    String? reason,
+  }) async => users.firstWhere((user) => user.id == userId);
 }

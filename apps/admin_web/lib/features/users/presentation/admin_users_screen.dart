@@ -64,6 +64,166 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         .toList(growable: false);
   }
 
+  Future<void> _changeRole(AdminAccount user) async {
+    var selectedRole = user.role;
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Change user role'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(user.displayName),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: const [
+                    DropdownMenuItem(value: 'student', child: Text('Student')),
+                    DropdownMenuItem(
+                      value: 'instructor',
+                      child: Text('Instructor'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'admin',
+                      child: Text('Administrator'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => selectedRole = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: reasonController,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason (optional)',
+                    hintText: 'Why is this role changing?',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: selectedRole == user.role
+                  ? null
+                  : () => Navigator.of(context).pop(true),
+              child: const Text('Save role'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final reason = reasonController.text;
+    reasonController.dispose();
+    if (confirmed != true || !mounted) return;
+
+    await _runUserAction(
+      () => widget.repository.setUserRole(
+        userId: user.id,
+        role: selectedRole,
+        reason: reason,
+      ),
+      successMessage: '${user.displayName} is now a $selectedRole.',
+    );
+  }
+
+  Future<void> _changeSuspension(AdminAccount user) async {
+    final willSuspend = !user.isSuspended;
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(willSuspend ? 'Suspend user?' : 'Restore user?'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                willSuspend
+                    ? '${user.displayName} will be blocked from signing in.'
+                    : '${user.displayName} will be allowed to sign in again.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: reasonController,
+                maxLength: 500,
+                decoration: InputDecoration(
+                  labelText: willSuspend
+                      ? 'Reason for suspension'
+                      : 'Reason for restoration (optional)',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(willSuspend ? 'Suspend' : 'Restore'),
+          ),
+        ],
+      ),
+    );
+    final reason = reasonController.text;
+    reasonController.dispose();
+    if (confirmed != true || !mounted) return;
+
+    await _runUserAction(
+      () => widget.repository.setUserSuspension(
+        userId: user.id,
+        suspended: willSuspend,
+        reason: reason,
+      ),
+      successMessage: willSuspend
+          ? '${user.displayName} was suspended.'
+          : '${user.displayName} was restored.',
+    );
+  }
+
+  Future<void> _runUserAction(
+    Future<AdminAccount> Function() action, {
+    required String successMessage,
+  }) async {
+    try {
+      final updated = await action();
+      if (!mounted) return;
+      setState(() {
+        _users = [
+          for (final user in _users) user.id == updated.id ? updated : user,
+        ];
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The secure admin action could not be completed.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminPage(
@@ -99,12 +259,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               message: 'Try a different search or role filter.',
             )
           else
-            _UsersCollection(users: _filteredUsers),
+            _UsersCollection(
+              users: _filteredUsers,
+              onChangeRole: _changeRole,
+              onChangeSuspension: _changeSuspension,
+            ),
           if (!_isLoading && _error == null) ...[
             const SizedBox(height: 12),
             Text(
               'Showing ${_filteredUsers.length} of ${_users.length} loaded users. '
-              'Role changes remain server-controlled.',
+              'Sensitive changes run through the verified admin service.',
               style: const TextStyle(
                 color: AdminColors.textSecondary,
                 fontSize: 12,
@@ -171,8 +335,14 @@ class _UserFilters extends StatelessWidget {
 
 class _UsersCollection extends StatelessWidget {
   final List<AdminAccount> users;
+  final ValueChanged<AdminAccount> onChangeRole;
+  final ValueChanged<AdminAccount> onChangeSuspension;
 
-  const _UsersCollection({required this.users});
+  const _UsersCollection({
+    required this.users,
+    required this.onChangeRole,
+    required this.onChangeSuspension,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -182,7 +352,11 @@ class _UsersCollection extends StatelessWidget {
           return Column(
             children: [
               for (var index = 0; index < users.length; index++) ...[
-                _UserCard(user: users[index]),
+                _UserCard(
+                  user: users[index],
+                  onChangeRole: onChangeRole,
+                  onChangeSuspension: onChangeSuspension,
+                ),
                 if (index != users.length - 1) const SizedBox(height: 10),
               ],
             ],
@@ -242,13 +416,24 @@ class _UsersCollection extends StatelessWidget {
           ),
         ),
         DataCell(
-          AdminStatusChip(label: user.role, color: _roleColor(user.role)),
+          Wrap(
+            spacing: 6,
+            children: [
+              AdminStatusChip(label: user.role, color: _roleColor(user.role)),
+              if (user.isSuspended)
+                const AdminStatusChip(
+                  label: 'Suspended',
+                  color: AdminColors.danger,
+                ),
+            ],
+          ),
         ),
         DataCell(Text(_formatDate(user.createdAt))),
-        const DataCell(
-          Tooltip(
-            message: 'Role changes require a secure server action',
-            child: Icon(Icons.lock_outline, size: 18),
+        DataCell(
+          _UserActions(
+            user: user,
+            onChangeRole: onChangeRole,
+            onChangeSuspension: onChangeSuspension,
           ),
         ),
       ],
@@ -258,8 +443,14 @@ class _UsersCollection extends StatelessWidget {
 
 class _UserCard extends StatelessWidget {
   final AdminAccount user;
+  final ValueChanged<AdminAccount> onChangeRole;
+  final ValueChanged<AdminAccount> onChangeSuspension;
 
-  const _UserCard({required this.user});
+  const _UserCard({
+    required this.user,
+    required this.onChangeRole,
+    required this.onChangeSuspension,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -305,9 +496,66 @@ class _UserCard extends StatelessWidget {
                 ],
               ),
             ),
+            _UserActions(
+              user: user,
+              onChangeRole: onChangeRole,
+              onChangeSuspension: onChangeSuspension,
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+enum _UserAction { changeRole, changeSuspension }
+
+class _UserActions extends StatelessWidget {
+  final AdminAccount user;
+  final ValueChanged<AdminAccount> onChangeRole;
+  final ValueChanged<AdminAccount> onChangeSuspension;
+
+  const _UserActions({
+    required this.user,
+    required this.onChangeRole,
+    required this.onChangeSuspension,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_UserAction>(
+      tooltip: 'Manage ${user.displayName}',
+      onSelected: (action) {
+        switch (action) {
+          case _UserAction.changeRole:
+            onChangeRole(user);
+          case _UserAction.changeSuspension:
+            onChangeSuspension(user);
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: _UserAction.changeRole,
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.manage_accounts_outlined),
+            title: Text('Change role'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _UserAction.changeSuspension,
+          child: ListTile(
+            dense: true,
+            leading: Icon(
+              user.isSuspended
+                  ? Icons.person_add_alt_outlined
+                  : Icons.block_outlined,
+            ),
+            title: Text(user.isSuspended ? 'Restore access' : 'Suspend access'),
+          ),
+        ),
+      ],
+      icon: const Icon(Icons.more_vert),
     );
   }
 }

@@ -105,6 +105,10 @@ class _FakeRepository implements AdminRepository {
   Future<List<AdminCourse>> fetchCourses({int limit = 100}) async => const [];
 
   @override
+  Future<List<AdminAuditLog>> fetchAuditLogs({int limit = 100}) async =>
+      const [];
+
+  @override
   Future<AdminDashboardSnapshot> fetchOverview() async {
     return const AdminDashboardSnapshot(
       userCount: 0,
@@ -118,4 +122,18 @@ class _FakeRepository implements AdminRepository {
 
   @override
   Future<List<AdminAccount>> fetchUsers({int limit = 100}) async => const [];
+
+  @override
+  Future<AdminAccount> setUserRole({
+    required String userId,
+    required String role,
+    String? reason,
+  }) async => account!;
+
+  @override
+  Future<AdminAccount> setUserSuspension({
+    required String userId,
+    required bool suspended,
+    String? reason,
+  }) async => account!;
 }

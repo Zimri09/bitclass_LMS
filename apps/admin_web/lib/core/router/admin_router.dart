@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/admin_login_screen.dart';
 import '../../features/auth/presentation/admin_session_error_screen.dart';
 import '../../features/auth/presentation/admin_unauthorized_screen.dart';
+import '../../features/audit/presentation/admin_audit_screen.dart';
 import '../../features/courses/presentation/admin_courses_screen.dart';
 import '../../features/dashboard/data/admin_repository.dart';
 import '../../features/dashboard/presentation/admin_overview_screen.dart';
@@ -72,6 +73,10 @@ GoRouter createAdminRouter(
           GoRoute(
             path: '/courses',
             builder: (_, _) => AdminCoursesScreen(repository: repository),
+          ),
+          GoRoute(
+            path: '/audit',
+            builder: (_, _) => AdminAuditScreen(repository: repository),
           ),
         ],
       ),

@@ -8,7 +8,10 @@ void main() {
     await tester.pumpWidget(const AdminConfigurationApp());
 
     expect(find.text('Admin configuration required'), findsOneWidget);
-    expect(find.textContaining('SUPABASE_URL'), findsOneWidget);
-    expect(find.textContaining('same project values'), findsOneWidget);
+    expect(find.textContaining('Supabase URL'), findsOneWidget);
+    expect(
+      find.textContaining('frontend-safe publishable key'),
+      findsOneWidget,
+    );
   });
 }

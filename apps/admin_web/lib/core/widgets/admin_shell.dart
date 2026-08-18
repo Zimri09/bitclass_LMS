@@ -36,6 +36,12 @@ class AdminShell extends StatelessWidget {
       icon: Icons.menu_book_outlined,
       selectedIcon: Icons.menu_book,
     ),
+    _AdminDestination(
+      path: '/audit',
+      label: 'Audit log',
+      icon: Icons.history_outlined,
+      selectedIcon: Icons.history,
+    ),
   ];
 
   @override

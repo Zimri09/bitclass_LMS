@@ -9,7 +9,8 @@ class SupabaseAdminRepository implements AdminRepository {
   const SupabaseAdminRepository(this._client);
 
   static const _profileColumns =
-      'id,email,display_name,first_name,last_name,avatar_url,role,created_at';
+      'id,email,display_name,first_name,last_name,avatar_url,role,'
+      'is_suspended,created_at';
   static const _courseColumns =
       'id,title,category,instructor_name,enrollment_count,lesson_count,'
       'is_published,created_at';
@@ -65,5 +66,66 @@ class SupabaseAdminRepository implements AdminRepository {
         .order('created_at', ascending: false)
         .limit(limit);
     return rows.map(AdminCourse.fromMap).toList(growable: false);
+  }
+
+  @override
+  Future<AdminAccount> setUserRole({
+    required String userId,
+    required String role,
+    String? reason,
+  }) {
+    return _manageUser({
+      'action': 'set_role',
+      'user_id': userId,
+      'role': role,
+      if (reason?.trim().isNotEmpty ?? false) 'reason': reason!.trim(),
+    });
+  }
+
+  @override
+  Future<AdminAccount> setUserSuspension({
+    required String userId,
+    required bool suspended,
+    String? reason,
+  }) {
+    return _manageUser({
+      'action': 'set_suspension',
+      'user_id': userId,
+      'suspended': suspended,
+      if (reason?.trim().isNotEmpty ?? false) 'reason': reason!.trim(),
+    });
+  }
+
+  Future<AdminAccount> _manageUser(Map<String, dynamic> body) async {
+    final response = await _client.functions.invoke(
+      'admin-manage-user',
+      body: body,
+    );
+    final data = response.data;
+    if (data is! Map) {
+      throw const FormatException('Invalid admin action response');
+    }
+    final payload = Map<String, dynamic>.from(data);
+    if (response.status < 200 || response.status >= 300) {
+      throw StateError(payload['error'] as String? ?? 'Admin action failed');
+    }
+    final user = payload['user'];
+    if (user is! Map) {
+      throw const FormatException('Admin action returned no user');
+    }
+    return AdminAccount.fromMap(Map<String, dynamic>.from(user));
+  }
+
+  @override
+  Future<List<AdminAuditLog>> fetchAuditLogs({int limit = 100}) async {
+    final rows = await _client
+        .from('admin_audit_logs')
+        .select(
+          'id,actor_email,action,target_type,target_id,reason,'
+          'previous_values,new_values,created_at',
+        )
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return rows.map(AdminAuditLog.fromMap).toList(growable: false);
   }
 }

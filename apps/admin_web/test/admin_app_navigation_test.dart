@@ -38,6 +38,15 @@ void main() {
     expect(find.text('Admin User'), findsWidgets);
     expect(tester.takeException(), isNull);
 
+    await tester.tap(find.text('Audit log'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('User Role Changed'), findsOneWidget);
+    expect(
+      find.text('student@example.com · admin@example.com'),
+      findsOneWidget,
+    );
+
     await tester.pumpWidget(const SizedBox.shrink());
     await auth.close();
   });
@@ -100,5 +109,32 @@ class _AdminRepository implements AdminRepository {
   Future<List<AdminAccount>> fetchUsers({int limit = 100}) async => [admin];
 
   @override
+  Future<List<AdminAuditLog>> fetchAuditLogs({int limit = 100}) async => const [
+    AdminAuditLog(
+      id: 'audit-1',
+      actorEmail: 'admin@example.com',
+      action: 'user.role_changed',
+      targetType: 'user',
+      targetId: 'student-1',
+      previousValues: {'role': 'student'},
+      newValues: {'role': 'instructor', 'target_email': 'student@example.com'},
+    ),
+  ];
+
+  @override
   Future<AdminAccount?> findAccount(String userId) async => admin;
+
+  @override
+  Future<AdminAccount> setUserRole({
+    required String userId,
+    required String role,
+    String? reason,
+  }) async => admin;
+
+  @override
+  Future<AdminAccount> setUserSuspension({
+    required String userId,
+    required bool suspended,
+    String? reason,
+  }) async => admin;
 }
