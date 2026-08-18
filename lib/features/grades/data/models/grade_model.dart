@@ -52,7 +52,7 @@ class CourseGradeModel extends Equatable {
     }
 
     for (final submission in gradedSubmissions) {
-      totalPoints += 100; // Default max points per assignment
+      totalPoints += submission.resolvedMaxPoints;
       earnedPoints += submission.score ?? 0;
     }
 

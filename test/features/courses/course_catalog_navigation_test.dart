@@ -65,6 +65,52 @@ void main() {
   );
 
   testWidgets(
+    'student class list hides search and offers unenroll from overflow',
+    (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final authRepository = _FakeAuthRepository();
+      final authBloc = AuthBloc(authRepository: authRepository)
+        ..add(AuthUserUpdated(_student));
+      await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+
+      final courseRepository = _FakeCourseRepository();
+      addTearDown(courseRepository.dispose);
+      addTearDown(() async {
+        await authBloc.close();
+        await authRepository.dispose();
+      });
+
+      await tester.pumpWidget(
+        RepositoryProvider<CourseRepository>.value(
+          value: courseRepository,
+          child: BlocProvider<AuthBloc>.value(
+            value: authBloc,
+            child: const MaterialApp(home: ClassroomLandingScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(_course.title), findsOneWidget);
+      expect(find.text('Search your classes...'), findsNothing);
+      expect(find.byType(RefreshIndicator), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unenroll'), findsOneWidget);
+      expect(find.text('Edit class'), findsNothing);
+      expect(find.text('Manage content'), findsNothing);
+      expect(find.text('Delete'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'student courses remain visible and reload after returning from a course',
     (tester) async {
       tester.view.physicalSize = const Size(400, 800);

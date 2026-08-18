@@ -368,7 +368,7 @@ class _AssignmentSubmissionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final grade = submission.score ?? 0;
-    const maxPoints = 100; // Default max points for assignments
+    final maxPoints = submission.resolvedMaxPoints;
     final percentage = maxPoints > 0 ? (grade / maxPoints) * 100 : 0.0;
     final gradeColor = _getGradeColor(percentage);
 
@@ -396,7 +396,7 @@ class _AssignmentSubmissionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Assignment Submission',
+                  submission.assignmentDisplayTitle,
                   style: AppTextStyles.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
                   ),

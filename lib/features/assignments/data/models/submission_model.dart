@@ -71,6 +71,8 @@ class SubmissionModel extends Equatable {
   final List<AssignmentAttachment> attachments;
   final SubmissionStatus status;
   final int? score;
+  final String? assignmentTitle;
+  final int? assignmentMaxPoints;
   final String? feedback;
   final String? gradedBy; // Instructor userId who graded
   final DateTime? gradedAt;
@@ -89,6 +91,8 @@ class SubmissionModel extends Equatable {
     this.attachments = const [],
     this.status = SubmissionStatus.draft,
     this.score,
+    this.assignmentTitle,
+    this.assignmentMaxPoints,
     this.feedback,
     this.gradedBy,
     this.gradedAt,
@@ -109,6 +113,8 @@ class SubmissionModel extends Equatable {
     attachments,
     status,
     score,
+    assignmentTitle,
+    assignmentMaxPoints,
     feedback,
     gradedBy,
     gradedAt,
@@ -135,6 +141,8 @@ class SubmissionModel extends Equatable {
           .toList(growable: false),
       status: SubmissionStatus.fromString(map['status'] as String? ?? 'draft'),
       score: map['score'] as int?,
+      assignmentTitle: map['assignmentTitle'] as String?,
+      assignmentMaxPoints: (map['assignmentMaxPoints'] as num?)?.toInt(),
       feedback: map['feedback'] as String?,
       gradedBy: map['gradedBy'] as String?,
       gradedAt: map['gradedAt'] != null
@@ -162,6 +170,8 @@ class SubmissionModel extends Equatable {
       'attachments': attachments.map((item) => item.toMap()).toList(),
       'status': status.name,
       'score': score,
+      'assignmentTitle': assignmentTitle,
+      'assignmentMaxPoints': assignmentMaxPoints,
       'feedback': feedback,
       'gradedBy': gradedBy,
       'gradedAt': gradedAt?.toIso8601String(),
@@ -182,6 +192,8 @@ class SubmissionModel extends Equatable {
     List<AssignmentAttachment>? attachments,
     SubmissionStatus? status,
     int? score,
+    String? assignmentTitle,
+    int? assignmentMaxPoints,
     String? feedback,
     String? gradedBy,
     DateTime? gradedAt,
@@ -201,6 +213,8 @@ class SubmissionModel extends Equatable {
       attachments: attachments ?? this.attachments,
       status: status ?? this.status,
       score: score ?? this.score,
+      assignmentTitle: assignmentTitle ?? this.assignmentTitle,
+      assignmentMaxPoints: assignmentMaxPoints ?? this.assignmentMaxPoints,
       feedback: feedback ?? this.feedback,
       gradedBy: gradedBy ?? this.gradedBy,
       gradedAt: gradedAt ?? this.gradedAt,
@@ -223,6 +237,17 @@ class SubmissionModel extends Equatable {
       status == SubmissionStatus.done;
 
   bool get isCompleted => isSubmitted;
+
+  /// Maximum points from the related saved assignment.
+  ///
+  /// The fallback keeps older/demo submissions compatible. Grade queries
+  /// populate [assignmentMaxPoints] directly from the assignments table.
+  int get resolvedMaxPoints => assignmentMaxPoints ?? 100;
+
+  String get assignmentDisplayTitle {
+    final title = assignmentTitle?.trim();
+    return title == null || title.isEmpty ? 'Assignment Submission' : title;
+  }
 
   ClassroomSubmissionStatus classroomStatus(
     AssignmentModel assignment, {

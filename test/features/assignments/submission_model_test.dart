@@ -120,10 +120,14 @@ void main() {
   });
 
   test('attachment metadata survives a submission map round trip', () {
-    final original = submission(status: SubmissionStatus.submitted);
+    final original = submission(
+      status: SubmissionStatus.submitted,
+    ).copyWith(assignmentTitle: 'Research activity', assignmentMaxPoints: 25);
     final restored = SubmissionModel.fromMap(original.toMap());
 
     expect(restored, original);
     expect(restored.attachments.single.name, 'Answer.pdf');
+    expect(restored.assignmentDisplayTitle, 'Research activity');
+    expect(restored.resolvedMaxPoints, 25);
   });
 }

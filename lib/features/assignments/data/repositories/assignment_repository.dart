@@ -81,6 +81,11 @@ class AssignmentRepository {
   }
 
   Map<String, dynamic> _rowToSubmissionMap(Map<String, dynamic> row) {
+    final relatedAssignment = row['assignment'];
+    final assignment = relatedAssignment is Map
+        ? Map<String, dynamic>.from(relatedAssignment)
+        : null;
+
     return {
       'id': row['id'],
       'assignmentId': row['assignment_id'],
@@ -91,6 +96,8 @@ class AssignmentRepository {
       'attachments': row['attachments'],
       'status': row['status'],
       'score': row['score'],
+      'assignmentTitle': assignment?['title'],
+      'assignmentMaxPoints': assignment?['max_points'],
       'feedback': row['feedback'],
       'gradedBy': row['graded_by'],
       'gradedAt': row['graded_at']?.toString(),
@@ -818,13 +825,23 @@ class AssignmentRepository {
           }
         }
       }
-      return byId.values.toList();
+      return byId.values.map((submission) {
+        final assignment = _assignments[submission.assignmentId];
+        if (assignment == null) return submission;
+        return submission.copyWith(
+          assignmentTitle: assignment.title,
+          assignmentMaxPoints: assignment.maxPoints,
+        );
+      }).toList();
     }
 
     try {
       final rows = await _supabase!
           .from(_submissionsTable)
-          .select()
+          .select(
+            '*, assignment:assignments!submissions_assignment_id_fkey('
+            'title, max_points)',
+          )
           .eq('course_id', courseId)
           .eq('user_id', userId);
 
