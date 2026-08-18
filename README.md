@@ -17,6 +17,8 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
 - ⚙️ **Settings** - App preferences and account management
 - 🌙 **Dark Theme** - Code-editor inspired UI with neon accents
 
+- **Admin Web Dashboard** - Separate role-protected web console for platform oversight
+
 ## Tech Stack
 
 - **Flutter** - Cross-platform UI framework
@@ -66,9 +68,26 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
    flutter run
    ```
 
+### Admin web dashboard
+
+The separate web-only admin application lives in `apps/admin_web` and uses the
+same Supabase project. See its [setup and security instructions](apps/admin_web/README.md).
+
+```powershell
+cd apps/admin_web
+flutter pub get
+flutter run -d chrome
+```
+
+The admin frontend never contains a Supabase secret or service-role key. Its
+routes require a signed-in `profiles.role = 'admin'` account, and database RLS
+remains the authorization boundary.
+
 ## Project Structure
 
 ```
+apps/
+â””â”€â”€ admin_web/      # Independently deployable Flutter web admin dashboard
 lib/
 ├── core/
 │   ├── bloc/           # Bloc observer
