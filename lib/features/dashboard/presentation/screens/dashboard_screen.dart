@@ -8,6 +8,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../../../assignments/data/models/assignment_model.dart';
 import '../../../assignments/data/repositories/assignment_repository.dart';
+import '../../../auth/data/models/user_model.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../courses/data/repositories/course_repository.dart';
 import '../../../grades/data/repositories/grade_repository.dart';
@@ -34,7 +35,7 @@ class DashboardScreen extends StatelessWidget {
                         .read<NotificationRepository>(),
                   )..loadDashboard(
                     userId: state.user.id,
-                    isInstructor: state.user.role == 'instructor',
+                    isInstructor: state.user.isStaff,
                   ),
               child: _DashboardContent(user: state.user),
             );
@@ -47,13 +48,13 @@ class DashboardScreen extends StatelessWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  final dynamic user;
+  final UserModel user;
 
   const _DashboardContent({required this.user});
 
   @override
   Widget build(BuildContext context) {
-    final isInstructor = user.role == 'instructor';
+    final isInstructor = user.isStaff;
 
     return BlocBuilder<DashboardCubit, DashboardState>(
       builder: (context, dashState) {
@@ -334,7 +335,6 @@ class _DashboardContent extends StatelessWidget {
       },
     );
   }
-
 }
 
 class _StatItem {

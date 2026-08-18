@@ -30,7 +30,7 @@ class NotificationListScreen extends StatelessWidget {
     final userId = _currentUserId(context);
     final authState = context.read<AuthBloc>().state;
     final isInstructor =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+        authState is AuthAuthenticated && authState.user.isStaff;
     return BlocProvider(
       create: (context) => NotificationBloc(
         notificationRepository: context.read<NotificationRepository>(),
@@ -151,11 +151,7 @@ class _NotificationListViewState extends State<NotificationListView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: AppColors.error,
-                    size: 48,
-                  ),
+                  Icon(Icons.error_outline, color: AppColors.error, size: 48),
                   const SizedBox(height: 16),
                   Text(
                     state.message,
@@ -394,9 +390,7 @@ class _NotificationListViewState extends State<NotificationListView> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This notification could not be opened.'),
-        ),
+        const SnackBar(content: Text('This notification could not be opened.')),
       );
     } finally {
       if (mounted) {

@@ -36,8 +36,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
   bool get _hasInstructorRole {
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthAuthenticated) return false;
-    return authState.user.role == 'instructor' ||
-        authState.user.role == 'admin';
+    return authState.user.isStaff;
   }
 
   @override

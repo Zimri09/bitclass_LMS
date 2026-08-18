@@ -466,7 +466,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     final isInstructor =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+        authState is AuthAuthenticated && authState.user.isStaff;
     if (!isInstructor) {
       return Scaffold(
         appBar: AppBar(title: const Text('Quiz Editor')),
@@ -1581,10 +1581,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
           children: [
             // Correct answer indicator
             if (widget.question.type == QuestionType.multipleChoice)
-              Radio<int>(
-                value: index,
-                activeColor: AppColors.success,
-              )
+              Radio<int>(value: index, activeColor: AppColors.success)
             else
               Checkbox(
                 value: option.isCorrect,

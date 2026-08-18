@@ -504,9 +504,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
-    final canEdit =
-        authState is AuthAuthenticated &&
-        (authState.user.role == 'instructor' || authState.user.role == 'admin');
+    final canEdit = authState is AuthAuthenticated && authState.user.isStaff;
     if (!canEdit) {
       return Scaffold(
         appBar: AppBar(title: const Text('Assignment Editor')),

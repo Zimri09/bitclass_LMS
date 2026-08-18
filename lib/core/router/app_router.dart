@@ -101,8 +101,7 @@ class AppRouter {
             pageBuilder: (context, state) {
               final authState = context.read<AuthBloc>().state;
               final audience =
-                  authState is AuthAuthenticated &&
-                      authState.user.isInstructor
+                  authState is AuthAuthenticated && authState.user.isStaff
                   ? TodoAudience.instructor
                   : TodoAudience.student;
               return AppTransitions.fadeTransition(
@@ -574,8 +573,7 @@ class AppRouter {
   }
 
   bool _canManageCourse(AuthAuthenticated authState) {
-    return authState.user.role == 'instructor' ||
-        authState.user.role == 'admin';
+    return authState.user.isStaff;
   }
 
   bool _isInstructorOnlyPath(String path) {

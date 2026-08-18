@@ -13,6 +13,54 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  testWidgets('admin receives instructor navigation', (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: repository)
+      ..add(AuthUserUpdated(_adminUser));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+    addTearDown(() async {
+      await authBloc.close();
+      await repository.dispose();
+    });
+
+    final router = GoRouter(
+      initialLocation: AppRoutes.dashboard,
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => AppShell(child: child),
+          routes: [
+            GoRoute(
+              path: AppRoutes.dashboard,
+              builder: (context, state) => const _TestPage('Class list'),
+            ),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      BlocProvider<AuthBloc>.value(
+        value: authBloc,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Open navigation'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Work Queue'), findsOneWidget);
+    expect(find.text('Create Course'), findsOneWidget);
+    expect(find.text('To-do'), findsNothing);
+    expect(find.text('My Grades'), findsNothing);
+  });
+
   testWidgets('Classes returns to the class list and becomes selected', (
     tester,
   ) async {
@@ -104,6 +152,15 @@ final _testUser = UserModel(
   lastName: 'Instructor',
   role: 'instructor',
   createdAt: DateTime.utc(2026, 8, 2),
+);
+
+final _adminUser = UserModel(
+  id: 'admin-1',
+  email: 'admin@example.com',
+  firstName: 'Test',
+  lastName: 'Admin',
+  role: 'admin',
+  createdAt: DateTime.utc(2026, 8, 18),
 );
 
 class _FakeAuthRepository extends AuthRepository {

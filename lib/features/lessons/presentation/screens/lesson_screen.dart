@@ -40,8 +40,7 @@ class _LessonScreenState extends State<LessonScreen> {
 
   bool get _isInstructor {
     final authState = context.read<AuthBloc>().state;
-    return authState is AuthAuthenticated &&
-        authState.user.role == 'instructor';
+    return authState is AuthAuthenticated && authState.user.isStaff;
   }
 
   String? get _currentUserId {
@@ -68,8 +67,7 @@ class _LessonScreenState extends State<LessonScreen> {
 
   Future<void> _loadManagementPermission() async {
     final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthAuthenticated ||
-        authState.user.role != 'instructor') {
+    if (authState is! AuthAuthenticated || !authState.user.isStaff) {
       return;
     }
 

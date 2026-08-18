@@ -28,8 +28,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   bool get _isInstructor {
     final authState = context.read<AuthBloc>().state;
-    return authState is AuthAuthenticated &&
-        authState.user.role == 'instructor';
+    return authState is AuthAuthenticated && authState.user.isStaff;
   }
 
   String get _currentUserId {
