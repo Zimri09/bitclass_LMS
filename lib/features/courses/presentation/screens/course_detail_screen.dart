@@ -360,29 +360,6 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
           ),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Category badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Text(
-                  course.category,
-                  style: AppTextStyles.label.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
               // Title
               Text(course.title, style: AppTextStyles.h1),
               const SizedBox(height: 16),
