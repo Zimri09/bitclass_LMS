@@ -140,15 +140,18 @@ demo data. Record the build, device, account role, evidence link, and result
 
 ## Findings To Resolve Before Claiming Full Verification
 
-- [ ] Restore a reliable analyzer/test run. During this audit, `flutter analyze`
-      and `flutter test` timed out, including a targeted model test.
+- [x] Restore a reliable analyzer/test run. Full static analysis and the Flutter
+      test suite completed successfully on 2026-08-20.
 - [x] Lesson completion resolves the authenticated student's real enrollment ID
       before creating progress.
 - [x] Demo-only profile-avatar controls are hidden outside demo mode.
-- [x] Push-delivery controls are disabled outside demo mode until a platform
-      integration exists.
-- [ ] Implement push-notification platform integration before enabling device
-      delivery in development or production.
+- [x] Implement Android FCM registration, token refresh, foreground/background
+      delivery, deep-link routing, preferences, and instructor activity alerts.
+- [x] Set matching Edge Function and Vault webhook secrets, configure the
+      Firebase service account, and verify that FCM accepts an instructor push.
+- [ ] Confirm visible foreground/background delivery and tap routing on a
+      physical device. iOS still requires its Firebase plist and APNs
+      configuration.
 - [ ] Add widget/integration tests for authentication, role restrictions,
       enrollment, lesson progress, submission/grading, quiz attempts, files,
       and RLS-denied requests.

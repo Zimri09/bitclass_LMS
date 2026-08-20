@@ -80,7 +80,7 @@ void main() {
 
   group('NotificationType enum', () {
     test('has all expected values', () {
-      expect(NotificationType.values.length, 12);
+      expect(NotificationType.values.length, 15);
       expect(
         NotificationType.values.contains(NotificationType.courseUpdate),
         true,
@@ -91,6 +91,10 @@ void main() {
       );
       expect(
         NotificationType.values.contains(NotificationType.newAssignment),
+        true,
+      );
+      expect(
+        NotificationType.values.contains(NotificationType.assignmentSubmitted),
         true,
       );
       expect(
@@ -106,11 +110,19 @@ void main() {
         true,
       );
       expect(
+        NotificationType.values.contains(NotificationType.quizSubmitted),
+        true,
+      );
+      expect(
         NotificationType.values.contains(NotificationType.quizGraded),
         true,
       );
       expect(
         NotificationType.values.contains(NotificationType.discussionReply),
+        true,
+      );
+      expect(
+        NotificationType.values.contains(NotificationType.discussionActivity),
         true,
       );
       expect(

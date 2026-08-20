@@ -440,14 +440,20 @@ class _NotificationListViewState extends State<NotificationListView> {
         return Icons.book;
       case NotificationType.newAssignment:
         return Icons.assignment;
+      case NotificationType.assignmentSubmitted:
+        return Icons.assignment_turned_in;
       case NotificationType.assignmentDue:
         return Icons.alarm;
       case NotificationType.assignmentGraded:
         return Icons.grade;
       case NotificationType.quizAvailable:
         return Icons.quiz;
+      case NotificationType.quizSubmitted:
+        return Icons.fact_check;
       case NotificationType.quizGraded:
         return Icons.check_circle;
+      case NotificationType.discussionActivity:
+        return Icons.forum;
       case NotificationType.discussionReply:
         return Icons.chat_bubble;
       case NotificationType.discussionMention:
@@ -467,13 +473,16 @@ class _NotificationListViewState extends State<NotificationListView> {
       case NotificationType.newLesson:
         return AppColors.info;
       case NotificationType.newAssignment:
+      case NotificationType.assignmentSubmitted:
       case NotificationType.assignmentDue:
         return AppColors.warning;
       case NotificationType.assignmentGraded:
       case NotificationType.quizGraded:
         return AppColors.success;
       case NotificationType.quizAvailable:
+      case NotificationType.quizSubmitted:
         return AppColors.primary;
+      case NotificationType.discussionActivity:
       case NotificationType.discussionReply:
       case NotificationType.discussionMention:
         return AppColors.secondary;

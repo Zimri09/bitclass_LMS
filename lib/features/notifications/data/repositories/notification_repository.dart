@@ -143,7 +143,7 @@ class NotificationRepository {
       NotificationModel(
         id: 'notif-inst-3',
         userId: _demoInstructorUserId,
-        type: NotificationType.newAssignment,
+        type: NotificationType.assignmentSubmitted,
         title: 'Submission Waiting for Review',
         body: 'You have new assignment submissions to grade',
         isRead: true,
@@ -392,21 +392,18 @@ class NotificationRepository {
     }
 
     final updatedSettings = settings.copyWith(updatedAt: DateTime.now());
-    await _supabase!.from(_settingsTable).upsert(
-      {
-        'user_id': updatedSettings.userId,
-        'push_enabled': updatedSettings.pushEnabled,
-        'email_enabled': updatedSettings.emailEnabled,
-        'type_settings': updatedSettings.typeSettings.map(
-          (key, value) => MapEntry(key.name, value),
-        ),
-        'quiet_hours_enabled': updatedSettings.quietHoursEnabled,
-        'quiet_hours_start': updatedSettings.quietHoursStart,
-        'quiet_hours_end': updatedSettings.quietHoursEnd,
-        'updated_at': updatedSettings.updatedAt.toIso8601String(),
-      },
-      onConflict: 'user_id',
-    );
+    await _supabase!.from(_settingsTable).upsert({
+      'user_id': updatedSettings.userId,
+      'push_enabled': updatedSettings.pushEnabled,
+      'email_enabled': updatedSettings.emailEnabled,
+      'type_settings': updatedSettings.typeSettings.map(
+        (key, value) => MapEntry(key.name, value),
+      ),
+      'quiet_hours_enabled': updatedSettings.quietHoursEnabled,
+      'quiet_hours_start': updatedSettings.quietHoursStart,
+      'quiet_hours_end': updatedSettings.quietHoursEnd,
+      'updated_at': updatedSettings.updatedAt.toIso8601String(),
+    }, onConflict: 'user_id');
     _settingsController.add(updatedSettings);
     await _pushSynchronizer?.call();
     return updatedSettings;

@@ -1,9 +1,9 @@
 # BitClass Push Notification Setup
 
-The Flutter and Supabase implementations are complete, but FCM cannot send
-production notifications until the private Firebase credentials are supplied.
-No service-account key or webhook secret belongs in this repository or in the
-mobile application.
+The Flutter and Supabase implementations are complete. Production Firebase and
+webhook credentials were configured in Supabase on 2026-08-20 and a live test
+was accepted by FCM for an instructor device. No service-account key or webhook
+secret belongs in this repository or in the mobile application.
 
 ## Implemented
 
@@ -15,10 +15,14 @@ mobile application.
 - Supabase RLS-protected device registrations with last-seen timestamps.
 - Durable notification rows for enrollment, published lessons, assignments,
   quizzes, announcements, discussion replies, and assignment grades.
+- Instructor alerts for new enrollments, assignment submissions, completed
+  quiz attempts, and new student discussion threads.
 - An FCM HTTP v1 Edge Function that applies push preferences and quiet hours,
   sends to every active user device, and removes invalid FCM tokens.
+- Live instructor delivery verification accepted one active device token and
+  removed two stale tokens without a failed send.
 
-## Required Production Secrets
+## Secret Provisioning And Rotation
 
 1. In Firebase Console, open **Project settings > Service accounts** and create
    a service-account key for the `bitclass-lms` Firebase project. Enable the

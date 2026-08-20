@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
-  testWidgets('a save failure keeps the loaded settings visible', (
+  testWidgets('instructor settings expose student activity categories', (
     tester,
   ) async {
     final repository = _FailingSettingsRepository();
@@ -25,9 +25,38 @@ void main() {
         value: bloc,
         child: const MaterialApp(
           home: NotificationSettingsView(
-            userId: 'user-1',
-            isInstructor: false,
+            userId: 'instructor-1',
+            isInstructor: true,
           ),
+        ),
+      ),
+    );
+    bloc.add(const LoadNotificationSettings(userId: 'instructor-1'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enrollments'), findsOneWidget);
+    expect(find.text('Assignment submissions'), findsOneWidget);
+    expect(find.text('Quiz submissions'), findsOneWidget);
+    expect(find.text('Student discussions'), findsOneWidget);
+    expect(find.text('New Lessons'), findsNothing);
+  });
+
+  testWidgets('a save failure keeps the loaded settings visible', (
+    tester,
+  ) async {
+    final repository = _FailingSettingsRepository();
+    final bloc = NotificationBloc(notificationRepository: repository);
+
+    addTearDown(() async {
+      await bloc.close();
+      repository.close();
+    });
+
+    await tester.pumpWidget(
+      BlocProvider<NotificationBloc>.value(
+        value: bloc,
+        child: const MaterialApp(
+          home: NotificationSettingsView(userId: 'user-1', isInstructor: false),
         ),
       ),
     );
@@ -67,10 +96,7 @@ class _FailingSettingsRepository extends NotificationRepository {
   }
 
   @override
-  Future<NotificationSettings> togglePushEnabled(
-    String userId,
-    bool enabled,
-  ) {
+  Future<NotificationSettings> togglePushEnabled(String userId, bool enabled) {
     throw Exception('duplicate key violates notification_settings_user_id_key');
   }
 
