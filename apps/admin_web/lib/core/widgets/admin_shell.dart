@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/dashboard/data/admin_models.dart';
 import '../auth/admin_session_controller.dart';
 import '../theme/admin_theme.dart';
+import 'admin_brand_logo.dart';
 
 class AdminShell extends StatelessWidget {
   final AdminSessionController session;
@@ -75,9 +76,16 @@ class AdminShell extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AdminColors.navigation,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'BitClass Admin',
-          style: TextStyle(fontWeight: FontWeight.w800),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AdminBrandLogo(size: 32, borderRadius: 7),
+            SizedBox(width: 10),
+            Text(
+              'BitClass Admin',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
         ),
         actions: [_AccountMenu(session: session)],
       ),
@@ -396,17 +404,7 @@ class _SidebarBrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AdminColors.primary, AdminColors.secondary],
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Icon(Icons.school_outlined, color: AdminColors.background),
-    );
+    return const AdminBrandLogo(size: 40, borderRadius: 10);
   }
 }
 

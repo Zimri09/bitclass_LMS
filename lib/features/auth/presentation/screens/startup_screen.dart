@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/bitclass_logo.dart';
 
 /// Neutral startup surface shown while the persisted Supabase session and
 /// local profile snapshot are restored. It intentionally never renders Login.
@@ -17,22 +18,7 @@ class StartupScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.glowPrimary,
-                      blurRadius: 28,
-                      spreadRadius: 3,
-                    ),
-                  ],
-                ),
-                child: Icon(Icons.code, color: AppColors.background, size: 42),
-              ),
+              const BitClassLogo(size: 76, showGlow: true),
               const SizedBox(height: 24),
               Text('BitClass', style: AppTextStyles.h2),
               const SizedBox(height: 18),

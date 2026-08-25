@@ -6,6 +6,7 @@ import '../../../../core/errors/app_error.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/bitclass_logo.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../bloc/auth_bloc.dart';
 import '../widgets/bisu_google_auth_button.dart';
@@ -113,22 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.glowPrimary,
-                blurRadius: 24,
-                spreadRadius: 3,
-              ),
-            ],
-          ),
-          child: Icon(Icons.code, color: AppColors.background, size: 36),
-        ),
+        const BitClassLogo(size: 64, showGlow: true),
         const SizedBox(height: 16),
         Text('Create Account', style: AppTextStyles.h2),
         const SizedBox(height: 8),

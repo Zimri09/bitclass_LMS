@@ -6,6 +6,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/bitclass_logo.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../bloc/auth_bloc.dart';
 import '../widgets/bisu_google_auth_button.dart';
@@ -102,23 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        // Logo
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.glowPrimary,
-                blurRadius: 30,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
-          child: Icon(Icons.code, color: AppColors.background, size: 44),
-        ),
+        const BitClassLogo(size: 80, showGlow: true),
         const SizedBox(height: 24),
         Text('BitClass', style: AppTextStyles.h1),
         const SizedBox(height: 8),

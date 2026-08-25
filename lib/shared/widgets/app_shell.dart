@@ -10,6 +10,7 @@ import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import 'bitclass_logo.dart';
 
 /// Responsive breakpoints
 class _Breakpoints {
@@ -461,21 +462,10 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _buildLogo() {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.glowPrimary,
-            blurRadius: 12,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Icon(Icons.code, color: AppColors.background, size: 24),
+    return const BitClassLogo(
+      size: 40,
+      borderRadius: 8,
+      showGlow: true,
     );
   }
 

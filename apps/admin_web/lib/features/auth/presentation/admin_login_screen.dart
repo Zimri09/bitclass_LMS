@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/auth/admin_session_controller.dart';
 import '../../../core/theme/admin_theme.dart';
+import '../../../core/widgets/admin_brand_logo.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   final AdminSessionController session;
@@ -173,7 +174,7 @@ class _CompactBrand extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Row(
       children: [
-        _BrandMark(size: 42),
+        AdminBrandLogo(size: 42),
         SizedBox(width: 12),
         Text(
           'BitClass Admin',
@@ -236,33 +237,6 @@ class _AdminBrandPanel extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _BrandMark extends StatelessWidget {
-  final double size;
-
-  const _BrandMark({required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AdminColors.primary, AdminColors.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(size * 0.26),
-      ),
-      child: Icon(
-        Icons.school_outlined,
-        size: size * 0.58,
-        color: AdminColors.background,
       ),
     );
   }
