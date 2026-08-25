@@ -36,6 +36,8 @@ class AuthLoginRequested extends AuthEvent {
   List<Object?> get props => [email, password];
 }
 
+class AuthGoogleSignInRequested extends AuthEvent {}
+
 class AuthRegisterRequested extends AuthEvent {
   final String email;
   final String password;
@@ -243,6 +245,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthCheckRequested>(_onAuthCheckRequested);
     on<_AuthSessionChanged>(_onAuthSessionChanged);
     on<AuthLoginRequested>(_onLoginRequested);
+    on<AuthGoogleSignInRequested>(_onGoogleSignInRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthForgotPasswordRequested>(_onForgotPasswordRequested);
@@ -312,6 +315,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           return;
         }
         emit(AuthAuthenticated(profile));
+      } on GoogleDomainNotAllowedException catch (error) {
+        await _authRepository.signOut();
+        if (!_isCurrent(requestGeneration)) return;
+        emit(AuthError(error.toString()));
       } catch (error) {
         if (!_isCurrent(requestGeneration)) return;
         final offlineProfile = localProfile ?? previousUser;
@@ -324,6 +331,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (!_isCurrent(requestGeneration)) return;
         emit(AuthUnauthenticated());
       }
+    } on GoogleDomainNotAllowedException catch (error) {
+      await _authRepository.signOut();
+      if (!_isCurrent(requestGeneration)) return;
+      emit(AuthError(error.toString()));
     } catch (error) {
       if (!_isCurrent(requestGeneration)) return;
       if (previousUser != null && isNetworkFailure(error)) {
@@ -344,7 +355,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (!event.hasSession) {
       final shouldIgnoreSignedOut =
           currentState is AuthLoading &&
-          (currentState.operation == AuthOperation.signingIn ||
+          (currentState.operation == AuthOperation.checkingSession ||
+              currentState.operation == AuthOperation.signingIn ||
               currentState.operation == AuthOperation.signingUp ||
               currentState.operation == AuthOperation.resettingPassword ||
               currentState.operation == AuthOperation.updatingPassword);
@@ -390,6 +402,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } on EmailConfirmationRequiredException catch (error) {
       if (!_isCurrent(requestGeneration)) return;
       emit(_startOtpChallenge(error.email, AuthOtpPurpose.signup));
+    } catch (error) {
+      if (!_isCurrent(requestGeneration)) return;
+      emit(AuthError(_message(error)));
+    }
+  }
+
+  Future<void> _onGoogleSignInRequested(
+    AuthGoogleSignInRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final requestGeneration = ++_requestGeneration;
+    emit(const AuthLoading(AuthOperation.signingIn));
+
+    try {
+      final user = await _authRepository.signInWithGoogle();
+      if (!_isCurrent(requestGeneration)) return;
+      if (user != null) {
+        _clearOtpFlow();
+        emit(AuthAuthenticated(user));
+      } else {
+        // The mobile OAuth callback or web reload will restore the session.
+        emit(AuthUnauthenticated());
+      }
     } catch (error) {
       if (!_isCurrent(requestGeneration)) return;
       emit(AuthError(_message(error)));

@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../bloc/auth_bloc.dart';
+import '../widgets/bisu_google_auth_button.dart';
 
 /// Login screen for BitClass
 class LoginScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _lastActionWasGoogle = false;
 
   @override
   void dispose() {
@@ -31,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleLogin() {
+    _lastActionWasGoogle = false;
     if (_formKey.currentState!.validate()) {
       context.read<AuthBloc>().add(
         AuthLoginRequested(
@@ -39,6 +42,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     }
+  }
+
+  void _handleGoogleSignIn() {
+    _lastActionWasGoogle = true;
+    FocusScope.of(context).unfocus();
+    context.read<AuthBloc>().add(AuthGoogleSignInRequested());
   }
 
   @override
@@ -52,7 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
                 action: isNetworkFailure(state.message)
-                    ? SnackBarAction(label: 'Retry', onPressed: _handleLogin)
+                    ? SnackBarAction(
+                        label: 'Retry',
+                        onPressed: _lastActionWasGoogle
+                            ? _handleGoogleSignIn
+                            : _handleLogin,
+                      )
                     : null,
               ),
             );
@@ -141,6 +155,14 @@ class _LoginScreenState extends State<LoginScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
+
+            BisuGoogleAuthButton(
+              label: 'Continue with BISU Google',
+              onPressed: _handleGoogleSignIn,
+            ),
+            const SizedBox(height: 20),
+            const AuthMethodDivider(label: 'or sign in with email'),
+            const SizedBox(height: 20),
 
             // Email field
             TextFormField(

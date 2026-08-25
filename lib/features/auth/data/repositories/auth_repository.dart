@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -28,8 +28,18 @@ class EmailOtpConfigurationException implements Exception {
       'Email OTP verification is not enabled. Please contact support.';
 }
 
+/// Thrown when Google authentication uses an account outside BISU.
+class GoogleDomainNotAllowedException implements Exception {
+  const GoogleDomainNotAllowedException();
+
+  @override
+  String toString() =>
+      'Use your verified @bisu.edu.ph Google account to continue.';
+}
+
 /// Repository handling authentication and user profile operations
 class AuthRepository {
+  static const String googleStudentEmailDomain = 'bisu.edu.ph';
   static const String _profilesTable = 'profiles';
   static const String _avatarsBucket = 'avatars';
   static const String _authFlowBox = 'auth_flow';
@@ -141,6 +151,43 @@ class AuthRepository {
       throw _handleAuthException(e.message);
     } on PostgrestException catch (e) {
       throw _handlePostgrestException(e);
+    }
+  }
+
+  /// Starts Google OAuth. New Google accounts are always student accounts.
+  ///
+  /// A real OAuth flow completes through the configured deep link, so this
+  /// returns null after opening Google. Demo mode returns a user immediately.
+  Future<UserModel?> signInWithGoogle() async {
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _demoUser = UserModel(
+        id: _demoStudentUserId,
+        email: 'student@$googleStudentEmailDomain',
+        firstName: 'Demo',
+        lastName: 'Student',
+        role: 'student',
+        createdAt: DateTime.now(),
+      );
+      return _demoUser;
+    }
+
+    try {
+      final launched = await _supabase!.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : EnvironmentConfig.authRedirectUrl,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw Exception(
+          'Google sign-in could not be opened. Please try again.',
+        );
+      }
+      return null;
+    } on AuthException catch (error) {
+      throw _handleAuthException(error.message);
     }
   }
 
@@ -402,6 +449,7 @@ class AuthRepository {
 
     final user = currentUser;
     if (user == null || user.emailConfirmedAt == null) return null;
+    _ensureAllowedGoogleUser(user);
     if (await _hasPendingRecovery(user.id)) return null;
 
     final cached = await _readCachedProfile(user.id);
@@ -554,6 +602,7 @@ class AuthRepository {
     User user, {
     required String defaultRole,
   }) async {
+    _ensureAllowedGoogleUser(user);
     for (var attempt = 0; attempt < 5; attempt++) {
       final profile = await getCurrentUserProfile();
       if (profile != null) {
@@ -643,6 +692,30 @@ class AuthRepository {
 
   static bool _isValidEmail(String email) =>
       RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+  /// Uses an exact domain comparison instead of a suffix check.
+  static bool isAllowedGoogleStudentEmail(String? email) {
+    if (email == null) return false;
+    final parts = email.trim().toLowerCase().split('@');
+    return parts.length == 2 &&
+        parts.first.isNotEmpty &&
+        parts.last == googleStudentEmailDomain;
+  }
+
+  static bool _hasGoogleIdentity(User user) {
+    final provider = user.appMetadata['provider'];
+    final providers = user.appMetadata['providers'];
+    return provider == 'google' ||
+        (providers is List && providers.contains('google')) ||
+        (user.identities?.any((identity) => identity.provider == 'google') ??
+            false);
+  }
+
+  static void _ensureAllowedGoogleUser(User user) {
+    if (_hasGoogleIdentity(user) && !isAllowedGoogleStudentEmail(user.email)) {
+      throw const GoogleDomainNotAllowedException();
+    }
+  }
 
   static String _safeSelfRegisteredRole(Object? role) =>
       role == 'instructor' ? 'instructor' : 'student';

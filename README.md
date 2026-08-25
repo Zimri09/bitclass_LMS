@@ -74,6 +74,11 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
    - Optional bucket overrides are `COURSE_MATERIALS_BUCKET` and
      `COURSE_THUMBNAILS_BUCKET`. Course materials are private and opened with
      short-lived signed URLs; avatars and course thumbnails remain public.
+   - Mobile OAuth returns through `io.bitclass.app://login-callback/`. Override
+     it with `--dart-define=AUTH_REDIRECT_URL=...` only when using a different
+     registered app scheme.
+   - BISU Google signup requires the Google provider and redirect URLs described
+     in `supabase/GOOGLE_AUTH_SETUP.md`.
 
 4. **Run the app:**
    ```bash

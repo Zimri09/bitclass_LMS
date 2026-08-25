@@ -40,6 +40,10 @@ class EnvironmentConfig {
   static const String _definedCourseThumbnailsBucket = String.fromEnvironment(
     'COURSE_THUMBNAILS_BUCKET',
   );
+  static const String _definedAuthRedirectUrl = String.fromEnvironment(
+    'AUTH_REDIRECT_URL',
+    defaultValue: 'io.bitclass.app://login-callback/',
+  );
 
   /// Build environment selected with `--dart-define=BITCLASS_ENV=...`.
   static Environment get current => switch (_environmentName.toLowerCase()) {
@@ -130,6 +134,9 @@ class EnvironmentConfig {
     return isDemoMode ? '' : 'course_materials';
   }
 
+  /// Deep link used to return to the mobile app after an OAuth sign-in.
+  static String get authRedirectUrl => _definedAuthRedirectUrl;
+
   /// Stops a release build from silently using development or placeholder data.
   static void validate() {
     if (kReleaseMode && current != Environment.production) {
@@ -148,6 +155,14 @@ class EnvironmentConfig {
     }
     if (storageBucket.isEmpty || courseMaterialsBucket.isEmpty) {
       throw StateError('Supabase Storage bucket names are required.');
+    }
+    if (!kIsWeb) {
+      final redirectUri = Uri.tryParse(authRedirectUrl);
+      if (redirectUri == null ||
+          redirectUri.scheme.isEmpty ||
+          redirectUri.host.isEmpty) {
+        throw StateError('A valid AUTH_REDIRECT_URL is required.');
+      }
     }
   }
 
