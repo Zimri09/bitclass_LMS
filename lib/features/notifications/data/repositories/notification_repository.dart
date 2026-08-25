@@ -276,6 +276,34 @@ class NotificationRepository {
     return (rows as List<dynamic>).length;
   }
 
+  /// Get the categories of unread notifications for navigation indicators.
+  Future<Set<NotificationType>> getUnreadTypes(String userId) async {
+    if (EnvironmentConfig.isDemoMode) {
+      return _notifications
+          .where((notification) =>
+              _isDemoUserMatch(notification.userId, userId) &&
+              !notification.isRead)
+          .map((notification) => notification.type)
+          .toSet();
+    }
+
+    final rows = await _supabase!
+        .from(_notificationsTable)
+        .select('type')
+        .eq('user_id', userId)
+        .eq('is_read', false);
+
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(
+          (row) => NotificationType.values.firstWhere(
+            (type) => type.name == row['type'],
+            orElse: () => NotificationType.general,
+          ),
+        )
+        .toSet();
+  }
+
   /// Mark a notification as read
   Future<NotificationModel> markAsRead(String notificationId) async {
     if (EnvironmentConfig.isDemoMode) {

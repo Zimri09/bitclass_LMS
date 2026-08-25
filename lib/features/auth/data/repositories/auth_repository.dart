@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -711,9 +712,61 @@ class AuthRepository {
             false);
   }
 
-  static void _ensureAllowedGoogleUser(User user) {
-    if (_hasGoogleIdentity(user) && !isAllowedGoogleStudentEmail(user.email)) {
+  void _ensureAllowedGoogleUser(User user) {
+    final primaryProvider = user.appMetadata['provider'];
+    final accessToken = _supabase?.auth.currentSession?.accessToken;
+    if (sessionUsesGoogleAuthentication(
+          accessToken: accessToken,
+          hasGoogleIdentity: _hasGoogleIdentity(user),
+          primaryProvider: primaryProvider is String ? primaryProvider : null,
+        ) &&
+        !isAllowedGoogleStudentEmail(user.email)) {
       throw const GoogleDomainNotAllowedException();
+    }
+  }
+
+  /// Determines whether the current session was authenticated through Google.
+  ///
+  /// Linked identities describe every method available to an account, while
+  /// the JWT `amr` claim records the method used for this session. This keeps
+  /// password sign-in working for existing accounts that also have Google
+  /// linked.
+  @visibleForTesting
+  static bool sessionUsesGoogleAuthentication({
+    required String? accessToken,
+    required bool hasGoogleIdentity,
+    String? primaryProvider,
+  }) {
+    if (!hasGoogleIdentity) return false;
+
+    final methods = _authenticationMethods(accessToken);
+    if (methods.isNotEmpty) return methods.contains('oauth');
+
+    return primaryProvider == 'google';
+  }
+
+  static Set<String> _authenticationMethods(String? accessToken) {
+    if (accessToken == null || accessToken.isEmpty) return const {};
+
+    try {
+      final parts = accessToken.split('.');
+      if (parts.length != 3) return const {};
+
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      if (payload is! Map<String, dynamic>) return const {};
+
+      final authenticationMethods = payload['amr'];
+      if (authenticationMethods is! List) return const {};
+
+      return authenticationMethods
+          .whereType<Map>()
+          .map((entry) => entry['method'])
+          .whereType<String>()
+          .toSet();
+    } on FormatException {
+      return const {};
     }
   }
 

@@ -10,6 +10,8 @@ import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/notifications/data/models/notification_model.dart';
+import '../../features/notifications/data/repositories/notification_repository.dart';
 import 'bitclass_logo.dart';
 
 /// Responsive breakpoints
@@ -34,6 +36,7 @@ class AppShell extends StatefulWidget {
   static void openDrawer(BuildContext context) {
     final drawerScope = context
         .dependOnInheritedWidgetOfExactType<_AppShellDrawerScope>();
+    drawerScope?.refreshBadges();
     drawerScope?.scaffoldKey.currentState?.openDrawer();
   }
 }
@@ -52,17 +55,51 @@ class AppDrawerButton extends StatelessWidget {
   }
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
+  static const _badgeRefreshInterval = Duration(seconds: 30);
+  static const _todoNotificationTypes = <NotificationType>{
+    NotificationType.courseUpdate,
+    NotificationType.newLesson,
+    NotificationType.newAssignment,
+    NotificationType.assignmentSubmitted,
+    NotificationType.assignmentDue,
+    NotificationType.quizAvailable,
+    NotificationType.quizSubmitted,
+  };
+  static const _gradeNotificationTypes = <NotificationType>{
+    NotificationType.assignmentGraded,
+    NotificationType.quizGraded,
+  };
+
   bool _isExpanded = true;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _backNavigation = BackNavigationController();
   String? _lastObservedPath;
   Timer? _offlineRetryTimer;
+  Timer? _badgeRefreshTimer;
+  String? _badgeUserId;
+  bool _badgeRefreshInFlight = false;
+  _NavigationBadges _badges = const _NavigationBadges();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _offlineRetryTimer?.cancel();
+    _badgeRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshNavigationBadges());
+    }
   }
 
   @override
@@ -72,11 +109,16 @@ class _AppShellState extends State<AppShell> {
         authState is AuthAuthenticated && authState.user.isStaff;
     final isOffline = authState is AuthAuthenticated && authState.isOffline;
     _syncOfflineRetry(isOffline);
+    _syncBadgeRefresh(
+      authState is AuthAuthenticated ? authState.user.id : null,
+      isOffline: isOffline,
+    );
     final width = MediaQuery.sizeOf(context).width;
     final currentPath = GoRouterState.of(context).matchedLocation;
     if (_lastObservedPath != currentPath) {
       _lastObservedPath = currentPath;
       _backNavigation.reset();
+      unawaited(_refreshNavigationBadges());
     }
 
     final layout = width < _Breakpoints.mobile
@@ -114,6 +156,52 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _syncBadgeRefresh(String? userId, {required bool isOffline}) {
+    if (userId == null || isOffline) {
+      _badgeRefreshTimer?.cancel();
+      _badgeRefreshTimer = null;
+      _badgeUserId = null;
+      _badges = const _NavigationBadges();
+      return;
+    }
+
+    if (_badgeUserId != userId) {
+      _badgeUserId = userId;
+      _badges = const _NavigationBadges();
+      unawaited(_refreshNavigationBadges());
+    }
+    _badgeRefreshTimer ??= Timer.periodic(
+      _badgeRefreshInterval,
+      (_) => unawaited(_refreshNavigationBadges()),
+    );
+  }
+
+  Future<void> _refreshNavigationBadges() async {
+    final userId = _badgeUserId;
+    if (userId == null || _badgeRefreshInFlight) return;
+
+    _badgeRefreshInFlight = true;
+    try {
+      final unreadTypes = await context
+          .read<NotificationRepository>()
+          .getUnreadTypes(userId);
+      if (!mounted || _badgeUserId != userId) return;
+
+      final nextBadges = _NavigationBadges(
+        todos: unreadTypes.any(_todoNotificationTypes.contains),
+        grades: unreadTypes.any(_gradeNotificationTypes.contains),
+        notifications: unreadTypes.isNotEmpty,
+      );
+      if (nextBadges != _badges) {
+        setState(() => _badges = nextBadges);
+      }
+    } catch (_) {
+      // Keep the last known indicators during transient network failures.
+    } finally {
+      _badgeRefreshInFlight = false;
+    }
+  }
+
   void _handleRootBack(BuildContext context) {
     final currentPath = GoRouterState.of(context).matchedLocation;
     final action = _backNavigation.handle(
@@ -140,6 +228,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _openDestination(BuildContext context, {required String destination}) {
+    unawaited(_refreshNavigationBadges());
     final authState = context.read<AuthBloc>().state;
     final isOffline = authState is AuthAuthenticated && authState.isOffline;
     final isOfflineDestination =
@@ -189,6 +278,7 @@ class _AppShellState extends State<AppShell> {
       key: _scaffoldKey,
       body: _AppShellDrawerScope(
         scaffoldKey: _scaffoldKey,
+        refreshBadges: () => unawaited(_refreshNavigationBadges()),
         child: widget.child,
       ),
       drawer: _buildDrawer(context, isInstructor, isOffline),
@@ -274,10 +364,12 @@ class _AppShellState extends State<AppShell> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                Icon(
-                  isActive ? item.activeIcon : item.icon,
-                  color: isActive ? AppColors.primary : colors.textSecondary,
-                  size: 22,
+                _NavigationIcon(
+                  item: item,
+                  isActive: isActive,
+                  showBadge: _showsBadge(item),
+                  backgroundColor: colors.backgroundSecondary,
+                  inactiveColor: colors.textSecondary,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -515,10 +607,12 @@ class _AppShellState extends State<AppShell> {
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                Icon(
-                  isActive ? item.activeIcon : item.icon,
-                  color: isActive ? AppColors.primary : colors.textSecondary,
-                  size: 22,
+                _NavigationIcon(
+                  item: item,
+                  isActive: isActive,
+                  showBadge: _showsBadge(item),
+                  backgroundColor: colors.backgroundSecondary,
+                  inactiveColor: colors.textSecondary,
                 ),
                 if (expanded) ...[
                   const SizedBox(width: 12),
@@ -585,6 +679,15 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  bool _showsBadge(_NavItem item) {
+    return switch (item.badge) {
+      _NavBadge.todos => _badges.todos,
+      _NavBadge.grades => _badges.grades,
+      _NavBadge.notifications => _badges.notifications,
+      null => false,
+    };
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Navigation data
   // ═══════════════════════════════════════════════════════════════════════════
@@ -614,6 +717,7 @@ class _AppShellState extends State<AppShell> {
         activeIcon: isInstructor ? Icons.fact_check : Icons.check_box,
         label: isInstructor ? 'Work Queue' : 'To-do',
         path: AppRoutes.todos,
+        badge: _NavBadge.todos,
       ),
       _NavItem(
         icon: Icons.terminal_outlined,
@@ -635,6 +739,7 @@ class _AppShellState extends State<AppShell> {
           activeIcon: Icons.grade,
           label: 'My Grades',
           path: AppRoutes.grades,
+          badge: _NavBadge.grades,
         ),
       ],
       _NavItem.section('ACCOUNT'),
@@ -643,6 +748,7 @@ class _AppShellState extends State<AppShell> {
         activeIcon: Icons.notifications,
         label: 'Notifications',
         path: AppRoutes.notifications,
+        badge: _NavBadge.notifications,
       ),
       _NavItem(
         icon: Icons.person_outline,
@@ -662,8 +768,13 @@ class _AppShellState extends State<AppShell> {
 
 class _AppShellDrawerScope extends InheritedWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
+  final VoidCallback refreshBadges;
 
-  const _AppShellDrawerScope({required this.scaffoldKey, required super.child});
+  const _AppShellDrawerScope({
+    required this.scaffoldKey,
+    required this.refreshBadges,
+    required super.child,
+  });
 
   @override
   bool updateShouldNotify(_AppShellDrawerScope oldWidget) =>
@@ -677,17 +788,97 @@ class _NavItem {
   final String label;
   final String path;
   final bool isSectionHeader;
+  final _NavBadge? badge;
 
   _NavItem({
     required this.icon,
     required this.activeIcon,
     required this.label,
     required this.path,
+    this.badge,
   }) : isSectionHeader = false;
 
   _NavItem.section(this.label)
     : icon = Icons.label,
       activeIcon = Icons.label,
       path = '',
+      badge = null,
       isSectionHeader = true;
+}
+
+enum _NavBadge { todos, grades, notifications }
+
+class _NavigationBadges {
+  final bool todos;
+  final bool grades;
+  final bool notifications;
+
+  const _NavigationBadges({
+    this.todos = false,
+    this.grades = false,
+    this.notifications = false,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is _NavigationBadges &&
+      other.todos == todos &&
+      other.grades == grades &&
+      other.notifications == notifications;
+
+  @override
+  int get hashCode => Object.hash(todos, grades, notifications);
+}
+
+class _NavigationIcon extends StatelessWidget {
+  final _NavItem item;
+  final bool isActive;
+  final bool showBadge;
+  final Color backgroundColor;
+  final Color inactiveColor;
+
+  const _NavigationIcon({
+    required this.item,
+    required this.isActive,
+    required this.showBadge,
+    required this.backgroundColor,
+    required this.inactiveColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(
+      isActive ? item.activeIcon : item.icon,
+      color: isActive ? AppColors.primary : inactiveColor,
+      size: 22,
+    );
+
+    return Semantics(
+      label: showBadge ? '${item.label}, new activity' : item.label,
+      child: SizedBox.square(
+        dimension: 26,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Center(child: icon),
+            if (showBadge)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  key: ValueKey('nav-unread-dot-${item.path}'),
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: backgroundColor, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
