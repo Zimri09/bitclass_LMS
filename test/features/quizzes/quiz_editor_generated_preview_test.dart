@@ -245,6 +245,9 @@ void main() {
     expect(quizRepository.createdQuiz!.title, 'Untitled Quiz Draft');
     expect(quizRepository.createdQuiz!.isPublished, isFalse);
     expect(quizRepository.createdQuiz!.questionCount, 1);
+    expect(quizRepository.createdQuiz!.timeLimitMinutes, 15);
+    expect(quizRepository.createdQuiz!.passingScore, 50);
+    expect(quizRepository.createdQuiz!.maxAttempts, 1);
     expect(quizRepository.savedQuestions, hasLength(1));
     expect(
       quizRepository.savedQuestions.single.quizId,

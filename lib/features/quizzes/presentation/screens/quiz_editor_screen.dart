@@ -51,6 +51,10 @@ class QuizEditorScreen extends StatefulWidget {
 }
 
 class _QuizEditorScreenState extends State<QuizEditorScreen> {
+  static const int _defaultTimeLimitMinutes = 15;
+  static const int _defaultPassingScore = 50;
+  static const int _defaultMaxAttempts = 1;
+
   static const int _maxPdfBytes = 8 * 1024 * 1024;
   static const int _maxTextBytes = 1024 * 1024;
 
@@ -81,13 +85,13 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   int _shortAnswerPoints = QuizGenerationPoints.defaults.shortAnswer;
 
   // Quiz settings
-  int _timeLimitMinutes = 0;
-  int _passingScore = 70;
+  int _timeLimitMinutes = _defaultTimeLimitMinutes;
+  int _passingScore = _defaultPassingScore;
   bool _shuffleQuestions = false;
   bool _shuffleAnswers = true;
   bool _showCorrectAnswers = true;
   bool _allowRetakes = true;
-  int _maxAttempts = 0;
+  int _maxAttempts = _defaultMaxAttempts;
   bool _isPublished = false;
 
   @override
@@ -678,7 +682,8 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                   textAlign: TextAlign.center,
                   decoration: const InputDecoration(hintText: '0 = No limit'),
                   onChanged: (value) {
-                    _timeLimitMinutes = int.tryParse(value) ?? 0;
+                    _timeLimitMinutes =
+                        int.tryParse(value) ?? _defaultTimeLimitMinutes;
                   },
                 ),
               ),
@@ -702,7 +707,8 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   onChanged: (value) {
-                    _passingScore = int.tryParse(value) ?? 70;
+                    _passingScore =
+                        int.tryParse(value) ?? _defaultPassingScore;
                   },
                 ),
               ),
@@ -724,7 +730,8 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                   textAlign: TextAlign.center,
                   decoration: const InputDecoration(hintText: '0 = Unlimited'),
                   onChanged: (value) {
-                    _maxAttempts = int.tryParse(value) ?? 0;
+                    _maxAttempts =
+                        int.tryParse(value) ?? _defaultMaxAttempts;
                   },
                 ),
               ),
