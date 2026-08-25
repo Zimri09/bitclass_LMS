@@ -13,6 +13,8 @@ class CourseFile {
   final String name;
   final String description;
   final String url;
+  final String? storageBucket;
+  final String? storagePath;
   final String? thumbnailUrl;
   final CourseResourceKind resourceKind;
   final FileType type;
@@ -31,6 +33,8 @@ class CourseFile {
     required this.name,
     this.description = '',
     required this.url,
+    this.storageBucket,
+    this.storagePath,
     this.thumbnailUrl,
     this.resourceKind = CourseResourceKind.file,
     required this.type,
@@ -137,6 +141,8 @@ class CourseFile {
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
       url: json['url'] as String,
+      storageBucket: json['storageBucket'] as String?,
+      storagePath: json['storagePath'] as String?,
       thumbnailUrl: json['thumbnailUrl'] as String?,
       resourceKind: CourseResourceKind.values.firstWhere(
         (kind) => kind.name == json['resourceKind'],
@@ -166,6 +172,8 @@ class CourseFile {
       'name': name,
       'description': description,
       'url': url,
+      'storageBucket': storageBucket,
+      'storagePath': storagePath,
       'thumbnailUrl': thumbnailUrl,
       'resourceKind': resourceKind.name,
       'type': type.name,
@@ -194,6 +202,8 @@ class CourseFile {
     String? name,
     String? description,
     String? url,
+    String? storageBucket,
+    String? storagePath,
     String? thumbnailUrl,
     CourseResourceKind? resourceKind,
     FileType? type,
@@ -212,6 +222,8 @@ class CourseFile {
       name: name ?? this.name,
       description: description ?? this.description,
       url: url ?? this.url,
+      storageBucket: storageBucket ?? this.storageBucket,
+      storagePath: storagePath ?? this.storagePath,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       resourceKind: resourceKind ?? this.resourceKind,
       type: type ?? this.type,

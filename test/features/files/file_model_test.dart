@@ -160,6 +160,29 @@ void main() {
       expect(file.sizeBytes, 1024);
     });
 
+    test('private storage metadata survives a JSON round trip', () {
+      final file = CourseFile(
+        id: 'file-1',
+        courseId: 'course-1',
+        uploaderId: 'user-1',
+        uploaderName: 'Test User',
+        name: 'private.pdf',
+        url: '',
+        storageBucket: 'course_materials',
+        storagePath: 'course-1/file-1-private.pdf',
+        type: FileType.document,
+        mimeType: 'application/pdf',
+        sizeBytes: 1024,
+        createdAt: DateTime.utc(2026, 8, 25),
+      );
+
+      final restored = CourseFile.fromJson(file.toJson());
+
+      expect(restored.url, isEmpty);
+      expect(restored.storageBucket, 'course_materials');
+      expect(restored.storagePath, 'course-1/file-1-private.pdf');
+    });
+
     test('copyWith creates new instance with updated fields', () {
       final file = CourseFile(
         id: 'file-1',

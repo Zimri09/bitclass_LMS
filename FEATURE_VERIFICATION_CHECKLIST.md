@@ -7,30 +7,33 @@ demo data. Record the build, device, account role, evidence link, and result
 
 ## Audit Snapshot
 
-- Current estimate as of 2026-08-25: about **86% overall**, **90% feature
-  complete**, and **80% production-ready**. Remaining work is concentrated in
-  production configuration, private file delivery, physical-device coverage,
-  and broader end-to-end testing.
+- Current estimate as of 2026-08-25: about **88% overall**, **91% feature
+  complete**, and **86% production-ready**. Remaining work is concentrated in
+  physical-device/platform coverage, production credentials, and broader
+  end-to-end testing.
 - The application exposes the expected LMS feature areas: authentication,
   courses, lessons, assignments, quizzes, discussions, files, grades,
   notifications, todos, profile, and settings.
-- The active configuration is `Environment.development`, pointing to a real
-  Supabase project. Production credentials are placeholders, so this build is
-  not production-ready without production configuration and verification.
-- `dart analyze` completed with no issues, all 189 Flutter tests passed, and a
-  release web build completed successfully on 2026-08-25.
+- Debug builds default to `Environment.development`, pointing to a real
+  Supabase project. Release builds now default to production and fail closed
+  until explicit `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` defines are set.
+- `dart analyze` completed with no issues, all 191 Flutter tests passed, and a
+  release web build using the production define path completed successfully on
+  2026-08-25. Real release credentials still need to be supplied at deployment.
 - The suite includes widget coverage for assignments, quizzes, notifications,
   grades, lessons, and Code Lab. Backend authorization still needs broader
   repeatable integration coverage beyond the transactional security checks.
 - The active development Supabase project has recorded migrations for profile
-  isolation, least-privilege RPC execution, server-side quiz grading, and
-  foreign-key/RLS performance optimization.
+  isolation, least-privilege RPC execution, server-side quiz grading, private
+  signed course materials, and foreign-key/RLS performance optimization. The
+  database advisors report no public privileged-function or duplicate-policy
+  warnings.
 
 ## Release Gates
 
 - [x] `flutter pub get` completes from the current checkout.
 - [x] `dart analyze` completes with no issues.
-- [x] `flutter test` completes with all 189 tests passing.
+- [x] `flutter test` completes with all 191 tests passing.
 - [x] `flutter build web --release --no-pub` completes successfully.
 - [ ] Build and smoke-test Android, iOS, web, Windows, macOS, and Linux only
       for the platforms intended to ship.
@@ -137,6 +140,9 @@ demo data. Record the build, device, account role, evidence link, and result
 - [ ] Notification list supports read, mark-all-read, delete, clear, and settings persistence.
 - [x] Android FCM registration, token refresh, foreground/background handling,
       deep-link routing, preferences, and instructor activity alerts are integrated.
+- [x] iOS project includes the push entitlement and remote-notification
+      background mode; Firebase plist, APNs credentials, signing, and physical
+      delivery verification remain platform-owner steps.
 
 ## Todos, Settings, And UX
 
@@ -171,13 +177,15 @@ demo data. Record the build, device, account role, evidence link, and result
 - [x] Add `harden_rls.sql` to require enrollment for protected course-content,
       discussion, file-metadata, and lesson-progress access; the active
       development project now has live policy verification.
-- [ ] Move file downloads from public URLs to signed URLs before making the
-      storage bucket private.
+- [x] Store new course materials in a private bucket and create short-lived
+      signed URLs only when an authorized member opens or downloads a file.
 - [x] Separate student quiz delivery from answer keys and move attempt creation,
       answer saving, and grading to server-authorized RPCs.
 - [x] Add all 27 missing foreign-key indexes and optimize all reported per-row
       `auth.uid()` RLS calls. Reassess index usage after representative traffic.
-- [ ] Enable Supabase leaked-password protection and document the seven
-      intentional authenticated `SECURITY DEFINER` RPC advisor exceptions.
+- [x] Move the seven authenticated privileged RPC implementations into the
+      private schema behind public `SECURITY INVOKER` wrappers.
+- [ ] Enable Supabase leaked-password protection in the Auth dashboard. This is
+      the only remaining Supabase security advisor warning.
 - [x] Add explicit router guards for instructor-only grading and student-list
       URLs; database RLS remains the authoritative protection.

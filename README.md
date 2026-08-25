@@ -41,7 +41,7 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
    flutter pub get
    ```
 
-2. **Choose an environment** in `lib/core/config/environment.dart`:
+2. **Choose an environment** with `--dart-define=BITCLASS_ENV=...`:
    - `Environment.demo` — runs with mock data, no backend required
    - `Environment.development` — connects to your Supabase project
    - `Environment.production` — production Supabase credentials
@@ -61,7 +61,19 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
       `supabase/fix_instructor_role.sql` with that account's sign-in email
     - If file metadata writes are denied after hardening, run
      `supabase/fix_file_metadata_policy.sql` last and retry the upload
-   - Update `supabaseUrl`, `supabaseAnonKey`, and `storageBucket` in `environment.dart`
+   - Development builds use the checked-in development project by default.
+   - Release builds fail closed unless production values are supplied:
+
+     ```bash
+     flutter build web --release \
+       --dart-define=BITCLASS_ENV=production \
+       --dart-define=SUPABASE_URL=https://YOUR-PROJECT.supabase.co \
+       --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+     ```
+
+   - Optional bucket overrides are `COURSE_MATERIALS_BUCKET` and
+     `COURSE_THUMBNAILS_BUCKET`. Course materials are private and opened with
+     short-lived signed URLs; avatars and course thumbnails remain public.
 
 4. **Run the app:**
    ```bash

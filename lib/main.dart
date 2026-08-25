@@ -39,6 +39,8 @@ bool get kDemoMode => EnvironmentConfig.isDemoMode;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  EnvironmentConfig.validate();
+
   // Load package info (version, build number)
   await AppConstants.initPackageInfo();
 
@@ -50,15 +52,16 @@ Future<void> main() async {
     try {
       await Supabase.initialize(
         url: EnvironmentConfig.supabaseUrl,
-        publishableKey: EnvironmentConfig.supabaseAnonKey,
+        publishableKey: EnvironmentConfig.supabasePublishableKey,
       );
       if (kDebugMode) {
-        log('✓ Supabase initialized successfully', name: 'Main');
+        log('Supabase initialized successfully', name: 'Main');
       }
     } catch (e) {
       if (kDebugMode) {
-        log('✗ Supabase initialization failed: $e', name: 'Main');
+        log('Supabase initialization failed: $e', name: 'Main');
       }
+      rethrow;
     }
   }
 

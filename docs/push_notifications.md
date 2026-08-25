@@ -67,13 +67,16 @@ Google Play services.
 
 ### iOS
 
-iOS code paths are implemented, but the repository does not currently contain
-`ios/Runner/GoogleService-Info.plist`. Before building for iOS:
+iOS code paths, the remote-notification background mode, and the Runner push
+entitlement are implemented. The repository cannot contain the project-specific
+`ios/Runner/GoogleService-Info.plist` or an Apple APNs private key. Before
+building for iOS:
 
 1. Register bundle ID `com.example.flutterApplication1` in Firebase and add the
    downloaded `GoogleService-Info.plist` to the Runner target.
-2. In Xcode, enable **Push Notifications** and **Background Modes > Remote
-   notifications** for Runner.
+2. Open Xcode and confirm the Runner signing team can provision the checked-in
+   **Push Notifications** entitlement. **Background Modes > Remote
+   notifications** is already present in `Info.plist`.
 3. Upload an APNs authentication key or certificate in Firebase Console.
 4. Test on a physical Apple device. The iOS simulator is not a production push
    delivery test.

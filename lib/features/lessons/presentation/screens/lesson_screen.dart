@@ -618,9 +618,7 @@ class _LessonScreenState extends State<LessonScreen> {
   Future<void> _openAttachment(CourseFile file) async {
     final fileRepository = context.read<FileRepository>();
     try {
-      final uri = file.isExternalLink
-          ? normalizeWebUrl(file.url)
-          : Uri.parse(file.url);
+      final uri = Uri.parse(await fileRepository.getAccessibleUrl(file));
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened) throw StateError('No application can open this resource.');
 
