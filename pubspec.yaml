@@ -67,6 +67,7 @@ dependencies:
   package_info_plus: ^10.2.1
   dio: ^5.8.0
   open_filex: ^4.6.0
+  archive: 4.2.0
 
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.16.0
@@ -98,6 +99,7 @@ flutter:
 
   assets:
     - assets/branding/bitclass_logo.png
+    - assets/templates/bisu_attendance_form.docx
 
   # To add assets to your application, add an assets section, like this:
   # assets:

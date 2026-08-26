@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -13,6 +14,7 @@ import '../../../courses/data/models/course_model.dart';
 import '../../../courses/data/repositories/course_repository.dart';
 import '../../data/models/attendance_models.dart';
 import '../../data/repositories/attendance_repository.dart';
+import '../../data/services/bisu_attendance_document_service.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final CourseModel course;
@@ -45,6 +47,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool _isLoading = true;
   bool _isRefreshing = false;
   bool _isCreatingSession = false;
+  bool _isExporting = false;
   String? _error;
 
   AttendanceRepository get _repository => context.read<AttendanceRepository>();
@@ -127,6 +130,52 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _refresh() async {
     setState(() => _isRefreshing = true);
     await _loadAttendance(silent: true);
+  }
+
+  Future<void> _exportAttendanceForm() async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+    try {
+      final bytes = await const BisuAttendanceDocumentService().generate(
+        course: widget.course,
+        sessions: _sessions,
+        records: _records,
+        roster: _roster,
+      );
+      final safeCourseTitle = widget.course.title
+          .trim()
+          .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
+          .replaceAll(RegExp(r'_+'), '_')
+          .replaceAll(RegExp(r'^_|_$'), '');
+      final dateStamp = DateFormat('yyyyMMdd').format(DateTime.now());
+      final savedUri = await fp.FilePicker.saveFile(
+        fileName:
+            'BISU_Attendance_${safeCourseTitle.isEmpty ? 'Course' : safeCourseTitle}_$dateStamp.docx',
+        bytes: bytes,
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        dialogTitle: 'Save BISU attendance form',
+      );
+      if (!mounted || savedUri == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('BISU attendance Word form saved.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to export attendance form: ${userFriendlyErrorMessage(error)}',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   Future<void> _createSession() async {
@@ -304,6 +353,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 _isCreatingSession
                     ? 'Creating attendance session...'
                     : 'Create attendance session',
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _isExporting ? null : _exportAttendanceForm,
+              icon: _isExporting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.description_outlined),
+              label: Text(
+                _isExporting
+                    ? 'Preparing BISU Word form...'
+                    : 'Export BISU Word form',
               ),
             ),
           ],
