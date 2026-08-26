@@ -1243,14 +1243,28 @@ create table if not exists public.files (
     check (resource_kind in ('file', 'url')),
   bucket text default 'bitclass_storage',
   storage_path text,
-  public_url text not null,
+  public_url text,
   thumbnail_url text,
   file_type file_type not null default 'other',
   mime_type text not null,
   size_bytes bigint not null,
   download_count integer not null default 0,
   created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now())
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint files_resource_location_check check (
+    (
+      resource_kind = 'url'
+      and nullif(btrim(public_url), '') is not null
+    )
+    or
+    (
+      resource_kind = 'file'
+      and (
+        nullif(btrim(storage_path), '') is not null
+        or nullif(btrim(public_url), '') is not null
+      )
+    )
+  )
 );
 
 create unique index if not exists files_unique_url_resource_idx
