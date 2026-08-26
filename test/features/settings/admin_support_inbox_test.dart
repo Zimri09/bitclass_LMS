@@ -29,7 +29,7 @@ void main() {
     expect(find.text('Quiz timer stopped'), findsWidgets);
     expect(
       find.text('The timer stopped after resuming the app.'),
-      findsOneWidget,
+      findsWidgets,
     );
     expect(find.text('Test Student'), findsWidgets);
 

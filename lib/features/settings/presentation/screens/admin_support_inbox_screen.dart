@@ -374,6 +374,7 @@ class _FilterBar extends StatelessWidget {
           onSelectionChanged: (selection) => onTypeChanged(selection.first),
         );
         final statusControl = DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: statusFilter?.databaseValue ?? 'all',
           decoration: const InputDecoration(labelText: 'Status'),
           items: [
@@ -574,6 +575,7 @@ class _RequestDetail extends StatelessWidget {
               width: 150,
               child: DropdownButtonFormField<SupportRequestStatus>(
                 key: ValueKey('${request.id}-${request.status.databaseValue}'),
+                isExpanded: true,
                 initialValue: request.status,
                 decoration: const InputDecoration(labelText: 'Status'),
                 items: SupportRequestStatus.values
