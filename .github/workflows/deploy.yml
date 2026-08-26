@@ -30,13 +30,51 @@ jobs:
 
       # 4. Build for web
       - name: Build web app
-        run: flutter build web --release --base-href /
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          # Release builds fail closed without production dart-defines.
+          # Fall back to the checked-in development project when deploy secrets
+          # are not set so the FTP host matches local `flutter run` behavior.
+          URL="${SUPABASE_URL:-https://ksrverpyybrwpoocbvqx.supabase.co}"
+          KEY="${SUPABASE_PUBLISHABLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzcnZlcnB5eWJyd3Bvb2NidnF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NzIxODUsImV4cCI6MjA5OTA0ODE4NX0.cJkIjJyDpm8pouZI83WCF-bDggKSAqGvnHAmht3wO5E}"
+          SHA="$(git rev-parse --short HEAD)"
+          flutter build web --release --base-href / --pwa-strategy=none \
+            --dart-define=BITCLASS_ENV=production \
+            --dart-define=SUPABASE_URL="$URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$KEY" \
+            --dart-define=GIT_SHA="$SHA"
 
-      # 5. Copy .htaccess into the build output
-      - name: Copy .htaccess for SPA routing
-        run: cp web/.htaccess build/web/.htaccess
+      # 5. Copy .htaccess and bust CDN/browser caches of unhashed Flutter files
+      - name: Copy .htaccess and cache-bust entry files
+        run: |
+          cp web/.htaccess build/web/.htaccess
+          SHA="$(git rev-parse --short HEAD)"
+          echo "$SHA" > build/web/DEPLOY_SHA.txt
+          python3 - <<'PY'
+          import pathlib, os
+          sha = os.popen("git rev-parse --short HEAD").read().strip()
+          root = pathlib.Path("build/web")
+          index = root / "index.html"
+          text = index.read_text(encoding="utf-8")
+          text = text.replace(
+              'src="flutter_bootstrap.js"',
+              f'src="flutter_bootstrap.js?v={sha}"',
+          )
+          index.write_text(text, encoding="utf-8")
+          for name in ("flutter_bootstrap.js", "flutter.js"):
+              path = root / name
+              if path.exists():
+                  path.write_text(
+                      path.read_text(encoding="utf-8").replace(
+                          "main.dart.js", f"main.dart.js?v={sha}"
+                      ),
+                      encoding="utf-8",
+                  )
+          PY
 
-      # 6. Deploy to FTP server
+      # 6. Deploy to FTP
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -45,3 +83,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./build/web/
           server-dir: ./  # Change this if your server needs files in a subfolder like public_html/
+          timeout: 600000
