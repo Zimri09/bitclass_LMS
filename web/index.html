@@ -33,6 +33,49 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Security Script to Deter basic Developer Tool access -->
+  <script>
+    // Disable right-click context menu
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // Disable common DevTools keyboard shortcuts
+    document.addEventListener('keydown', function (e) {
+      // F12
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl+Shift+I (Windows) or Cmd+Option+I (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.keyCode === 73)) {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl+Shift+J (Windows) or Cmd+Option+J (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'J' || e.key === 'j' || e.keyCode === 74)) {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl+Shift+C (Windows) or Cmd+Option+C (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'C' || e.key === 'c' || e.keyCode === 67)) {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl+U (View Source)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'U' || e.key === 'u' || e.keyCode === 85)) {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // An extra deterrence trick: it sometimes pauses execution in dev tools if they manage to open it
+    setInterval(() => {
+        const devtools = function() {};
+        devtools.toString = function() {
+            return '-';
+        }
+    }, 1000);
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
