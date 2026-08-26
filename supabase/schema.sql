@@ -750,7 +750,7 @@ create table if not exists public.quizzes (
   question_count integer not null default 0,
   shuffle_questions boolean not null default false,
   shuffle_answers boolean not null default true,
-  show_correct_answers boolean not null default true,
+  show_correct_answers boolean not null default false,
   allow_retakes boolean not null default true,
   max_attempts integer not null default 0,
   is_published boolean not null default false,

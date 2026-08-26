@@ -14,7 +14,7 @@ class QuizModel extends Equatable {
   final int questionCount;
   final bool shuffleQuestions;
   final bool shuffleAnswers;
-  final bool showCorrectAnswers; // Show correct answers after submission
+  final bool showCorrectAnswers; // Legacy persisted setting; students never see keys.
   final bool allowRetakes;
   final int maxAttempts; // 0 = unlimited
   final bool isPublished;
@@ -33,7 +33,7 @@ class QuizModel extends Equatable {
     this.questionCount = 0,
     this.shuffleQuestions = false,
     this.shuffleAnswers = true,
-    this.showCorrectAnswers = true,
+    this.showCorrectAnswers = false,
     this.allowRetakes = true,
     this.maxAttempts = 0,
     this.isPublished = false,
@@ -75,7 +75,7 @@ class QuizModel extends Equatable {
       questionCount: map['questionCount'] as int? ?? 0,
       shuffleQuestions: map['shuffleQuestions'] as bool? ?? false,
       shuffleAnswers: map['shuffleAnswers'] as bool? ?? true,
-      showCorrectAnswers: map['showCorrectAnswers'] as bool? ?? true,
+      showCorrectAnswers: map['showCorrectAnswers'] as bool? ?? false,
       allowRetakes: map['allowRetakes'] as bool? ?? true,
       maxAttempts: map['maxAttempts'] as int? ?? 0,
       isPublished: map['isPublished'] as bool? ?? false,

@@ -89,7 +89,6 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   int _passingScore = _defaultPassingScore;
   bool _shuffleQuestions = false;
   bool _shuffleAnswers = true;
-  bool _showCorrectAnswers = true;
   bool _allowRetakes = true;
   int _maxAttempts = _defaultMaxAttempts;
   bool _isPublished = false;
@@ -128,7 +127,6 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
           _passingScore = quiz.passingScore;
           _shuffleQuestions = quiz.shuffleQuestions;
           _shuffleAnswers = quiz.shuffleAnswers;
-          _showCorrectAnswers = quiz.showCorrectAnswers;
           _allowRetakes = quiz.allowRetakes;
           _maxAttempts = quiz.maxAttempts;
           _isPublished = quiz.isPublished;
@@ -174,7 +172,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         questionCount: _questions.length,
         shuffleQuestions: _shuffleQuestions,
         shuffleAnswers: _shuffleAnswers,
-        showCorrectAnswers: _showCorrectAnswers,
+        showCorrectAnswers: false,
         allowRetakes: _allowRetakes,
         maxAttempts: _maxAttempts,
         isPublished: asDraft ? false : _isPublished,
@@ -762,14 +760,14 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
               activeThumbColor: AppColors.primary,
             ),
           ),
-          Material(
+          const Material(
             color: Colors.transparent,
-            child: SwitchListTile(
-              title: const Text('Show Correct Answers'),
-              subtitle: const Text('Display correct answers after submission'),
-              value: _showCorrectAnswers,
-              onChanged: (value) => setState(() => _showCorrectAnswers = value),
-              activeThumbColor: AppColors.primary,
+            child: ListTile(
+              leading: Icon(Icons.lock_outline),
+              title: Text('Student result privacy'),
+              subtitle: Text(
+                'Students only see Correct or Incorrect. Answer keys remain available to instructors.',
+              ),
             ),
           ),
           Material(

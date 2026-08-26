@@ -1212,6 +1212,7 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget _buildQuizResults(BuildContext context, QuizCompleted state) {
     final attempt = state.attempt;
     final passed = attempt.passed;
+    final canReviewAnswers = _isInstructor;
     final isMobile = MediaQuery.sizeOf(context).width < 600;
     final padding = isMobile ? 16.0 : 24.0;
 
@@ -1331,19 +1332,21 @@ class _QuizScreenState extends State<QuizScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Question review
-          if (state.quiz.showCorrectAnswers) ...[
-            Text(
-              'Question Review',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
+          // Student results intentionally omit prompts, responses, and keys.
+          Text(
+            'Question Review',
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
-            const SizedBox(height: 16),
-            ...state.questions.map((q) => _buildQuestionReview(q, attempt)),
-          ],
+          ),
+          const SizedBox(height: 16),
+          ...state.questions.indexed.map(
+            (item) => canReviewAnswers
+                ? _buildInstructorQuestionReview(item.$2, attempt)
+                : _buildStudentQuestionResult(item.$1, item.$2, attempt),
+          ),
 
           const SizedBox(height: 24),
 
@@ -1398,7 +1401,59 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
-  Widget _buildQuestionReview(
+  Widget _buildStudentQuestionResult(
+    int questionIndex,
+    QuestionModel question,
+    QuizAttemptModel attempt,
+  ) {
+    final isCorrect = attempt.answers[question.id]?.isCorrect ?? false;
+    final status = isCorrect ? 'Correct' : 'Incorrect';
+    final statusColor = isCorrect ? AppColors.success : AppColors.error;
+
+    return Semantics(
+      label: 'Question ${questionIndex + 1}: $status',
+      child: Container(
+        key: ValueKey('student-quiz-result-${question.id}'),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isCorrect ? Icons.check_circle : Icons.cancel,
+              color: statusColor,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Question ${questionIndex + 1}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            Text(
+              status,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: statusColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstructorQuestionReview(
     QuestionModel question,
     QuizAttemptModel attempt,
   ) {

@@ -135,7 +135,7 @@ class QuizRepository {
       questionCount: 5,
       shuffleQuestions: true,
       shuffleAnswers: true,
-      showCorrectAnswers: true,
+      showCorrectAnswers: false,
       allowRetakes: true,
       maxAttempts: 3,
       isPublished: true,
@@ -642,9 +642,7 @@ class QuizRepository {
         isCorrect =
             answer.selectedAnswers.length == 1 &&
             question.correctAnswers.contains(answer.selectedAnswers.first);
-        feedback = isCorrect
-            ? 'Correct!'
-            : 'Incorrect. ${question.explanation ?? ''}';
+        feedback = isCorrect ? 'Correct!' : 'Incorrect.';
         break;
       case QuestionType.multipleSelect:
         final selectedSet = answer.selectedAnswers.toSet();
@@ -652,27 +650,21 @@ class QuizRepository {
         isCorrect =
             selectedSet.length == correctSet.length &&
             selectedSet.containsAll(correctSet);
-        feedback = isCorrect
-            ? 'Correct!'
-            : 'Incorrect. You needed to select: ${question.correctAnswers.length} options. ${question.explanation ?? ''}';
+        feedback = isCorrect ? 'Correct!' : 'Incorrect.';
         break;
       case QuestionType.shortAnswer:
         final userText = answer.textAnswer?.trim().toLowerCase() ?? '';
         isCorrect = question.correctAnswers.any(
           (a) => a.toLowerCase() == userText,
         );
-        feedback = isCorrect
-            ? 'Correct!'
-            : 'Incorrect. Expected: ${question.correctAnswers.join(' or ')}';
+        feedback = isCorrect ? 'Correct!' : 'Incorrect.';
         break;
       case QuestionType.coding:
         final userCode = answer.codeAnswer?.trim() ?? '';
         isCorrect = question.correctAnswers.any(
           (a) => userCode.contains(a.trim()),
         );
-        feedback = isCorrect
-            ? 'Code looks correct!'
-            : 'Code needs revision. ${question.explanation ?? ''}';
+        feedback = isCorrect ? 'Correct!' : 'Incorrect.';
         break;
     }
 
