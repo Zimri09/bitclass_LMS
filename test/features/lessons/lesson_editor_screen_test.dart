@@ -40,6 +40,60 @@ void main() {
     expect(find.text('Code Tutorial'), findsNothing);
     expect(find.text('Quiz'), findsNothing);
   });
+
+  testWidgets(
+    'lesson content stays inside a scrollable editor on a narrow screen',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+
+      final repository = _FakeLessonRepository();
+      addTearDown(repository.dispose);
+
+      await tester.pumpWidget(
+        RepositoryProvider<LessonRepository>.value(
+          value: repository,
+          child: const MaterialApp(
+            home: LessonEditorScreen(courseId: 'course-1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Content'));
+      await tester.pumpAndSettle();
+
+      const longWord =
+          'https://example.com/a-very-long-path-that-must-wrap-within-the-editor';
+      final longContent = List.generate(
+        30,
+        (index) => '## Paragraph $index\n\n$longWord\nBody text for lesson $index.',
+      ).join('\n\n');
+      final editor = find.byKey(const Key('lesson-content-field'));
+
+      expect(editor, findsOneWidget);
+      await tester.enterText(editor, longContent);
+      await tester.pump();
+
+      final textField = tester.widget<TextField>(
+        find.descendant(of: editor, matching: find.byType(TextField)),
+      );
+      final editorRect = tester.getRect(editor);
+
+      expect(textField.controller?.text, longContent);
+      expect(textField.expands, isTrue);
+      expect(textField.maxLines, isNull);
+      expect(textField.textAlignVertical, TextAlignVertical.top);
+      expect(textField.keyboardType, TextInputType.multiline);
+      expect(editorRect.left, greaterThanOrEqualTo(0));
+      expect(editorRect.right, lessThanOrEqualTo(360));
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 class _FakeLessonRepository extends LessonRepository {

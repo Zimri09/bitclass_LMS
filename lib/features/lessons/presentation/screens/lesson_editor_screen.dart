@@ -129,6 +129,8 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
       final videoUrl = rawVideoUrl.isEmpty
           ? null
           : normalizeWebUrl(rawVideoUrl).toString();
+      final rawContent = _contentController.text;
+      final content = rawContent.trim().isEmpty ? null : rawContent;
 
       if (widget.lessonId == null) {
         final lesson = await repo.createLesson(
@@ -142,9 +144,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               : _descriptionController.text.trim(),
           order: _lesson?.order ?? 0,
           type: LessonType.text,
-          content: _contentController.text.trim().isEmpty
-              ? null
-              : _contentController.text.trim(),
+          content: content,
           videoUrl: videoUrl,
           durationMinutes: int.tryParse(_durationController.text) ?? 10,
           isPublished: _isPublished,
@@ -156,9 +156,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           'description': _descriptionController.text.trim().isEmpty
               ? null
               : _descriptionController.text.trim(),
-          'content': _contentController.text.trim().isEmpty
-              ? null
-              : _contentController.text.trim(),
+          'content': content,
           'videoUrl': videoUrl,
           'durationMinutes': int.tryParse(_durationController.text) ?? 10,
           'isPublished': _isPublished,
@@ -403,10 +401,16 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   }
 
   Widget _buildContentTab() {
-    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final screenSize = MediaQuery.sizeOf(context);
+    final isMobile = screenSize.width < 600;
     final padding = isMobile ? 16.0 : 24.0;
+    final editorHeight = (screenSize.height * (isMobile ? 0.48 : 0.55)).clamp(
+      320.0,
+      640.0,
+    );
 
-    return Padding(
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.all(padding),
       child: Container(
         padding: EdgeInsets.all(padding),
@@ -416,12 +420,16 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           border: Border.all(color: AppColors.border),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text('Lesson Content', style: AppTextStyles.h4),
-                const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -455,23 +463,35 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               ),
             ),
             const SizedBox(height: 16),
-            Expanded(
+            SizedBox(
+              height: editorHeight,
               child: Container(
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: AppColors.background,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: TextFormField(
+                  key: const Key('lesson-content-field'),
                   controller: _contentController,
                   decoration: InputDecoration(
                     hintText: _getContentPlaceholder(),
+                    hintMaxLines: 20,
+                    hintStyle: const TextStyle(height: 1.45),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     contentPadding: const EdgeInsets.all(16),
                   ),
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  scrollPhysics: const ClampingScrollPhysics(),
+                  smartDashesType: SmartDashesType.disabled,
+                  smartQuotesType: SmartQuotesType.disabled,
                   style: TextStyle(
                     fontFamily: _effectiveLessonType == LessonType.code
                         ? 'monospace'
@@ -479,9 +499,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                     color: _effectiveLessonType == LessonType.code
                         ? AppColors.primary
                         : AppColors.textPrimary,
-                    height: _effectiveLessonType == LessonType.code
-                        ? 1.4
-                        : null,
+                    height: 1.45,
                   ),
                   cursorColor: _effectiveLessonType == LessonType.code
                       ? AppColors.primary
