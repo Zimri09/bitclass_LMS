@@ -33,6 +33,11 @@ import '../../features/notifications/presentation/screens/screens.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/quizzes/presentation/screens/screens.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/settings/presentation/screens/about_bitclass_screen.dart';
+import '../../features/settings/presentation/screens/help_center_screen.dart';
+import '../../features/settings/presentation/screens/legal_document_screen.dart';
+import '../../features/settings/presentation/screens/support_request_screen.dart';
+import '../../features/settings/data/models/support_request.dart';
 import '../../shared/widgets/app_shell.dart';
 import 'app_routes.dart';
 import 'app_transitions.dart';
@@ -520,6 +525,64 @@ class AppRouter {
               context: context,
               state: state,
               child: const SettingsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsHelp,
+            name: 'settings-help',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const HelpCenterScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsFeedback,
+            name: 'settings-feedback',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const SupportRequestScreen(
+                type: SupportRequestType.feedback,
+              ),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsBugReport,
+            name: 'settings-bug-report',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const SupportRequestScreen(type: SupportRequestType.bug),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsAbout,
+            name: 'settings-about',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const AboutBitClassScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsTerms,
+            name: 'settings-terms',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const LegalDocumentScreen(document: LegalDocument.terms),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsPrivacy,
+            name: 'settings-privacy',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const LegalDocumentScreen(
+                document: LegalDocument.privacy,
+              ),
             ),
           ),
         ],

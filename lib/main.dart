@@ -30,6 +30,7 @@ import 'features/notifications/data/repositories/notification_repository.dart';
 import 'features/notifications/data/services/push_notification_service.dart';
 import 'features/quizzes/data/repositories/quiz_repository.dart';
 import 'features/settings/data/repositories/settings_repository.dart';
+import 'features/settings/data/repositories/support_repository.dart';
 import 'features/settings/presentation/cubit/settings_cubit.dart';
 
 /// Whether the app is running in demo mode
@@ -99,6 +100,7 @@ class _BitClassAppState extends State<BitClassApp> {
   late final FileRepository _fileRepository;
   late final GradeRepository _gradeRepository;
   late final SettingsRepository _settingsRepository;
+  late final SupportRepository _supportRepository;
   late final AuthBloc _authBloc;
   late final AppRouter _appRouter;
   late final PushNotificationService _pushNotificationService;
@@ -129,6 +131,7 @@ class _BitClassAppState extends State<BitClassApp> {
       assignmentRepository: _assignmentRepository,
     );
     _settingsRepository = SettingsRepository();
+    _supportRepository = SupportRepository();
     _authBloc = AuthBloc(authRepository: _authRepository);
     _appRouter = AppRouter(authBloc: _authBloc);
     _pushNotificationService = PushNotificationService(
@@ -205,6 +208,9 @@ class _BitClassAppState extends State<BitClassApp> {
         RepositoryProvider<GradeRepository>.value(value: _gradeRepository),
         RepositoryProvider<SettingsRepository>.value(
           value: _settingsRepository,
+        ),
+        RepositoryProvider<SupportRepository>.value(
+          value: _supportRepository,
         ),
       ],
       child: MultiBlocProvider(
