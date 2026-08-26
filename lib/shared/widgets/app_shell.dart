@@ -12,6 +12,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/notifications/data/models/notification_model.dart';
 import '../../features/notifications/data/repositories/notification_repository.dart';
+import '../../features/settings/data/repositories/support_repository.dart';
 import 'bitclass_logo.dart';
 
 /// Responsive breakpoints
@@ -78,6 +79,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Timer? _offlineRetryTimer;
   Timer? _badgeRefreshTimer;
   String? _badgeUserId;
+  bool _badgeIsAdmin = false;
   bool _badgeRefreshInFlight = false;
   _NavigationBadges _badges = const _NavigationBadges();
 
@@ -107,11 +109,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final authState = context.watch<AuthBloc>().state;
     final isInstructor =
         authState is AuthAuthenticated && authState.user.isStaff;
+    final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
     final isOffline = authState is AuthAuthenticated && authState.isOffline;
     _syncOfflineRetry(isOffline);
     _syncBadgeRefresh(
       authState is AuthAuthenticated ? authState.user.id : null,
       isOffline: isOffline,
+      isAdmin: isAdmin,
     );
     final width = MediaQuery.sizeOf(context).width;
     final currentPath = GoRouterState.of(context).matchedLocation;
@@ -156,17 +160,23 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
   }
 
-  void _syncBadgeRefresh(String? userId, {required bool isOffline}) {
+  void _syncBadgeRefresh(
+    String? userId, {
+    required bool isOffline,
+    required bool isAdmin,
+  }) {
     if (userId == null || isOffline) {
       _badgeRefreshTimer?.cancel();
       _badgeRefreshTimer = null;
       _badgeUserId = null;
+      _badgeIsAdmin = false;
       _badges = const _NavigationBadges();
       return;
     }
 
-    if (_badgeUserId != userId) {
+    if (_badgeUserId != userId || _badgeIsAdmin != isAdmin) {
       _badgeUserId = userId;
+      _badgeIsAdmin = isAdmin;
       _badges = const _NavigationBadges();
       unawaited(_refreshNavigationBadges());
     }
@@ -182,15 +192,32 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     _badgeRefreshInFlight = true;
     try {
-      final unreadTypes = await context
-          .read<NotificationRepository>()
-          .getUnreadTypes(userId);
+      final notificationRepository = context.read<NotificationRepository>();
+      SupportRepository? supportRepository;
+      if (_badgeIsAdmin) {
+        try {
+          supportRepository = context.read<SupportRepository>();
+        } catch (_) {
+          // Older widget hosts may not provide the admin support repository.
+        }
+      }
+
+      final unreadTypes = await notificationRepository.getUnreadTypes(userId);
+      var hasOpenSupportRequests = false;
+      if (supportRepository != null) {
+        try {
+          hasOpenSupportRequests = await supportRepository.hasOpenRequests();
+        } catch (_) {
+          // Notification indicators should still refresh if support is offline.
+        }
+      }
       if (!mounted || _badgeUserId != userId) return;
 
       final nextBadges = _NavigationBadges(
         todos: unreadTypes.any(_todoNotificationTypes.contains),
         grades: unreadTypes.any(_gradeNotificationTypes.contains),
         notifications: unreadTypes.isNotEmpty,
+        support: hasOpenSupportRequests,
       );
       if (nextBadges != _badges) {
         setState(() => _badges = nextBadges);
@@ -554,11 +581,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Widget _buildLogo() {
-    return const BitClassLogo(
-      size: 40,
-      borderRadius: 8,
-      showGlow: true,
-    );
+    return const BitClassLogo(size: 40, borderRadius: 8, showGlow: true);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -684,6 +707,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _NavBadge.todos => _badges.todos,
       _NavBadge.grades => _badges.grades,
       _NavBadge.notifications => _badges.notifications,
+      _NavBadge.support => _badges.support,
       null => false,
     };
   }
@@ -694,6 +718,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   /// Full list of nav items for sidebar / drawer
   List<_NavItem> _getAllNavItems(bool isInstructor, bool isOffline) {
+    final authState = context.read<AuthBloc>().state;
+    final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
     final classes = _NavItem(
       icon: Icons.dashboard_outlined,
       activeIcon: Icons.dashboard,
@@ -740,6 +766,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           label: 'My Grades',
           path: AppRoutes.grades,
           badge: _NavBadge.grades,
+        ),
+      ],
+      if (isAdmin) ...[
+        _NavItem.section('ADMIN'),
+        _NavItem(
+          icon: Icons.support_agent_outlined,
+          activeIcon: Icons.support_agent,
+          label: 'Support Inbox',
+          path: AppRoutes.adminSupport,
+          badge: _NavBadge.support,
         ),
       ],
       _NavItem.section('ACCOUNT'),
@@ -806,17 +842,19 @@ class _NavItem {
       isSectionHeader = true;
 }
 
-enum _NavBadge { todos, grades, notifications }
+enum _NavBadge { todos, grades, notifications, support }
 
 class _NavigationBadges {
   final bool todos;
   final bool grades;
   final bool notifications;
+  final bool support;
 
   const _NavigationBadges({
     this.todos = false,
     this.grades = false,
     this.notifications = false,
+    this.support = false,
   });
 
   @override
@@ -824,10 +862,11 @@ class _NavigationBadges {
       other is _NavigationBadges &&
       other.todos == todos &&
       other.grades == grades &&
-      other.notifications == notifications;
+      other.notifications == notifications &&
+      other.support == support;
 
   @override
-  int get hashCode => Object.hash(todos, grades, notifications);
+  int get hashCode => Object.hash(todos, grades, notifications, support);
 }
 
 class _NavigationIcon extends StatelessWidget {

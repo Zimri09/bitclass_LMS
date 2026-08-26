@@ -37,6 +37,7 @@ import '../../features/settings/presentation/screens/about_bitclass_screen.dart'
 import '../../features/settings/presentation/screens/help_center_screen.dart';
 import '../../features/settings/presentation/screens/legal_document_screen.dart';
 import '../../features/settings/presentation/screens/support_request_screen.dart';
+import '../../features/settings/presentation/screens/admin_support_inbox_screen.dart';
 import '../../features/settings/data/models/support_request.dart';
 import '../../shared/widgets/app_shell.dart';
 import 'app_routes.dart';
@@ -580,9 +581,16 @@ class AppRouter {
             pageBuilder: (context, state) => AppTransitions.slideFromRight(
               context: context,
               state: state,
-              child: const LegalDocumentScreen(
-                document: LegalDocument.privacy,
-              ),
+              child: const LegalDocumentScreen(document: LegalDocument.privacy),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.adminSupport,
+            name: 'admin-support',
+            pageBuilder: (context, state) => AppTransitions.fadeTransition(
+              context: context,
+              state: state,
+              child: const AdminSupportInboxScreen(),
             ),
           ),
         ],
@@ -624,6 +632,12 @@ class AppRouter {
 
     if (authState is AuthAuthenticated && !_canManageCourse(authState)) {
       if (_isInstructorOnlyPath(state.uri.path)) return AppRoutes.dashboard;
+    }
+
+    if (authState is AuthAuthenticated &&
+        !authState.user.isAdmin &&
+        state.uri.path == AppRoutes.adminSupport) {
+      return AppRoutes.dashboard;
     }
 
     if (authState is AuthAuthenticated &&

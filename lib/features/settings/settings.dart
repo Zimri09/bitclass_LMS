@@ -3,6 +3,7 @@ export 'data/repositories/settings_repository.dart';
 export 'data/repositories/support_repository.dart';
 export 'presentation/cubit/settings_cubit.dart';
 export 'presentation/screens/about_bitclass_screen.dart';
+export 'presentation/screens/admin_support_inbox_screen.dart';
 export 'presentation/screens/help_center_screen.dart';
 export 'presentation/screens/legal_document_screen.dart';
 export 'presentation/screens/settings_screen.dart';

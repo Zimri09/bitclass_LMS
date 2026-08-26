@@ -116,6 +116,12 @@ create table if not exists public.support_requests (
 create index if not exists support_requests_user_created_idx
   on public.support_requests (user_id, created_at desc);
 
+create index if not exists support_requests_created_at_idx
+  on public.support_requests (created_at desc);
+
+create index if not exists support_requests_status_created_idx
+  on public.support_requests (status, created_at desc);
+
 drop trigger if exists support_requests_updated_at on public.support_requests;
 create trigger support_requests_updated_at
 before update on public.support_requests
@@ -130,13 +136,22 @@ create policy "support requests: users create own"
     and status = 'open'
   );
 
-create policy "support requests: users view own"
+create policy "support requests: users view own or admins"
   on public.support_requests for select to authenticated
-  using (user_id = (select auth.uid()));
+  using (
+    user_id = (select auth.uid())
+    or (select private.is_admin())
+  );
+
+create policy "support requests: admins update status"
+  on public.support_requests for update to authenticated
+  using ((select private.is_admin()))
+  with check ((select private.is_admin()));
 
 revoke all on table public.support_requests from anon;
 revoke all on table public.support_requests from authenticated;
 grant select, insert on table public.support_requests to authenticated;
+grant update (status) on table public.support_requests to authenticated;
 
 alter table public.profiles
   add column if not exists first_name text,

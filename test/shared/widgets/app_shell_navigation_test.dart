@@ -64,6 +64,7 @@ void main() {
 
     expect(find.text('Work Queue'), findsOneWidget);
     expect(find.text('Create Course'), findsOneWidget);
+    expect(find.text('Support Inbox'), findsOneWidget);
     expect(find.text('To-do'), findsNothing);
     expect(find.text('My Grades'), findsNothing);
   });
@@ -121,6 +122,7 @@ void main() {
     await tester.tap(find.byTooltip('Open navigation'));
     await tester.pumpAndSettle();
     expect(find.text('Classes'), findsOneWidget);
+    expect(find.text('Support Inbox'), findsNothing);
     expect(
       find.ancestor(of: find.text('ACCOUNT'), matching: find.byType(InkWell)),
       findsNothing,

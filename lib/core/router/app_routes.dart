@@ -82,6 +82,9 @@ class AppRoutes {
   static const String settingsTerms = '/settings/terms';
   static const String settingsPrivacy = '/settings/privacy';
 
+  // Admin routes
+  static const String adminSupport = '/admin/support';
+
   // Helper methods to build paths with parameters
   static String courseDetailPath(String courseId) => '/courses/$courseId';
   static String lessonPath(String courseId, String lessonId) =>
