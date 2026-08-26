@@ -42,7 +42,8 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
 
   void _loadModulesAndLessons() {
     final authState = context.read<AuthBloc>().state;
-    final userId = authState is AuthAuthenticated &&
+    final userId =
+        authState is AuthAuthenticated &&
             authState.user.isStudent &&
             widget.showStudentProgress
         ? authState.user.id
@@ -129,33 +130,51 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
     final allLessons = lessonsByModule.values.expand((l) => l).toList();
 
     if (modules.isEmpty && allLessons.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundSecondary,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
                 Icons.school_outlined,
-                size: 48,
-                color: AppColors.textSecondary,
+                size: 22,
+                color: AppColors.primary,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'No content yet',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No lessons yet',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Course content is being prepared.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Course content is being prepared',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -169,9 +188,8 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.showHeader) ...[
-          // Syllabus header
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(bottom: 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -190,7 +208,7 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.2),
+                      color: AppColors.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
@@ -215,25 +233,31 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
               module,
               lessonsByModule[module.id] ?? [],
               progressByLesson,
+              showProgress,
             ),
           ),
         ],
 
         // Standalone lessons (not in any module)
         ...(lessonsByModule[''] ?? []).map(
-          (lesson) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Card(
-              color: AppColors.surface,
-              margin: const EdgeInsets.only(bottom: 8),
-              child: LessonTile(
-                title: lesson.title,
-                description: lesson.description,
-                durationMinutes: lesson.durationMinutes,
-                typeIcon: _getLessonTypeIcon(lesson.type),
-                isCompleted: progressByLesson[lesson.id]?.isCompleted == true,
-                onTap: () => _navigateToLesson(lesson.id),
-              ),
+          (lesson) => Card(
+            color: AppColors.backgroundSecondary,
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: AppColors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: LessonTile(
+              title: lesson.title,
+              description: lesson.description,
+              durationMinutes: lesson.durationMinutes,
+              typeIcon: _getLessonTypeIcon(lesson.type),
+              isCompleted:
+                  showProgress &&
+                  progressByLesson[lesson.id]?.isCompleted == true,
+              onTap: () => _navigateToLesson(lesson.id),
             ),
           ),
         ),
@@ -246,42 +270,43 @@ class _CourseSyllabusWidgetState extends State<CourseSyllabusWidget> {
     ModuleModel module,
     List<LessonModel> moduleLessons,
     Map<String, LessonProgressModel> progressByLesson,
+    bool showProgress,
   ) {
     final isExpanded = _expandedModules.contains(module.id);
     final completedCount = moduleLessons.where((lesson) {
       return progressByLesson[lesson.id]?.isCompleted == true;
     }).length;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: ModuleTile(
-        title: module.title,
-        description: module.description,
-        lessonCount: moduleLessons.length,
-        completedCount: completedCount,
-        isExpanded: isExpanded,
-        onExpand: () {
-          setState(() {
-            if (isExpanded) {
-              _expandedModules.remove(module.id);
-            } else {
-              _expandedModules.add(module.id);
-            }
-          });
-        },
-        lessons: moduleLessons
-            .map(
-              (lesson) => LessonTile(
-                title: lesson.title,
-                description: lesson.description,
-                durationMinutes: lesson.durationMinutes,
-                typeIcon: _getLessonTypeIcon(lesson.type),
-                isCompleted: progressByLesson[lesson.id]?.isCompleted == true,
-                onTap: () => _navigateToLesson(lesson.id),
-              ),
-            )
-            .toList(),
-      ),
+    return ModuleTile(
+      title: module.title,
+      description: module.description,
+      lessonCount: moduleLessons.length,
+      completedCount: completedCount,
+      isExpanded: isExpanded,
+      showProgress: showProgress,
+      onExpand: () {
+        setState(() {
+          if (isExpanded) {
+            _expandedModules.remove(module.id);
+          } else {
+            _expandedModules.add(module.id);
+          }
+        });
+      },
+      lessons: moduleLessons
+          .map(
+            (lesson) => LessonTile(
+              title: lesson.title,
+              description: lesson.description,
+              durationMinutes: lesson.durationMinutes,
+              typeIcon: _getLessonTypeIcon(lesson.type),
+              isCompleted:
+                  showProgress &&
+                  progressByLesson[lesson.id]?.isCompleted == true,
+              onTap: () => _navigateToLesson(lesson.id),
+            ),
+          )
+          .toList(),
     );
   }
 

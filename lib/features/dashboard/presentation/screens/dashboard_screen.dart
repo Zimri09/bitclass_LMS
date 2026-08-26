@@ -8,10 +8,10 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../../../assignments/data/models/assignment_model.dart';
 import '../../../assignments/data/repositories/assignment_repository.dart';
+import '../../../auth/data/models/user_model.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../courses/data/repositories/course_repository.dart';
 import '../../../grades/data/repositories/grade_repository.dart';
-import '../../../notifications/data/models/notification_model.dart';
 import '../../../notifications/data/repositories/notification_repository.dart';
 import '../cubit/dashboard_cubit.dart';
 
@@ -35,7 +35,7 @@ class DashboardScreen extends StatelessWidget {
                         .read<NotificationRepository>(),
                   )..loadDashboard(
                     userId: state.user.id,
-                    isInstructor: state.user.role == 'instructor',
+                    isInstructor: state.user.isStaff,
                   ),
               child: _DashboardContent(user: state.user),
             );
@@ -48,13 +48,13 @@ class DashboardScreen extends StatelessWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  final dynamic user;
+  final UserModel user;
 
   const _DashboardContent({required this.user});
 
   @override
   Widget build(BuildContext context) {
-    final isInstructor = user.role == 'instructor';
+    final isInstructor = user.isStaff;
 
     return BlocBuilder<DashboardCubit, DashboardState>(
       builder: (context, dashState) {
@@ -241,256 +241,6 @@ class _DashboardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildQuickActions(BuildContext context, bool isInstructor) {
-    final actions = isInstructor
-        ? [
-            _QuickAction(
-              icon: Icons.add_box,
-              label: 'Create Course',
-              color: AppColors.primary,
-              onTap: () {
-                context.push('/courses/create');
-              },
-            ),
-            _QuickAction(
-              icon: Icons.grading,
-              label: 'Grade Submissions',
-              color: AppColors.warning,
-              onTap: () {
-                context.push('/my-courses');
-              },
-            ),
-            _QuickAction(
-              icon: Icons.assignment_outlined,
-              label: 'Manage Assignments',
-              color: AppColors.info,
-              onTap: () {
-                context.push('/my-courses');
-              },
-            ),
-            _QuickAction(
-              icon: Icons.campaign,
-              label: 'Announcement',
-              color: AppColors.secondary,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Announcements coming soon'),
-                    backgroundColor: AppColors.info,
-                  ),
-                );
-              },
-            ),
-          ]
-        : [
-            _QuickAction(
-              icon: Icons.explore,
-              label: 'Browse Courses',
-              color: AppColors.primary,
-              onTap: () {
-                context.push('/courses');
-              },
-            ),
-            _QuickAction(
-              icon: Icons.play_circle,
-              label: 'Continue Learning',
-              color: AppColors.secondary,
-              onTap: () {
-                context.push('/enrolled-courses');
-              },
-            ),
-            _QuickAction(
-              icon: Icons.forum,
-              label: 'Discussions',
-              color: AppColors.info,
-              onTap: () {
-                context.push('/courses');
-              },
-            ),
-          ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 400;
-
-        if (isNarrow) {
-          return Column(
-            children: actions
-                .map(
-                  (action) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: GlowCard(
-                      glowColor: action.color,
-                      glowIntensity: 0.1,
-                      onTap: action.onTap,
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: action.color.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              action.icon,
-                              color: action.color,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              action.label,
-                              style: AppTextStyles.bodyMedium,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          );
-        }
-
-        return Row(
-          children: actions
-              .map(
-                (action) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: GlowCard(
-                      glowColor: action.color,
-                      glowIntensity: 0.1,
-                      onTap: action.onTap,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: action.color.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(action.icon, color: action.color),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            action.label,
-                            style: AppTextStyles.bodyMedium,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
-    );
-  }
-
-  Widget _buildRecentActivity(BuildContext context, DashboardState dashState) {
-    if (dashState.status == DashboardStatus.loading ||
-        dashState.status == DashboardStatus.initial) {
-      return GlowCard(
-        glowColor: AppColors.primary,
-        glowIntensity: 0.05,
-        isHoverable: false,
-        padding: EdgeInsets.all(24),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (dashState.recentActivity.isEmpty) {
-      return GlowCard(
-        glowColor: AppColors.primary,
-        glowIntensity: 0.05,
-        isHoverable: false,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Icon(Icons.history, color: AppColors.textMuted, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'No recent activity',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Your learning activities will appear here',
-              style: AppTextStyles.bodySmall,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return GlowCard(
-      glowColor: AppColors.primary,
-      glowIntensity: 0.05,
-      isHoverable: false,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        children: dashState.recentActivity.map((notification) {
-          return _buildActivityTile(context, notification);
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildActivityTile(
-    BuildContext context,
-    NotificationModel notification,
-  ) {
-    final icon = switch (notification.type) {
-      NotificationType.assignmentDue => Icons.assignment_late,
-      NotificationType.quizGraded => Icons.quiz,
-      NotificationType.discussionReply => Icons.forum,
-      NotificationType.announcement => Icons.campaign,
-      NotificationType.courseUpdate => Icons.school,
-      _ => Icons.notifications,
-    };
-
-    final color = switch (notification.type) {
-      NotificationType.assignmentDue => AppColors.warning,
-      NotificationType.quizGraded => AppColors.success,
-      NotificationType.discussionReply => AppColors.info,
-      NotificationType.announcement => AppColors.secondary,
-      _ => AppColors.primary,
-    };
-
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: color.withValues(alpha: 0.15),
-        child: Icon(icon, color: color, size: 20),
-      ),
-      title: Text(
-        notification.title,
-        style: AppTextStyles.bodyMedium.copyWith(
-          fontWeight: notification.isRead ? FontWeight.normal : FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(notification.body, style: AppTextStyles.bodySmall),
-      trailing: Text(
-        _formatTimeAgo(notification.createdAt),
-        style: AppTextStyles.caption,
-      ),
-      onTap: notification.actionUrl != null
-          ? () => context.push(notification.actionUrl!)
-          : null,
-    );
-  }
-
   Widget _buildUpcomingDeadlines(
     BuildContext context,
     DashboardState dashState,
@@ -585,14 +335,6 @@ class _DashboardContent extends StatelessWidget {
       },
     );
   }
-
-  String _formatTimeAgo(DateTime dateTime) {
-    final diff = DateTime.now().difference(dateTime);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return DateFormat.MMMd().format(dateTime);
-  }
 }
 
 class _StatItem {
@@ -606,19 +348,5 @@ class _StatItem {
     required this.label,
     required this.value,
     required this.color,
-  });
-}
-
-class _QuickAction {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
   });
 }

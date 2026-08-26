@@ -58,4 +58,35 @@ void main() {
       {'role_course_admin', 'course_course_id'},
     );
   });
+
+  test(
+    'instructor topics include submission and discussion activity types',
+    () {
+      final settings = NotificationSettings.defaults('instructor-1').copyWith(
+        typeSettings: {
+          for (final type in NotificationType.values) type: false,
+          NotificationType.assignmentSubmitted: true,
+          NotificationType.quizSubmitted: true,
+          NotificationType.discussionActivity: true,
+          NotificationType.enrollment: true,
+        },
+      );
+
+      expect(
+        PushTopicPlanner.topicsFor(
+          role: 'instructor',
+          courseIds: const [courseId],
+          settings: settings,
+        ),
+        {
+          'role_instructor',
+          'course_$courseId',
+          'type_assignmentsubmitted',
+          'type_quizsubmitted',
+          'type_discussionactivity',
+          'type_enrollment',
+        },
+      );
+    },
+  );
 }

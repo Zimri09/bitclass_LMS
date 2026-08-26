@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -37,8 +38,7 @@ class _FileListScreenState extends State<FileListScreen> {
 
   bool get _canUpload {
     final authState = context.read<AuthBloc>().state;
-    return authState is AuthAuthenticated &&
-        authState.user.role == 'instructor';
+    return authState is AuthAuthenticated && authState.user.isStaff;
   }
 
   @override
@@ -184,29 +184,37 @@ class _FileListScreenState extends State<FileListScreen> {
             },
           ),
           const SizedBox(height: 12),
-          // Filter chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildFilterChip(null, 'All', Icons.folder),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  FileType.document,
-                  'Documents',
-                  Icons.description,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(FileType.image, 'Images', Icons.image),
-                const SizedBox(width: 8),
-                _buildFilterChip(FileType.video, 'Videos', Icons.videocam),
-                const SizedBox(width: 8),
-                _buildFilterChip(FileType.code, 'Code', Icons.code),
-                const SizedBox(width: 8),
-                _buildFilterChip(FileType.archive, 'Archives', Icons.archive),
-              ],
-            ),
-          ),
+          _buildFilterBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterBar() {
+    final chips = <Widget>[
+      _buildFilterChip(null, 'All', Icons.folder),
+      _buildFilterChip(FileType.document, 'Documents', Icons.description),
+      _buildFilterChip(FileType.image, 'Images', Icons.image),
+      _buildFilterChip(FileType.video, 'Videos', Icons.videocam),
+      _buildFilterChip(FileType.code, 'Code', Icons.code),
+      _buildFilterChip(FileType.archive, 'Archives', Icons.archive),
+    ];
+
+    if (kIsWeb) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < chips.length; index++) ...[
+            if (index > 0) const SizedBox(width: 8),
+            chips[index],
+          ],
         ],
       ),
     );
@@ -214,7 +222,7 @@ class _FileListScreenState extends State<FileListScreen> {
 
   Widget _buildFilterChip(FileType? type, String label, IconData icon) {
     final isSelected = _selectedFilter == type;
-    return FilterChip(
+    return ChoiceChip(
       selected: isSelected,
       label: Row(
         mainAxisSize: MainAxisSize.min,
@@ -233,16 +241,18 @@ class _FileListScreenState extends State<FileListScreen> {
       ),
       selectedColor: AppColors.primary,
       backgroundColor: AppColors.surfaceLight,
-      checkmarkColor: AppColors.background,
       showCheckmark: false,
-      onSelected: (selected) {
-        setState(() {
-          _selectedFilter = selected ? type : null;
-        });
-        context.read<FileBloc>().add(
-          FilterFilesByType(courseId: widget.courseId, type: _selectedFilter),
-        );
-      },
+      onSelected: (_) => _selectFilter(type),
+    );
+  }
+
+  void _selectFilter(FileType? type) {
+    setState(() {
+      _selectedFilter = type;
+      _searchController.clear();
+    });
+    context.read<FileBloc>().add(
+      FilterFilesByType(courseId: widget.courseId, type: type),
     );
   }
 
@@ -319,9 +329,7 @@ class _FileListScreenState extends State<FileListScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  file.isExternalLink
-                      ? Icons.link
-                      : _getTypeIcon(file.type),
+                  file.isExternalLink ? Icons.link : _getTypeIcon(file.type),
                   color: _getTypeColor(file.type),
                   size: 24,
                 ),
@@ -676,10 +684,7 @@ class _FileListScreenState extends State<FileListScreen> {
   Future<void> _openExternalLink(CourseFile file) async {
     try {
       final uri = normalizeWebUrl(file.url);
-      final opened = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened) throw StateError('No application accepted this URL.');
     } catch (_) {
       if (!mounted) return;

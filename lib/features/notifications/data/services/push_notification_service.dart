@@ -249,7 +249,7 @@ class PushNotificationService with WidgetsBindingObserver {
           .toList();
     }
 
-    if (role == 'instructor') {
+    if (role == 'instructor' || role == 'admin') {
       final rows = await _supabase
           .from('courses')
           .select('id')

@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -28,8 +29,18 @@ class EmailOtpConfigurationException implements Exception {
       'Email OTP verification is not enabled. Please contact support.';
 }
 
+/// Thrown when Google authentication uses an account outside BISU.
+class GoogleDomainNotAllowedException implements Exception {
+  const GoogleDomainNotAllowedException();
+
+  @override
+  String toString() =>
+      'Use your verified @bisu.edu.ph Google account to continue.';
+}
+
 /// Repository handling authentication and user profile operations
 class AuthRepository {
+  static const String googleStudentEmailDomain = 'bisu.edu.ph';
   static const String _profilesTable = 'profiles';
   static const String _avatarsBucket = 'avatars';
   static const String _authFlowBox = 'auth_flow';
@@ -141,6 +152,43 @@ class AuthRepository {
       throw _handleAuthException(e.message);
     } on PostgrestException catch (e) {
       throw _handlePostgrestException(e);
+    }
+  }
+
+  /// Starts Google OAuth. New Google accounts are always student accounts.
+  ///
+  /// A real OAuth flow completes through the configured deep link, so this
+  /// returns null after opening Google. Demo mode returns a user immediately.
+  Future<UserModel?> signInWithGoogle() async {
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _demoUser = UserModel(
+        id: _demoStudentUserId,
+        email: 'student@$googleStudentEmailDomain',
+        firstName: 'Demo',
+        lastName: 'Student',
+        role: 'student',
+        createdAt: DateTime.now(),
+      );
+      return _demoUser;
+    }
+
+    try {
+      final launched = await _supabase!.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : EnvironmentConfig.authRedirectUrl,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw Exception(
+          'Google sign-in could not be opened. Please try again.',
+        );
+      }
+      return null;
+    } on AuthException catch (error) {
+      throw _handleAuthException(error.message);
     }
   }
 
@@ -289,7 +337,7 @@ class AuthRepository {
           user.emailConfirmedAt == null) {
         throw Exception('Email verification did not create a valid session.');
       }
-      return _resolveProfileForUser(
+      return await _resolveProfileForUser(
         user,
         defaultRole: _safeSelfRegisteredRole(user.userMetadata?['role']),
       );
@@ -402,6 +450,7 @@ class AuthRepository {
 
     final user = currentUser;
     if (user == null || user.emailConfirmedAt == null) return null;
+    _ensureAllowedGoogleUser(user);
     if (await _hasPendingRecovery(user.id)) return null;
 
     final cached = await _readCachedProfile(user.id);
@@ -554,6 +603,7 @@ class AuthRepository {
     User user, {
     required String defaultRole,
   }) async {
+    _ensureAllowedGoogleUser(user);
     for (var attempt = 0; attempt < 5; attempt++) {
       final profile = await getCurrentUserProfile();
       if (profile != null) {
@@ -643,6 +693,82 @@ class AuthRepository {
 
   static bool _isValidEmail(String email) =>
       RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+  /// Uses an exact domain comparison instead of a suffix check.
+  static bool isAllowedGoogleStudentEmail(String? email) {
+    if (email == null) return false;
+    final parts = email.trim().toLowerCase().split('@');
+    return parts.length == 2 &&
+        parts.first.isNotEmpty &&
+        parts.last == googleStudentEmailDomain;
+  }
+
+  static bool _hasGoogleIdentity(User user) {
+    final provider = user.appMetadata['provider'];
+    final providers = user.appMetadata['providers'];
+    return provider == 'google' ||
+        (providers is List && providers.contains('google')) ||
+        (user.identities?.any((identity) => identity.provider == 'google') ??
+            false);
+  }
+
+  void _ensureAllowedGoogleUser(User user) {
+    final primaryProvider = user.appMetadata['provider'];
+    final accessToken = _supabase?.auth.currentSession?.accessToken;
+    if (sessionUsesGoogleAuthentication(
+          accessToken: accessToken,
+          hasGoogleIdentity: _hasGoogleIdentity(user),
+          primaryProvider: primaryProvider is String ? primaryProvider : null,
+        ) &&
+        !isAllowedGoogleStudentEmail(user.email)) {
+      throw const GoogleDomainNotAllowedException();
+    }
+  }
+
+  /// Determines whether the current session was authenticated through Google.
+  ///
+  /// Linked identities describe every method available to an account, while
+  /// the JWT `amr` claim records the method used for this session. This keeps
+  /// password sign-in working for existing accounts that also have Google
+  /// linked.
+  @visibleForTesting
+  static bool sessionUsesGoogleAuthentication({
+    required String? accessToken,
+    required bool hasGoogleIdentity,
+    String? primaryProvider,
+  }) {
+    if (!hasGoogleIdentity) return false;
+
+    final methods = _authenticationMethods(accessToken);
+    if (methods.isNotEmpty) return methods.contains('oauth');
+
+    return primaryProvider == 'google';
+  }
+
+  static Set<String> _authenticationMethods(String? accessToken) {
+    if (accessToken == null || accessToken.isEmpty) return const {};
+
+    try {
+      final parts = accessToken.split('.');
+      if (parts.length != 3) return const {};
+
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      if (payload is! Map<String, dynamic>) return const {};
+
+      final authenticationMethods = payload['amr'];
+      if (authenticationMethods is! List) return const {};
+
+      return authenticationMethods
+          .whereType<Map>()
+          .map((entry) => entry['method'])
+          .whereType<String>()
+          .toSet();
+    } on FormatException {
+      return const {};
+    }
+  }
 
   static String _safeSelfRegisteredRole(Object? role) =>
       role == 'instructor' ? 'instructor' : 'student';

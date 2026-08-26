@@ -110,6 +110,18 @@ class QuizRepository {
   QuizAttemptModel _attemptFromRow(Map<String, dynamic> row) =>
       QuizAttemptModel.fromMap(_rowToAttemptMap(row));
 
+  Map<String, dynamic> _singleRpcRow(dynamic data) {
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    if (data is List && data.length == 1 && data.first is Map) {
+      return Map<String, dynamic>.from(data.first as Map);
+    }
+    throw const FormatException(
+      'The server returned an invalid quiz response.',
+    );
+  }
+
   void _initDemoData() {
     _quizzes['quiz-flutter-basics'] = QuizModel(
       id: 'quiz-flutter-basics',
@@ -278,41 +290,29 @@ class QuizRepository {
     }
 
     try {
-      final rows = await _supabase!
-          .from(_questionsTable)
-          .select()
-          .eq('quiz_id', quizId)
-          .order('sort_order', ascending: true);
+      final rows = await _supabase!.rpc(
+        'get_quiz_questions',
+        params: {'p_quiz_id': quizId},
+      );
 
       return (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()
           .map(_questionFromRow)
           .toList();
-    } catch (_) {
+    } catch (error) {
+      if (kDebugMode) {
+        log('Error fetching quiz questions: $error', name: 'QuizRepository');
+      }
       return [];
     }
   }
 
   Future<QuestionModel?> getQuestion(String quizId, String questionId) async {
-    if (EnvironmentConfig.isDemoMode) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      final questions = _questionsByQuiz[quizId] ?? [];
-      try {
-        return questions.firstWhere((q) => q.id == questionId);
-      } catch (_) {
-        return null;
-      }
-    }
-
     try {
-      final row = await _supabase!
-          .from(_questionsTable)
-          .select()
-          .eq('quiz_id', quizId)
-          .eq('id', questionId)
-          .maybeSingle();
-      if (row == null) return null;
-      return _questionFromRow(row);
+      final questions = EnvironmentConfig.isDemoMode
+          ? (_questionsByQuiz[quizId] ?? const <QuestionModel>[])
+          : await getQuestions(quizId);
+      return questions.firstWhere((question) => question.id == questionId);
     } catch (_) {
       return null;
     }
@@ -413,6 +413,14 @@ class QuizRepository {
     required String userId,
     String? enrollmentId,
   }) async {
+    if (!EnvironmentConfig.isDemoMode) {
+      final data = await _supabase!.rpc(
+        'start_quiz_attempt',
+        params: {'p_quiz_id': quizId, 'p_enrollment_id': enrollmentId},
+      );
+      return _attemptFromRow(_singleRpcRow(data));
+    }
+
     final quiz = await getQuiz(quizId);
     if (quiz == null) {
       throw Exception('Quiz not found');
@@ -434,32 +442,9 @@ class QuizRepository {
       totalPoints: quiz.totalPoints,
     );
 
-    if (EnvironmentConfig.isDemoMode) {
-      _attemptsByUser.putIfAbsent(userId, () => []);
-      _attemptsByUser[userId]!.add(attempt);
-      return attempt;
-    }
-
-    final inserted = await _supabase!
-        .from(_attemptsTable)
-        .insert({
-          'quiz_id': attempt.quizId,
-          'user_id': attempt.userId,
-          'enrollment_id': attempt.enrollmentId,
-          'status': attempt.status.name,
-          'attempt_number': attempt.attemptNumber,
-          'started_at': attempt.startedAt.toIso8601String(),
-          'score': attempt.score,
-          'total_points': attempt.totalPoints,
-          'percentage': attempt.percentage,
-          'passed': attempt.passed,
-          'time_spent_seconds': attempt.timeSpentSeconds,
-          'answers': attempt.answers.map((k, v) => MapEntry(k, v.toMap())),
-        })
-        .select()
-        .single();
-
-    return _attemptFromRow(inserted);
+    _attemptsByUser.putIfAbsent(userId, () => []);
+    _attemptsByUser[userId]!.add(attempt);
+    return attempt;
   }
 
   Future<List<QuizAttemptModel>> getAttempts({
@@ -546,6 +531,20 @@ class QuizRepository {
     String? textAnswer,
     String? codeAnswer,
   }) async {
+    if (!EnvironmentConfig.isDemoMode) {
+      final data = await _supabase!.rpc(
+        'save_quiz_answer',
+        params: {
+          'p_attempt_id': attemptId,
+          'p_question_id': questionId,
+          'p_selected_answers': selectedAnswers ?? const <String>[],
+          'p_text_answer': textAnswer,
+          'p_code_answer': codeAnswer,
+        },
+      );
+      return _attemptFromRow(_singleRpcRow(data));
+    }
+
     final attempt = await getAttempt(attemptId);
     if (attempt == null) {
       throw Exception('Attempt not found');
@@ -563,24 +562,19 @@ class QuizRepository {
     updatedAnswers[questionId] = answer;
     final updatedAttempt = attempt.copyWith(answers: updatedAnswers);
 
-    if (EnvironmentConfig.isDemoMode) {
-      _updateAttempt(updatedAttempt);
-      return updatedAttempt;
-    }
-
-    await _supabase!
-        .from(_attemptsTable)
-        .update({
-          'answers': updatedAttempt.answers.map(
-            (k, v) => MapEntry(k, v.toMap()),
-          ),
-        })
-        .eq('id', attemptId);
-
+    _updateAttempt(updatedAttempt);
     return updatedAttempt;
   }
 
   Future<QuizAttemptModel> submitAttempt(String attemptId) async {
+    if (!EnvironmentConfig.isDemoMode) {
+      final data = await _supabase!.rpc(
+        'submit_quiz_attempt',
+        params: {'p_attempt_id': attemptId},
+      );
+      return _attemptFromRow(_singleRpcRow(data));
+    }
+
     var attempt = await getAttempt(attemptId);
     if (attempt == null) {
       throw Exception('Attempt not found');
@@ -631,27 +625,7 @@ class QuizRepository {
       answers: gradedAnswers,
     );
 
-    if (EnvironmentConfig.isDemoMode) {
-      _updateAttempt(gradedAttempt);
-      return gradedAttempt;
-    }
-
-    await _supabase!
-        .from(_attemptsTable)
-        .update({
-          'status': gradedAttempt.status.name,
-          'submitted_at': gradedAttempt.submittedAt?.toIso8601String(),
-          'graded_at': gradedAttempt.gradedAt?.toIso8601String(),
-          'score': gradedAttempt.score,
-          'percentage': gradedAttempt.percentage,
-          'passed': gradedAttempt.passed,
-          'time_spent_seconds': gradedAttempt.timeSpentSeconds,
-          'answers': gradedAttempt.answers.map(
-            (k, v) => MapEntry(k, v.toMap()),
-          ),
-        })
-        .eq('id', attemptId);
-
+    _updateAttempt(gradedAttempt);
     return gradedAttempt;
   }
 

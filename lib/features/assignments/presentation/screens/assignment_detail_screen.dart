@@ -45,8 +45,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
   }
 
   bool get _isInstructorView {
-    final role = _authenticatedUser?.user.role;
-    return role == 'instructor' || role == 'admin';
+    return _authenticatedUser?.user.isStaff ?? false;
   }
 
   String get _userId => _authenticatedUser?.user.id ?? 'demo-user-1';

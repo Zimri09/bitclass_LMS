@@ -1,3 +1,16 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        // Flutter 3.47+ requires Kotlin 2.3.20, so override the compiler used
+        // by AGP's built-in Kotlin support.
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
+    }
+}
+
 allprojects {
     repositories {
         google()

@@ -1,8 +1,6 @@
-import 'dart:io' as io show File;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' as fp;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +16,11 @@ import '../../data/repositories/file_repository.dart';
 import '../bloc/bloc.dart';
 
 enum _UploadSource { device, url }
+
+String _fileExtension(String name) {
+  final dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+}
 
 /// Screen for uploading files to a course
 class UploadFileScreen extends StatefulWidget {
@@ -60,32 +63,20 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
     setState(() => _isPickingFile = true);
 
     try {
-      final result = await fp.FilePicker.platform.pickFiles(
-        type: fp.FileType.any,
-        withData: true, // loads bytes on web & mobile; optional on desktop
-      );
+      final file = await fp.FilePicker.pickFile(type: fp.FileType.any);
 
-      if (result == null || result.files.isEmpty) return;
+      if (file == null) return;
 
-      final file = result.files.first;
-      if (file.size > _maxUploadBytes) {
+      final fileSize = await file.length();
+      if (fileSize > _maxUploadBytes) {
         _showError(
           'This file is larger than 50 MB. Compress it or increase the '
           'Supabase Storage limit before uploading.',
         );
         return;
       }
-      Uint8List? bytes = file.bytes;
-
-      // On desktop (non-web), file_picker may not populate `bytes` even with
-      // withData:true. Fall back to reading from the path via dart:io.
-      if (bytes == null && !kIsWeb && file.path != null) {
-        try {
-          bytes = await io.File(file.path!).readAsBytes();
-        } catch (_) {}
-      }
-
-      if (bytes == null) {
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
         _showError('Could not read the selected file. Please try again.');
         return;
       }
@@ -107,7 +98,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
     return dot > 0 ? name.substring(0, dot) : name;
   }
 
-  String get _ext => (_pickedFile?.extension ?? '').toLowerCase();
+  String get _ext => _fileExtension(_pickedFile?.name ?? '');
 
   String get _fullFileName {
     final base = _fileNameController.text.trim();
@@ -179,9 +170,8 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   void _uploadFile(BuildContext blocContext) {
     if (_isUploading) return;
     final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthAuthenticated ||
-        authState.user.role != 'instructor') {
-      _showError('Only instructors can upload files.');
+    if (authState is! AuthAuthenticated || !authState.user.isStaff) {
+      _showError('Only staff can upload files.');
       return;
     }
 
@@ -224,9 +214,8 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   Future<void> _saveUrlResource() async {
     if (_isUploading) return;
     final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthAuthenticated ||
-        authState.user.role != 'instructor') {
-      _showError('Only instructors can add learning materials.');
+    if (authState is! AuthAuthenticated || !authState.user.isStaff) {
+      _showError('Only staff can add learning materials.');
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -283,8 +272,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
-    final canUpload =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+    final canUpload = authState is AuthAuthenticated && authState.user.isStaff;
 
     if (!canUpload) {
       return Scaffold(
@@ -292,7 +280,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(24),
-            child: Text('Only instructors can upload files to a course.'),
+            child: Text('Only staff can upload files to a course.'),
           ),
         ),
       );
@@ -583,7 +571,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                _formatBytes(_pickedFile!.size),
+                _formatBytes(_pickedBytes!.length),
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 12),

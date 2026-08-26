@@ -12,6 +12,7 @@ import '../../../../shared/widgets/app_shell.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/course_model.dart';
+import '../../data/repositories/course_repository.dart';
 import '../bloc/course_bloc.dart';
 
 /// Student course list showing only classes the student has joined.
@@ -23,7 +24,6 @@ class CourseCatalogScreen extends StatefulWidget {
 }
 
 class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
-  final _searchController = TextEditingController();
   List<CourseModel>? _lastVisibleCourses;
 
   @override
@@ -32,20 +32,17 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
     _loadCourses();
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  void _loadCourses() {
+    context.read<CourseBloc>().add(const LoadCourses());
   }
 
-  void _loadCourses() {
-    context.read<CourseBloc>().add(
-      LoadCourses(
-        searchQuery: _searchController.text.isNotEmpty
-            ? _searchController.text
-            : null,
-      ),
+  Future<void> _refreshCourses() async {
+    final courseBloc = context.read<CourseBloc>();
+    final completion = courseBloc.stream.firstWhere(
+      (state) => state is CoursesLoaded || state is CourseError,
     );
+    courseBloc.add(const LoadCourses());
+    await completion;
   }
 
   @override
@@ -92,98 +89,81 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
             );
           }
         },
-        child: CustomScrollView(
-          slivers: [
-            // App bar
-            SliverAppBar(
-              floating: true,
-              leading: const AppDrawerButton(),
-              title: Text('Classes', style: AppTextStyles.h3),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(68),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: TextField(
-                    controller: _searchController,
-                    onSubmitted: (_) => _loadCourses(),
-                    decoration: InputDecoration(
-                      hintText: 'Search your classes...',
-                      prefixIcon: Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                _loadCourses();
-                              },
-                            )
-                          : null,
-                    ),
-                  ),
-                ),
+        child: RefreshIndicator(
+          onRefresh: _refreshCourses,
+          color: AppColors.primary,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              // App bar
+              SliverAppBar(
+                floating: true,
+                leading: const AppDrawerButton(),
+                title: Text('Classes', style: AppTextStyles.h3),
               ),
-            ),
 
-            // Course grid
-            BlocBuilder<CourseBloc, CourseState>(
-              builder: (context, state) {
-                final currentCourses = switch (state) {
-                  CoursesLoaded(:final courses) => courses,
-                  CourseJoining(:final courses) => courses,
-                  CourseJoinFailure(:final courses) => courses,
-                  _ => null,
-                };
-                if (currentCourses != null) {
-                  _lastVisibleCourses = currentCourses;
-                }
-                final visibleCourses = currentCourses ?? _lastVisibleCourses;
+              // Course grid
+              BlocBuilder<CourseBloc, CourseState>(
+                builder: (context, state) {
+                  final currentCourses = switch (state) {
+                    CoursesLoaded(:final courses) => courses,
+                    CourseJoining(:final courses) => courses,
+                    CourseJoinFailure(:final courses) => courses,
+                    _ => null,
+                  };
+                  if (currentCourses != null) {
+                    _lastVisibleCourses = currentCourses;
+                  }
+                  final visibleCourses = currentCourses ?? _lastVisibleCourses;
 
-                if (visibleCourses != null) {
-                  if (visibleCourses.isEmpty) {
-                    return SliverFillRemaining(
-                      child: EmptyState(
-                        icon: Icons.school_outlined,
-                        title: 'No classes joined yet',
-                        subtitle:
-                            'Use your instructor\'s class code to join one',
+                  if (visibleCourses != null) {
+                    if (visibleCourses.isEmpty) {
+                      return SliverFillRemaining(
+                        child: EmptyState(
+                          icon: Icons.school_outlined,
+                          title: 'No classes joined yet',
+                          subtitle:
+                              'Use your instructor\'s class code to join one',
+                        ),
+                      );
+                    }
+
+                    return SliverPadding(
+                      padding: const EdgeInsets.all(16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _CourseCard(
+                              course: visibleCourses[index],
+                              onTap: () => _openCourse(visibleCourses[index]),
+                              onUnenrolled: _refreshCourses,
+                            ),
+                          ),
+                          childCount: visibleCourses.length,
+                        ),
                       ),
                     );
                   }
 
-                  return SliverPadding(
-                    padding: const EdgeInsets.all(16),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _CourseCard(
-                            course: visibleCourses[index],
-                            onTap: () => _openCourse(visibleCourses[index]),
-                          ),
-                        ),
-                        childCount: visibleCourses.length,
+                  if (state is CourseLoading) {
+                    return const SliverCourseGridSkeleton();
+                  }
+
+                  if (state is CourseError) {
+                    return SliverFillRemaining(
+                      child: ErrorState(
+                        message: state.message,
+                        onRetry: _loadCourses,
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
 
-                if (state is CourseLoading) {
                   return const SliverCourseGridSkeleton();
-                }
-
-                if (state is CourseError) {
-                  return SliverFillRemaining(
-                    child: ErrorState(
-                      message: state.message,
-                      onRetry: _loadCourses,
-                    ),
-                  );
-                }
-
-                return const SliverCourseGridSkeleton();
-              },
-            ),
-          ],
+                },
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: canJoinClasses
@@ -467,14 +447,24 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
 class _CourseCard extends StatelessWidget {
   final CourseModel course;
   final VoidCallback onTap;
+  final Future<void> Function() onUnenrolled;
 
-  const _CourseCard({required this.course, required this.onTap});
+  const _CourseCard({
+    required this.course,
+    required this.onTap,
+    required this.onUnenrolled,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ClassroomCourseCard(
       course: course,
       onTap: onTap,
+      trailing: IconButton(
+        icon: const Icon(Icons.more_vert, color: Colors.white),
+        tooltip: 'Class options',
+        onPressed: () => _showClassOptions(context),
+      ),
       footer: [
         Icon(Icons.people_outline, size: 18, color: AppColors.textMuted),
         const SizedBox(width: 4),
@@ -485,6 +475,70 @@ class _CourseCard extends StatelessWidget {
         Text('${course.lessonCount}', style: AppTextStyles.caption),
       ],
     );
+  }
+
+  void _showClassOptions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+        leading: Icon(Icons.exit_to_app, color: AppColors.error),
+        title: Text(
+          'Unenroll',
+          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.error),
+        ),
+        onTap: () {
+          Navigator.pop(sheetContext);
+          _confirmUnenroll(context);
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmUnenroll(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Unenroll from class?'),
+        content: Text(
+          'You will lose access to "${course.title}" and its course content.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Unenroll'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await context.read<CourseRepository>().unenrollFromCourse(course.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unenrolled from ${course.title}'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      await onUnenrolled();
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(userFriendlyErrorMessage(error)),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }
 

@@ -6,8 +6,10 @@ import '../../../../core/errors/app_error.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/bitclass_logo.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../bloc/auth_bloc.dart';
+import '../widgets/bisu_google_auth_button.dart';
 
 /// Registration screen for BitClass
 class RegisterScreen extends StatefulWidget {
@@ -27,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String _selectedRole = 'student';
+  bool _lastActionWasGoogle = false;
 
   @override
   void dispose() {
@@ -39,6 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _handleRegister() {
+    _lastActionWasGoogle = false;
     if (_formKey.currentState!.validate()) {
       context.read<AuthBloc>().add(
         AuthRegisterRequested(
@@ -52,6 +56,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  void _handleGoogleSignIn() {
+    _lastActionWasGoogle = true;
+    FocusScope.of(context).unfocus();
+    context.read<AuthBloc>().add(AuthGoogleSignInRequested());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,7 +73,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
                 action: isNetworkFailure(state.message)
-                    ? SnackBarAction(label: 'Retry', onPressed: _handleRegister)
+                    ? SnackBarAction(
+                        label: 'Retry',
+                        onPressed: _lastActionWasGoogle
+                            ? _handleGoogleSignIn
+                            : _handleRegister,
+                      )
                     : null,
               ),
             );
@@ -99,22 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.glowPrimary,
-                blurRadius: 24,
-                spreadRadius: 3,
-              ),
-            ],
-          ),
-          child: Icon(Icons.code, color: AppColors.background, size: 36),
-        ),
+        const BitClassLogo(size: 64, showGlow: true),
         const SizedBox(height: 16),
         Text('Create Account', style: AppTextStyles.h2),
         const SizedBox(height: 8),
@@ -139,6 +139,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            BisuGoogleAuthButton(
+              label: 'Sign up with BISU Google',
+              onPressed: _handleGoogleSignIn,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Creates a student account using your @bisu.edu.ph email.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const AuthMethodDivider(label: 'or create an account with email'),
+            const SizedBox(height: 20),
+
             // Role selection
             Text('I am a...', style: AppTextStyles.label),
             const SizedBox(height: 8),

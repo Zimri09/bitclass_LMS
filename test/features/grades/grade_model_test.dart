@@ -46,6 +46,7 @@ void main() {
     String id = 'sub-1',
     SubmissionStatus status = SubmissionStatus.graded,
     int? score = 90,
+    int assignmentMaxPoints = 100,
   }) => SubmissionModel(
     id: id,
     assignmentId: 'assign-1',
@@ -57,6 +58,7 @@ void main() {
     submittedAt: DateTime(2024, 2, 10),
     status: status,
     score: score,
+    assignmentMaxPoints: assignmentMaxPoints,
   );
 
   // ====================================================
@@ -125,6 +127,20 @@ void main() {
       // earned = 80 + 90 = 170
       // percentage = 170/200 * 100 = 85
       expect(grade.overallGrade, 85.0);
+    });
+
+    test('overallGrade uses each assignment saved maximum points', () {
+      final grade = CourseGradeModel(
+        courseId: 'course-1',
+        userId: 'user-1',
+        course: makeCourse(),
+        enrollment: makeEnrollment(),
+        assignmentSubmissions: [
+          makeSubmission(score: 24, assignmentMaxPoints: 25),
+        ],
+      );
+
+      expect(grade.overallGrade, 96.0);
     });
 
     test('overallGrade is zero when no graded items', () {

@@ -5,10 +5,13 @@ enum NotificationType {
   courseUpdate, // New content added to course
   newLesson, // New lesson published
   newAssignment, // New assignment posted
+  assignmentSubmitted, // Student submitted assignment work
   assignmentDue, // Assignment due soon
   assignmentGraded, // Assignment has been graded
   quizAvailable, // New quiz available
+  quizSubmitted, // Student completed a quiz attempt
   quizGraded, // Quiz results ready
+  discussionActivity, // New student discussion activity
   discussionReply, // Someone replied to your thread
   discussionMention, // Someone mentioned you
   announcement, // Course announcement
@@ -26,14 +29,20 @@ extension NotificationTypeExtension on NotificationType {
         return 'New Lesson';
       case NotificationType.newAssignment:
         return 'New Assignment';
+      case NotificationType.assignmentSubmitted:
+        return 'Assignment Submitted';
       case NotificationType.assignmentDue:
         return 'Assignment Due';
       case NotificationType.assignmentGraded:
         return 'Assignment Graded';
       case NotificationType.quizAvailable:
         return 'Quiz Available';
+      case NotificationType.quizSubmitted:
+        return 'Quiz Submitted';
       case NotificationType.quizGraded:
         return 'Quiz Graded';
+      case NotificationType.discussionActivity:
+        return 'Discussion Activity';
       case NotificationType.discussionReply:
         return 'Discussion Reply';
       case NotificationType.discussionMention:
@@ -55,14 +64,20 @@ extension NotificationTypeExtension on NotificationType {
         return 'book';
       case NotificationType.newAssignment:
         return 'assignment';
+      case NotificationType.assignmentSubmitted:
+        return 'assignment_turned_in';
       case NotificationType.assignmentDue:
         return 'alarm';
       case NotificationType.assignmentGraded:
         return 'grade';
       case NotificationType.quizAvailable:
         return 'quiz';
+      case NotificationType.quizSubmitted:
+        return 'fact_check';
       case NotificationType.quizGraded:
         return 'check_circle';
+      case NotificationType.discussionActivity:
+        return 'forum';
       case NotificationType.discussionReply:
         return 'chat';
       case NotificationType.discussionMention:

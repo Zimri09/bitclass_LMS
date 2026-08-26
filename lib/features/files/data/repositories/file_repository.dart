@@ -17,7 +17,7 @@ import '../models/models.dart';
 class FileRepository {
   static const String _filesTable = 'files';
   static const String _offlineFilesBox = 'bitclass_offline_files_v1';
-  String get _storageBucket => EnvironmentConfig.storageBucket;
+  String get _storageBucket => EnvironmentConfig.courseMaterialsBucket;
 
   final SupabaseClient? _supabase;
   final Dio _dio;
@@ -131,7 +131,8 @@ class FileRepository {
     final existing = await getOfflineFile(userId, file.id);
     if (existing != null) return existing;
 
-    final uri = Uri.tryParse(file.url);
+    final accessibleUrl = await getAccessibleUrl(file);
+    final uri = Uri.tryParse(accessibleUrl);
     if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
       throw const FormatException('This learning material has an invalid URL.');
     }
@@ -156,7 +157,7 @@ class FileRepository {
     try {
       if (await partialFile.exists()) await partialFile.delete();
       await _dio.download(
-        file.url,
+        accessibleUrl,
         partialPath,
         deleteOnError: true,
         options: Options(receiveDataWhenStatusError: false),
@@ -335,7 +336,9 @@ class FileRepository {
       'uploaderName': row['uploader_name'],
       'name': row['name'],
       'description': row['description'],
-      'url': row['public_url'],
+      'url': row['public_url'] ?? '',
+      'storageBucket': row['bucket'],
+      'storagePath': row['storage_path'],
       'thumbnailUrl': row['thumbnail_url'],
       'resourceKind': row['resource_kind'] ?? 'file',
       'type': row['file_type'],
@@ -349,6 +352,30 @@ class FileRepository {
 
   CourseFile _fileFromRow(Map<String, dynamic> row) {
     return CourseFile.fromMap(_rowToFileMap(row), row['id'] as String);
+  }
+
+  /// Returns a fresh URL after Storage RLS has authorized the current user.
+  Future<String> getAccessibleUrl(CourseFile file) async {
+    if (file.isExternalLink) {
+      return normalizeWebUrl(file.url).toString();
+    }
+    if (EnvironmentConfig.isDemoMode) return file.url;
+
+    final storagePath = file.storagePath?.trim();
+    if (storagePath != null && storagePath.isNotEmpty) {
+      final bucket = file.storageBucket?.trim();
+      return _supabase!.storage
+          .from(bucket == null || bucket.isEmpty ? _storageBucket : bucket)
+          .createSignedUrl(storagePath, 10 * 60);
+    }
+
+    // Temporary compatibility for records created before private storage.
+    final legacyUrl = Uri.tryParse(file.url);
+    if (legacyUrl != null &&
+        (legacyUrl.scheme == 'https' || legacyUrl.scheme == 'http')) {
+      return legacyUrl.toString();
+    }
+    throw Exception('This learning material is no longer available.');
   }
 
   Future<Map<String, dynamic>?> _getFileRow(
@@ -627,7 +654,8 @@ class FileRepository {
     try {
       final extension = fileName.split('.').last;
       final fileType = CourseFile.getTypeFromExtension(extension);
-      storagePath = '$courseId/$fileId-$fileName';
+      final safeFileName = _safePathSegment(fileName, maxLength: 120);
+      storagePath = '$courseId/$fileId-$safeFileName';
 
       yield UploadProgress(
         fileId: fileId,
@@ -650,10 +678,6 @@ class FileRepository {
       }
       uploadedToStorage = true;
 
-      final publicUrl = _supabase.storage
-          .from(_storageBucket)
-          .getPublicUrl(storagePath);
-
       try {
         await _supabase.from(_filesTable).insert({
           'id': fileId,
@@ -665,7 +689,7 @@ class FileRepository {
           'description': description,
           'bucket': _storageBucket,
           'storage_path': storagePath,
-          'public_url': publicUrl,
+          'public_url': null,
           'thumbnail_url': null,
           'file_type': fileType.name,
           'mime_type': mimeType,

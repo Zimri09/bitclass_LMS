@@ -1,5 +1,3 @@
-import 'dart:io' as io show File;
-
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/foundation.dart';
 
@@ -18,24 +16,15 @@ class PickedAssignmentFile {
 }
 
 Future<PickedAssignmentFile?> pickAssignmentFile() async {
-  final result = await fp.FilePicker.platform.pickFiles(
-    type: fp.FileType.any,
-    withData: true,
-  );
-  if (result == null || result.files.isEmpty) return null;
+  final file = await fp.FilePicker.pickFile(type: fp.FileType.any);
+  if (file == null) return null;
 
-  final file = result.files.first;
-  if (file.size > AssignmentRepository.maxAttachmentBytes) {
+  final fileSize = await file.length();
+  if (fileSize > AssignmentRepository.maxAttachmentBytes) {
     throw Exception('Attachments must be 25 MB or smaller.');
   }
 
-  var bytes = file.bytes;
-  if (bytes == null && !kIsWeb && file.path != null) {
-    bytes = await io.File(file.path!).readAsBytes();
-  }
-  if (bytes == null) {
-    throw Exception('The selected file could not be read.');
-  }
+  final bytes = await file.readAsBytes();
 
   return PickedAssignmentFile(
     name: file.name,

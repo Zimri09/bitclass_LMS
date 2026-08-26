@@ -13,6 +13,7 @@ import '../../features/auth/presentation/screens/startup_screen.dart';
 import '../../features/todos/presentation/screens/todos_list_screen.dart';
 import '../../features/todos/presentation/state/todos_cubit.dart';
 import '../../features/todos/data/repositories/todos_repository.dart';
+import '../../features/todos/data/models/todo_model.dart';
 
 import '../../features/courses/presentation/screens/classroom_landing_screen.dart';
 import '../../features/code_lab/presentation/screens/screens.dart';
@@ -32,6 +33,12 @@ import '../../features/notifications/presentation/screens/screens.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/quizzes/presentation/screens/screens.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/settings/presentation/screens/about_bitclass_screen.dart';
+import '../../features/settings/presentation/screens/help_center_screen.dart';
+import '../../features/settings/presentation/screens/legal_document_screen.dart';
+import '../../features/settings/presentation/screens/support_request_screen.dart';
+import '../../features/settings/presentation/screens/admin_support_inbox_screen.dart';
+import '../../features/settings/data/models/support_request.dart';
 import '../../shared/widgets/app_shell.dart';
 import 'app_routes.dart';
 import 'app_transitions.dart';
@@ -97,19 +104,24 @@ class AppRouter {
           GoRoute(
             path: AppRoutes.todos,
             name: 'todos',
-            pageBuilder: (context, state) => AppTransitions.fadeTransition(
-              context: context,
-              state: state,
-              child: MultiBlocProvider(
-                providers: [
-                  BlocProvider<TodosCubit>(
-                    create: (context) =>
-                        TodosCubit(todosRepository: TodosRepository())..load(),
-                  ),
-                ],
-                child: const TodosListScreen(),
-              ),
-            ),
+            pageBuilder: (context, state) {
+              final authState = context.read<AuthBloc>().state;
+              final audience =
+                  authState is AuthAuthenticated && authState.user.isStaff
+                  ? TodoAudience.instructor
+                  : TodoAudience.student;
+              return AppTransitions.fadeTransition(
+                context: context,
+                state: state,
+                child: BlocProvider<TodosCubit>(
+                  create: (context) => TodosCubit(
+                    todosRepository: TodosRepository(),
+                    audience: audience,
+                  )..load(),
+                  child: TodosListScreen(audience: audience),
+                ),
+              );
+            },
           ),
           GoRoute(
             path: AppRoutes.profile,
@@ -516,6 +528,71 @@ class AppRouter {
               child: const SettingsScreen(),
             ),
           ),
+          GoRoute(
+            path: AppRoutes.settingsHelp,
+            name: 'settings-help',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const HelpCenterScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsFeedback,
+            name: 'settings-feedback',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const SupportRequestScreen(
+                type: SupportRequestType.feedback,
+              ),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsBugReport,
+            name: 'settings-bug-report',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const SupportRequestScreen(type: SupportRequestType.bug),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsAbout,
+            name: 'settings-about',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const AboutBitClassScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsTerms,
+            name: 'settings-terms',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const LegalDocumentScreen(document: LegalDocument.terms),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsPrivacy,
+            name: 'settings-privacy',
+            pageBuilder: (context, state) => AppTransitions.slideFromRight(
+              context: context,
+              state: state,
+              child: const LegalDocumentScreen(document: LegalDocument.privacy),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.adminSupport,
+            name: 'admin-support',
+            pageBuilder: (context, state) => AppTransitions.fadeTransition(
+              context: context,
+              state: state,
+              child: const AdminSupportInboxScreen(),
+            ),
+          ),
         ],
       ),
     ],
@@ -558,6 +635,12 @@ class AppRouter {
     }
 
     if (authState is AuthAuthenticated &&
+        !authState.user.isAdmin &&
+        state.uri.path == AppRoutes.adminSupport) {
+      return AppRoutes.dashboard;
+    }
+
+    if (authState is AuthAuthenticated &&
         authState.isOffline &&
         state.matchedLocation == AppRoutes.codeLab) {
       return AppRoutes.dashboard;
@@ -567,8 +650,7 @@ class AppRouter {
   }
 
   bool _canManageCourse(AuthAuthenticated authState) {
-    return authState.user.role == 'instructor' ||
-        authState.user.role == 'admin';
+    return authState.user.isStaff;
   }
 
   bool _isInstructorOnlyPath(String path) {

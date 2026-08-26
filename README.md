@@ -17,6 +17,8 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
 - ⚙️ **Settings** - App preferences and account management
 - 🌙 **Dark Theme** - Code-editor inspired UI with neon accents
 
+- **Admin Web Dashboard** - Separate role-protected web console for platform oversight
+
 ## Tech Stack
 
 - **Flutter** - Cross-platform UI framework
@@ -39,7 +41,7 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
    flutter pub get
    ```
 
-2. **Choose an environment** in `lib/core/config/environment.dart`:
+2. **Choose an environment** with `--dart-define=BITCLASS_ENV=...`:
    - `Environment.demo` — runs with mock data, no backend required
    - `Environment.development` — connects to your Supabase project
    - `Environment.production` — production Supabase credentials
@@ -59,16 +61,50 @@ A dark-themed, developer-focused Learning Management System (LMS) for Computer S
       `supabase/fix_instructor_role.sql` with that account's sign-in email
     - If file metadata writes are denied after hardening, run
      `supabase/fix_file_metadata_policy.sql` last and retry the upload
-   - Update `supabaseUrl`, `supabaseAnonKey`, and `storageBucket` in `environment.dart`
+   - Development builds use the checked-in development project by default.
+   - Release builds fail closed unless production values are supplied:
+
+     ```bash
+     flutter build web --release \
+       --dart-define=BITCLASS_ENV=production \
+       --dart-define=SUPABASE_URL=https://YOUR-PROJECT.supabase.co \
+       --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+     ```
+
+   - Optional bucket overrides are `COURSE_MATERIALS_BUCKET` and
+     `COURSE_THUMBNAILS_BUCKET`. Course materials are private and opened with
+     short-lived signed URLs; avatars and course thumbnails remain public.
+   - Mobile OAuth returns through `io.bitclass.app://login-callback/`. Override
+     it with `--dart-define=AUTH_REDIRECT_URL=...` only when using a different
+     registered app scheme.
+   - BISU Google signup requires the Google provider and redirect URLs described
+     in `supabase/GOOGLE_AUTH_SETUP.md`.
 
 4. **Run the app:**
    ```bash
    flutter run
    ```
 
+### Admin web dashboard
+
+The separate web-only admin application lives in `apps/admin_web` and uses the
+same Supabase project. See its [setup and security instructions](apps/admin_web/README.md).
+
+```powershell
+cd apps/admin_web
+flutter pub get
+flutter run -d chrome
+```
+
+The admin frontend never contains a Supabase secret or service-role key. Its
+routes require a signed-in `profiles.role = 'admin'` account, and database RLS
+remains the authorization boundary.
+
 ## Project Structure
 
 ```
+apps/
+â””â”€â”€ admin_web/      # Independently deployable Flutter web admin dashboard
 lib/
 ├── core/
 │   ├── bloc/           # Bloc observer

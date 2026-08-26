@@ -736,7 +736,7 @@ class DiscussionRepository {
           .cast<Map<String, dynamic>>()
           .map(_threadFromRow)
           .toList();
-      return _hydrateThreadReactions(threads);
+      return await _hydrateThreadReactions(threads);
     } catch (e) {
       if (kDebugMode) {
         log('Error fetching threads: $e', name: 'DiscussionRepository');
@@ -944,7 +944,7 @@ class DiscussionRepository {
           .cast<Map<String, dynamic>>()
           .map(_replyFromRow)
           .toList();
-      return _hydrateReplyReactions(replies);
+      return await _hydrateReplyReactions(replies);
     } catch (e) {
       if (kDebugMode) {
         log('Error fetching replies: $e', name: 'DiscussionRepository');

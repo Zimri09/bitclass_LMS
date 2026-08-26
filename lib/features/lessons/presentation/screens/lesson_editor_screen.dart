@@ -38,8 +38,11 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   LessonModel? _lesson;
   List<ModuleModel> _modules = [];
 
+  // New lessons use the database-compatible default. Existing lessons keep
+  // their stored type when edited, without exposing it as a form choice.
+  LessonType get _effectiveLessonType => _lesson?.type ?? LessonType.text;
+
   // Lesson settings
-  LessonType _lessonType = LessonType.text;
   String? _moduleId; // loaded dynamically
   bool _isPublished = false;
 
@@ -94,7 +97,6 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           _contentController.text = lesson.content ?? '';
           _videoUrlController.text = lesson.videoUrl ?? '';
           _durationController.text = lesson.durationMinutes.toString();
-          _lessonType = lesson.type;
           _moduleId = lesson.moduleId;
           _isPublished = lesson.isPublished;
         });
@@ -121,7 +123,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
       final repo = context.read<LessonRepository>();
       final now = DateTime.now();
       String? savedLessonId = widget.lessonId;
-      final rawVideoUrl = _lessonType == LessonType.video
+      final rawVideoUrl = _effectiveLessonType == LessonType.video
           ? _videoUrlController.text.trim()
           : '';
       final videoUrl = rawVideoUrl.isEmpty
@@ -139,7 +141,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               ? null
               : _descriptionController.text.trim(),
           order: _lesson?.order ?? 0,
-          type: _lessonType,
+          type: LessonType.text,
           content: _contentController.text.trim().isEmpty
               ? null
               : _contentController.text.trim(),
@@ -154,7 +156,6 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           'description': _descriptionController.text.trim().isEmpty
               ? null
               : _descriptionController.text.trim(),
-          'type': _lessonType.name,
           'content': _contentController.text.trim().isEmpty
               ? null
               : _contentController.text.trim(),
@@ -316,26 +317,6 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                   ),
                   maxLines: 2,
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<LessonType>(
-                  initialValue: _lessonType,
-                  decoration: const InputDecoration(labelText: 'Lesson Type'),
-                  items: LessonType.values.map((type) {
-                    return DropdownMenuItem(
-                      value: type,
-                      child: Row(
-                        children: [
-                          Icon(_getLessonTypeIcon(type), size: 20),
-                          const SizedBox(width: 8),
-                          Text(_getLessonTypeName(type)),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _lessonType = value);
-                  },
-                ),
               ],
             ),
           ),
@@ -358,7 +339,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                 // Module picker
                 if (_modules.isNotEmpty) ...[
                   DropdownButtonFormField<String>(
-                    value: _moduleId,
+                    initialValue: _moduleId,
                     decoration: const InputDecoration(labelText: 'Module'),
                     items: _modules.map<DropdownMenuItem<String>>((m) {
                       return DropdownMenuItem<String>(
@@ -385,7 +366,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                 const SizedBox(height: 16),
 
                 // Video URL (for video lessons)
-                if (_lessonType == LessonType.video) ...[
+                if (_effectiveLessonType == LessonType.video) ...[
                   TextFormField(
                     controller: _videoUrlController,
                     decoration: const InputDecoration(
@@ -492,15 +473,17 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
                   style: TextStyle(
-                    fontFamily: _lessonType == LessonType.code
+                    fontFamily: _effectiveLessonType == LessonType.code
                         ? 'monospace'
                         : null,
-                    color: _lessonType == LessonType.code
+                    color: _effectiveLessonType == LessonType.code
                         ? AppColors.primary
                         : AppColors.textPrimary,
-                    height: _lessonType == LessonType.code ? 1.4 : null,
+                    height: _effectiveLessonType == LessonType.code
+                        ? 1.4
+                        : null,
                   ),
-                  cursorColor: _lessonType == LessonType.code
+                  cursorColor: _effectiveLessonType == LessonType.code
                       ? AppColors.primary
                       : AppColors.textPrimary,
                 ),
@@ -512,34 +495,8 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
     );
   }
 
-  IconData _getLessonTypeIcon(LessonType type) {
-    switch (type) {
-      case LessonType.text:
-        return Icons.article;
-      case LessonType.video:
-        return Icons.play_circle;
-      case LessonType.code:
-        return Icons.code;
-      case LessonType.quiz:
-        return Icons.quiz;
-    }
-  }
-
-  String _getLessonTypeName(LessonType type) {
-    switch (type) {
-      case LessonType.text:
-        return 'Text/Article';
-      case LessonType.video:
-        return 'Video';
-      case LessonType.code:
-        return 'Code Tutorial';
-      case LessonType.quiz:
-        return 'Quiz';
-    }
-  }
-
   String _getContentHint() {
-    switch (_lessonType) {
+    switch (_effectiveLessonType) {
       case LessonType.text:
         return 'Write your lesson content using Markdown formatting';
       case LessonType.video:
@@ -552,7 +509,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   }
 
   String _getContentPlaceholder() {
-    switch (_lessonType) {
+    switch (_effectiveLessonType) {
       case LessonType.text:
         return '''# Lesson Title
 

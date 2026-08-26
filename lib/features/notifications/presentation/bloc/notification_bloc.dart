@@ -146,8 +146,12 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     try {
       final settings = await notificationRepository.getSettings(event.userId);
       emit(NotificationSettingsLoaded(settings: settings));
-    } catch (e) {
-      emit(NotificationError(message: 'Failed to load settings: $e'));
+    } catch (_) {
+      emit(
+        const NotificationError(
+          message: 'Unable to load notification settings. Please try again.',
+        ),
+      );
     }
   }
 
@@ -161,8 +165,12 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         event.enabled,
       );
       emit(NotificationSettingsUpdated(settings: settings));
-    } catch (e) {
-      emit(NotificationError(message: 'Failed to update settings: $e'));
+    } catch (_) {
+      emit(
+        const NotificationError(
+          message: 'Could not save notification settings. Please try again.',
+        ),
+      );
     }
   }
 
@@ -177,8 +185,12 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         event.enabled,
       );
       emit(NotificationSettingsUpdated(settings: settings));
-    } catch (e) {
-      emit(NotificationError(message: 'Failed to update settings: $e'));
+    } catch (_) {
+      emit(
+        const NotificationError(
+          message: 'Could not save notification settings. Please try again.',
+        ),
+      );
     }
   }
 
@@ -194,8 +206,12 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         endHour: event.endHour,
       );
       emit(NotificationSettingsUpdated(settings: settings));
-    } catch (e) {
-      emit(NotificationError(message: 'Failed to update quiet hours: $e'));
+    } catch (_) {
+      emit(
+        const NotificationError(
+          message: 'Could not save notification settings. Please try again.',
+        ),
+      );
     }
   }
 

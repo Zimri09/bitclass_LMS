@@ -40,8 +40,7 @@ class _LessonScreenState extends State<LessonScreen> {
 
   bool get _isInstructor {
     final authState = context.read<AuthBloc>().state;
-    return authState is AuthAuthenticated &&
-        authState.user.role == 'instructor';
+    return authState is AuthAuthenticated && authState.user.isStaff;
   }
 
   String? get _currentUserId {
@@ -68,8 +67,7 @@ class _LessonScreenState extends State<LessonScreen> {
 
   Future<void> _loadManagementPermission() async {
     final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthAuthenticated ||
-        authState.user.role != 'instructor') {
+    if (authState is! AuthAuthenticated || !authState.user.isStaff) {
       return;
     }
 
@@ -174,10 +172,7 @@ class _LessonScreenState extends State<LessonScreen> {
     }
 
     return AppBar(
-      leading: IconButton(
-        icon: Icon(Icons.arrow_back),
-        onPressed: _handleBack,
-      ),
+      leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: _handleBack),
       title: Text(
         title,
         style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
@@ -259,19 +254,35 @@ class _LessonScreenState extends State<LessonScreen> {
     }
 
     if (state is LessonDetailLoaded) {
-      return SingleChildScrollView(
-        controller: _scrollController,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Lesson header
-            _buildLessonHeader(context, state),
-            // Lesson content
-            _buildLessonContent(context, state.lesson),
-            // Files added through "Save and attach" stay with this lesson.
-            _buildAttachments(),
-          ],
-        ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontalPadding = constraints.maxWidth < 600 ? 16.0 : 24.0;
+
+          return SingleChildScrollView(
+            controller: _scrollController,
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              16,
+              horizontalPadding,
+              32,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildLessonHeader(context, state),
+                    const SizedBox(height: 16),
+                    _buildLessonContent(context, state.lesson),
+                    // Files added through "Save and attach" stay with this lesson.
+                    _buildAttachments(),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       );
     }
 
@@ -283,8 +294,12 @@ class _LessonScreenState extends State<LessonScreen> {
     final module = state.module;
 
     return Container(
-      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 24),
-      color: AppColors.surface,
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 18 : 24),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -293,8 +308,8 @@ class _LessonScreenState extends State<LessonScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 module.title,
@@ -305,12 +320,12 @@ class _LessonScreenState extends State<LessonScreen> {
                 ),
               ),
             ),
-          const SizedBox(height: 12),
+          SizedBox(height: module == null ? 0 : 14),
           // Title
           Text(
             lesson.title,
             style: GoogleFonts.inter(
-              fontSize: 24,
+              fontSize: MediaQuery.sizeOf(context).width < 600 ? 24 : 28,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
@@ -326,7 +341,7 @@ class _LessonScreenState extends State<LessonScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           // Meta info row
           Wrap(
             spacing: 12,
@@ -362,8 +377,9 @@ class _LessonScreenState extends State<LessonScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: chipColor.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: chipColor.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -384,46 +400,102 @@ class _LessonScreenState extends State<LessonScreen> {
   }
 
   Widget _buildLessonContent(BuildContext context, LessonModel lesson) {
-    final content = lesson.content;
-    if (content == null || content.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.description_outlined,
-                size: 48,
-                color: AppColors.textSecondary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No content available',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final content = lesson.content?.trim() ?? '';
 
     // Check lesson type for different rendering
     switch (lesson.type) {
       case LessonType.video:
-        return _buildVideoLesson(lesson, content);
+        return _buildSectionCard(
+          title: 'Video lesson',
+          icon: Icons.play_circle_outline,
+          child: _buildVideoLesson(lesson, content),
+        );
       case LessonType.quiz:
-        return _buildQuizLesson(lesson);
+        return _buildSectionCard(
+          title: 'Activity',
+          icon: Icons.quiz_outlined,
+          child: _buildQuizLesson(lesson),
+        );
       case LessonType.code:
       case LessonType.text:
-        // Markdown content for text and code lessons
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: MarkdownContent(content: content, selectable: true),
+        return _buildSectionCard(
+          title: lesson.type == LessonType.code
+              ? 'Code lesson'
+              : 'Lesson content',
+          icon: lesson.type == LessonType.code
+              ? Icons.code
+              : Icons.article_outlined,
+          child: content.isEmpty
+              ? _buildEmptyLessonContent()
+              : MarkdownContent(
+                  content: content,
+                  selectable: true,
+                  padding: EdgeInsets.zero,
+                ),
         );
     }
+  }
+
+  Widget _buildEmptyLessonContent() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 20, color: AppColors.textSecondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No lesson content has been added yet.',
+              style: TextStyle(color: AppColors.textSecondary, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 21, color: AppColors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
   }
 
   Widget _buildAttachments() {
@@ -431,9 +503,13 @@ class _LessonScreenState extends State<LessonScreen> {
       future: _attachments,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator()),
+          return Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: _buildSectionCard(
+              title: 'Learning materials',
+              icon: Icons.attach_file,
+              child: const LinearProgressIndicator(minHeight: 2),
+            ),
           );
         }
 
@@ -442,81 +518,113 @@ class _LessonScreenState extends State<LessonScreen> {
           return const SizedBox.shrink();
         }
 
-        return Container(
-          margin: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.attach_file, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Attachments',
-                    style: GoogleFonts.inter(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+        return Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: _buildSectionCard(
+            title: 'Learning materials',
+            icon: Icons.attach_file,
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 8),
-              ...attachments.map(
-                (file) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    file.isExternalLink
-                        ? Icons.link
-                        : Icons.insert_drive_file_outlined,
-                  ),
-                  title: Text(
-                    file.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    file.description.isEmpty
-                        ? file.formattedSize
-                        : file.description,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: const Icon(Icons.open_in_new),
-                  onTap: () => _openAttachment(file),
+              child: Text(
+                '${attachments.length}',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
+            ),
+            child: Column(
+              children: [
+                for (var index = 0; index < attachments.length; index++) ...[
+                  _buildAttachmentTile(attachments[index]),
+                  if (index < attachments.length - 1)
+                    Divider(height: 1, color: AppColors.border),
+                ],
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  Widget _buildAttachmentTile(CourseFile file) {
+    return InkWell(
+      onTap: () => _openAttachment(file),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                file.isExternalLink
+                    ? Icons.link
+                    : Icons.insert_drive_file_outlined,
+                size: 20,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    file.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    file.description.isEmpty
+                        ? (file.isExternalLink
+                              ? 'Web link'
+                              : file.formattedSize)
+                        : file.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(Icons.open_in_new, size: 20, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openAttachment(CourseFile file) async {
     final fileRepository = context.read<FileRepository>();
     try {
-      final uri = file.isExternalLink
-          ? normalizeWebUrl(file.url)
-          : Uri.parse(file.url);
-      final opened = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
+      final uri = Uri.parse(await fileRepository.getAccessibleUrl(file));
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened) throw StateError('No application can open this resource.');
 
       if (!file.isExternalLink) {
         try {
-          await fileRepository.recordDownload(
-            widget.courseId,
-            file.id,
-          );
+          await fileRepository.recordDownload(widget.courseId, file.id);
         } catch (_) {
           // A read-only student can still open the attachment.
         }
@@ -562,146 +670,154 @@ class _LessonScreenState extends State<LessonScreen> {
         // Keep legacy invalid links visible without breaking the lesson screen.
       }
     }
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Container(
-            height: 300,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.play_circle_fill,
-                    size: 64,
-                    color: AppColors.primary,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          constraints: const BoxConstraints(minHeight: 210),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.play_circle_fill,
+                  size: 56,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  videoUrl == null || videoUrl.isEmpty
+                      ? 'No video link added'
+                      : 'Video resource',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    videoUrl == null || videoUrl.isEmpty
-                        ? 'No video link added'
-                        : 'Video resource',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  videoUrl == null || videoUrl.isEmpty
+                      ? 'The instructor has not added a video URL.'
+                      : videoLabel,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    videoUrl == null || videoUrl.isEmpty
-                        ? 'The instructor has not added a video URL.'
-                        : videoLabel,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
+                ),
+                if (videoUrl != null && videoUrl.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: () => _openLessonUrl(videoUrl),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Open video'),
                   ),
-                  if (videoUrl != null && videoUrl.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed: () => _openLessonUrl(videoUrl),
-                      icon: const Icon(Icons.open_in_new),
-                      label: const Text('Open Video'),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          // Show video notes as markdown
-          MarkdownContent(content: content, selectable: true),
+        ),
+        if (content.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Notes',
+            style: GoogleFonts.inter(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          MarkdownContent(
+            content: content,
+            selectable: true,
+            padding: EdgeInsets.zero,
+          ),
         ],
-      ),
+      ],
     );
   }
 
   Widget _buildQuizLesson(LessonModel lesson) {
     final content = lesson.content ?? '';
-    final isMobile = MediaQuery.sizeOf(context).width < 600;
     final isInstructor = _isInstructor;
 
-    return Padding(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      child: Column(
-        children: [
-          Container(
-            padding: EdgeInsets.all(isMobile ? 20 : 32),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.quiz_outlined,
-                    size: 64,
-                    color: AppColors.secondary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    lesson.title,
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Test your knowledge with this quiz',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (!isInstructor)
-                    FilledButton.icon(
-                      onPressed: () {
-                        context.push(
-                          '/courses/${widget.courseId}/quizzes/${lesson.id}',
-                        );
-                      },
-                      icon: Icon(Icons.play_arrow),
-                      label: const Text('Start Quiz'),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.info.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Instructor preview mode',
-                        style: TextStyle(
-                          color: AppColors.info,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
           ),
-          // Show quiz description
-          if (content.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            MarkdownContent(content: content, selectable: true),
-          ],
+          child: Column(
+            children: [
+              Icon(Icons.quiz_outlined, size: 52, color: AppColors.secondary),
+              const SizedBox(height: 14),
+              Text(
+                lesson.title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Test your knowledge with this quiz',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              if (!isInstructor)
+                FilledButton.icon(
+                  onPressed: () {
+                    context.push(
+                      '/courses/${widget.courseId}/quizzes/${lesson.id}',
+                    );
+                  },
+                  icon: const Icon(Icons.play_arrow, size: 18),
+                  label: const Text('Start quiz'),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Instructor preview mode',
+                    style: TextStyle(
+                      color: AppColors.info,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (content.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          MarkdownContent(
+            content: content,
+            selectable: true,
+            padding: EdgeInsets.zero,
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -723,7 +839,9 @@ class _LessonScreenState extends State<LessonScreen> {
               currentLessonId: state.lesson.id,
             )
           : null,
-      onMarkComplete: _isInstructor ? null : () => _setLessonCompletion(isCompleted),
+      onMarkComplete: _isInstructor
+          ? null
+          : () => _setLessonCompletion(isCompleted),
       isCompleted: isCompleted,
       isLoading: false,
     );

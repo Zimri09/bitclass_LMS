@@ -30,7 +30,7 @@ class NotificationListScreen extends StatelessWidget {
     final userId = _currentUserId(context);
     final authState = context.read<AuthBloc>().state;
     final isInstructor =
-        authState is AuthAuthenticated && authState.user.role == 'instructor';
+        authState is AuthAuthenticated && authState.user.isStaff;
     return BlocProvider(
       create: (context) => NotificationBloc(
         notificationRepository: context.read<NotificationRepository>(),
@@ -151,11 +151,7 @@ class _NotificationListViewState extends State<NotificationListView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: AppColors.error,
-                    size: 48,
-                  ),
+                  Icon(Icons.error_outline, color: AppColors.error, size: 48),
                   const SizedBox(height: 16),
                   Text(
                     state.message,
@@ -299,12 +295,18 @@ class _NotificationListViewState extends State<NotificationListView> {
                           ),
                         ),
                         if (!notification.isRead)
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
+                          Semantics(
+                            label: 'Unread notification',
+                            child: Container(
+                              key: Key(
+                                'notification-unread-indicator-${notification.id}',
+                              ),
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.error,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
                       ],
@@ -341,18 +343,38 @@ class _NotificationListViewState extends State<NotificationListView> {
     if (_isOpeningNotification) return;
 
     final bloc = context.read<NotificationBloc>();
-    // Mark as read
+    setState(() => _isOpeningNotification = true);
+
+    // Persist the read state before opening the destination. The bloc emits an
+    // updated list only after Supabase confirms the update, which removes the
+    // unread indicator and keeps the state correct after an app restart.
     if (!notification.isRead) {
-      bloc.add(
-        MarkNotificationRead(notificationId: notification.id),
+      final readResult = bloc.stream.firstWhere(
+        (state) =>
+            state is NotificationError ||
+            (state is NotificationsLoaded &&
+                state.notifications.any(
+                  (item) => item.id == notification.id && item.isRead,
+                )),
       );
+      bloc.add(MarkNotificationRead(notificationId: notification.id));
+      final readState = await readResult;
+      if (!mounted) return;
+      if (readState is NotificationError) {
+        setState(() => _isOpeningNotification = false);
+        return;
+      }
     }
 
     final destination = AppRoutes.notificationDestination(
       notification.actionUrl,
     );
-    if (notification.actionUrl == null) return;
+    if (notification.actionUrl == null) {
+      setState(() => _isOpeningNotification = false);
+      return;
+    }
     if (destination == null) {
+      setState(() => _isOpeningNotification = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -363,15 +385,12 @@ class _NotificationListViewState extends State<NotificationListView> {
       return;
     }
 
-    setState(() => _isOpeningNotification = true);
     try {
       await context.push(destination);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This notification could not be opened.'),
-        ),
+        const SnackBar(content: Text('This notification could not be opened.')),
       );
     } finally {
       if (mounted) {
@@ -421,14 +440,20 @@ class _NotificationListViewState extends State<NotificationListView> {
         return Icons.book;
       case NotificationType.newAssignment:
         return Icons.assignment;
+      case NotificationType.assignmentSubmitted:
+        return Icons.assignment_turned_in;
       case NotificationType.assignmentDue:
         return Icons.alarm;
       case NotificationType.assignmentGraded:
         return Icons.grade;
       case NotificationType.quizAvailable:
         return Icons.quiz;
+      case NotificationType.quizSubmitted:
+        return Icons.fact_check;
       case NotificationType.quizGraded:
         return Icons.check_circle;
+      case NotificationType.discussionActivity:
+        return Icons.forum;
       case NotificationType.discussionReply:
         return Icons.chat_bubble;
       case NotificationType.discussionMention:
@@ -448,13 +473,16 @@ class _NotificationListViewState extends State<NotificationListView> {
       case NotificationType.newLesson:
         return AppColors.info;
       case NotificationType.newAssignment:
+      case NotificationType.assignmentSubmitted:
       case NotificationType.assignmentDue:
         return AppColors.warning;
       case NotificationType.assignmentGraded:
       case NotificationType.quizGraded:
         return AppColors.success;
       case NotificationType.quizAvailable:
+      case NotificationType.quizSubmitted:
         return AppColors.primary;
+      case NotificationType.discussionActivity:
       case NotificationType.discussionReply:
       case NotificationType.discussionMention:
         return AppColors.secondary;

@@ -143,7 +143,7 @@ class NotificationRepository {
       NotificationModel(
         id: 'notif-inst-3',
         userId: _demoInstructorUserId,
-        type: NotificationType.newAssignment,
+        type: NotificationType.assignmentSubmitted,
         title: 'Submission Waiting for Review',
         body: 'You have new assignment submissions to grade',
         isRead: true,
@@ -276,6 +276,34 @@ class NotificationRepository {
     return (rows as List<dynamic>).length;
   }
 
+  /// Get the categories of unread notifications for navigation indicators.
+  Future<Set<NotificationType>> getUnreadTypes(String userId) async {
+    if (EnvironmentConfig.isDemoMode) {
+      return _notifications
+          .where((notification) =>
+              _isDemoUserMatch(notification.userId, userId) &&
+              !notification.isRead)
+          .map((notification) => notification.type)
+          .toSet();
+    }
+
+    final rows = await _supabase!
+        .from(_notificationsTable)
+        .select('type')
+        .eq('user_id', userId)
+        .eq('is_read', false);
+
+    return (rows as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(
+          (row) => NotificationType.values.firstWhere(
+            (type) => type.name == row['type'],
+            orElse: () => NotificationType.general,
+          ),
+        )
+        .toSet();
+  }
+
   /// Mark a notification as read
   Future<NotificationModel> markAsRead(String notificationId) async {
     if (EnvironmentConfig.isDemoMode) {
@@ -290,15 +318,11 @@ class NotificationRepository {
       throw Exception('Notification not found');
     }
 
-    await _supabase!
+    final row = await _supabase!
         .from(_notificationsTable)
         .update({'is_read': true})
-        .eq('id', notificationId);
-
-    final row = await _supabase
-        .from(_notificationsTable)
-        .select()
         .eq('id', notificationId)
+        .select()
         .maybeSingle();
 
     if (row == null) {
@@ -407,7 +431,7 @@ class NotificationRepository {
       'quiet_hours_start': updatedSettings.quietHoursStart,
       'quiet_hours_end': updatedSettings.quietHoursEnd,
       'updated_at': updatedSettings.updatedAt.toIso8601String(),
-    });
+    }, onConflict: 'user_id');
     _settingsController.add(updatedSettings);
     await _pushSynchronizer?.call();
     return updatedSettings;

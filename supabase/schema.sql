@@ -98,6 +98,61 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.support_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  request_type text not null check (request_type in ('feedback', 'bug')),
+  category text not null check (char_length(category) between 1 and 80),
+  subject text not null check (char_length(subject) between 3 and 160),
+  description text not null check (char_length(description) between 10 and 5000),
+  metadata jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(metadata) = 'object'),
+  status text not null default 'open'
+    check (status in ('open', 'in_review', 'resolved', 'closed')),
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists support_requests_user_created_idx
+  on public.support_requests (user_id, created_at desc);
+
+create index if not exists support_requests_created_at_idx
+  on public.support_requests (created_at desc);
+
+create index if not exists support_requests_status_created_idx
+  on public.support_requests (status, created_at desc);
+
+drop trigger if exists support_requests_updated_at on public.support_requests;
+create trigger support_requests_updated_at
+before update on public.support_requests
+for each row execute function public.set_updated_at();
+
+alter table public.support_requests enable row level security;
+
+create policy "support requests: users create own"
+  on public.support_requests for insert to authenticated
+  with check (
+    user_id = (select auth.uid())
+    and status = 'open'
+  );
+
+create policy "support requests: users view own or admins"
+  on public.support_requests for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or (select private.is_admin())
+  );
+
+create policy "support requests: admins update status"
+  on public.support_requests for update to authenticated
+  using ((select private.is_admin()))
+  with check ((select private.is_admin()));
+
+revoke all on table public.support_requests from anon;
+revoke all on table public.support_requests from authenticated;
+grant select, insert on table public.support_requests to authenticated;
+grant update (status) on table public.support_requests to authenticated;
+
 alter table public.profiles
   add column if not exists first_name text,
   add column if not exists last_name text;
@@ -130,7 +185,48 @@ create trigger profiles_role_immutable
   before update of role on public.profiles
   for each row execute function private.prevent_client_role_change();
 
--- Create a complete profile only after the user verifies their email OTP.
+-- Configure this function as the Before User Created auth hook. The profile
+-- trigger below repeats the check so the policy remains fail-closed even when
+-- the dashboard hook has not been enabled yet.
+create or replace function public.hook_restrict_google_signup_to_bisu(event jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  signup_provider text := lower(coalesce(
+    event->'user'->'app_metadata'->>'provider',
+    ''
+  ));
+  signup_email text := lower(trim(coalesce(event->'user'->>'email', '')));
+begin
+  if signup_provider <> 'google' then
+    return '{}'::jsonb;
+  end if;
+
+  if split_part(signup_email, '@', 1) = ''
+     or split_part(signup_email, '@', 2) <> 'bisu.edu.ph' then
+    return jsonb_build_object(
+      'error', jsonb_build_object(
+        'message', 'Use your verified @bisu.edu.ph Google account.',
+        'http_code', 403
+      )
+    );
+  end if;
+
+  return '{}'::jsonb;
+end;
+$$;
+
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.hook_restrict_google_signup_to_bisu(jsonb)
+  to supabase_auth_admin;
+revoke execute on function public.hook_restrict_google_signup_to_bisu(jsonb)
+  from public, anon, authenticated;
+
+-- Create a complete profile after OTP verification or during a verified Google
+-- signup. Only the trusted server trigger chooses a Google user's student role.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -139,30 +235,88 @@ set search_path = ''
 as $$
 declare
   requested_role text := new.raw_user_meta_data->>'role';
-  given_name text := nullif(trim(new.raw_user_meta_data->>'first_name'), '');
-  family_name text := nullif(trim(new.raw_user_meta_data->>'last_name'), '');
+  auth_provider text := lower(coalesce(new.raw_app_meta_data->>'provider', ''));
+  is_google boolean := auth_provider = 'google'
+    or coalesce(new.raw_app_meta_data->'providers', '[]'::jsonb) ? 'google';
+  normalized_email text := lower(trim(coalesce(new.email, '')));
+  full_name text := nullif(trim(coalesce(
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'name',
+    ''
+  )), '');
+  given_name text := nullif(trim(coalesce(
+    new.raw_user_meta_data->>'first_name',
+    new.raw_user_meta_data->>'given_name',
+    ''
+  )), '');
+  family_name text := nullif(trim(coalesce(
+    new.raw_user_meta_data->>'last_name',
+    new.raw_user_meta_data->>'family_name',
+    ''
+  )), '');
+  profile_avatar_url text := nullif(trim(coalesce(
+    new.raw_user_meta_data->>'avatar_url',
+    new.raw_user_meta_data->>'picture',
+    ''
+  )), '');
+  resolved_display_name text;
 begin
   if new.email_confirmed_at is null then
     return new;
   end if;
 
-  if given_name is null or family_name is null then
-    raise exception 'Registration requires first_name and last_name metadata';
+  if is_google then
+    if split_part(normalized_email, '@', 1) = ''
+       or split_part(normalized_email, '@', 2) <> 'bisu.edu.ph' then
+      raise exception 'Google signup requires a verified @bisu.edu.ph account';
+    end if;
+
+    requested_role := 'student';
+    given_name := coalesce(
+      given_name,
+      nullif(split_part(full_name, ' ', 1), ''),
+      nullif(split_part(normalized_email, '@', 1), '')
+    );
+    if family_name is null
+       and full_name is not null
+       and position(' ' in full_name) > 0 then
+      family_name := nullif(trim(substr(
+        full_name,
+        position(' ' in full_name) + 1
+      )), '');
+    end if;
+  else
+    if given_name is null or family_name is null then
+      raise exception 'Registration requires first_name and last_name metadata';
+    end if;
+
+    if requested_role not in ('student', 'instructor') then
+      raise exception 'Registration role must be student or instructor';
+    end if;
   end if;
 
-  if requested_role not in ('student', 'instructor') then
-    raise exception 'Registration role must be student or instructor';
-  end if;
+  resolved_display_name := coalesce(
+    full_name,
+    nullif(trim(concat_ws(' ', given_name, family_name)), ''),
+    split_part(normalized_email, '@', 1)
+  );
 
   insert into public.profiles (
-    id, email, display_name, first_name, last_name, role
+    id,
+    email,
+    display_name,
+    first_name,
+    last_name,
+    avatar_url,
+    role
   )
   values (
     new.id,
-    lower(new.email),
-    concat_ws(' ', given_name, family_name),
+    normalized_email,
+    resolved_display_name,
     given_name,
     family_name,
+    profile_avatar_url,
     requested_role::public.user_role
   )
   on conflict (id) do update set
@@ -170,6 +324,7 @@ begin
     display_name = excluded.display_name,
     first_name = excluded.first_name,
     last_name = excluded.last_name,
+    avatar_url = coalesce(public.profiles.avatar_url, excluded.avatar_url),
     updated_at = timezone('utc', now());
   return new;
 end;
@@ -182,6 +337,13 @@ revoke all on function public.handle_new_user() from authenticated;
 drop trigger if exists on_auth_user_created on auth.users;
 drop trigger if exists on_auth_user_created_before on auth.users;
 drop function if exists public.auto_confirm_user();
+drop trigger if exists on_auth_user_created_confirmed on auth.users;
+create trigger on_auth_user_created_confirmed
+  after insert on auth.users
+  for each row
+  when (new.email_confirmed_at is not null)
+  execute function public.handle_new_user();
+
 drop trigger if exists on_auth_user_email_verified on auth.users;
 create trigger on_auth_user_email_verified
   after update of email_confirmed_at on auth.users

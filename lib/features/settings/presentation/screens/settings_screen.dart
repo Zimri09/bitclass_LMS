@@ -216,19 +216,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildNavigationTile(
                   icon: Icons.help,
                   title: 'Help Center',
-                  onTap: () => _showComingSoon('Help Center'),
+                  onTap: () => context.push(AppRoutes.settingsHelp),
                 ),
                 Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.feedback,
                   title: 'Send Feedback',
-                  onTap: () => _showComingSoon('Feedback'),
+                  onTap: () => context.push(AppRoutes.settingsFeedback),
                 ),
                 Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.bug_report,
                   title: 'Report a Bug',
-                  onTap: () => _showComingSoon('Bug Report'),
+                  onTap: () => context.push(AppRoutes.settingsBugReport),
                 ),
               ]),
               const SizedBox(height: 24),
@@ -236,6 +236,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // About
               _buildSectionHeader('About'),
               _buildSettingsCard([
+                _buildNavigationTile(
+                  icon: Icons.info_outline,
+                  title: 'About BitClass',
+                  onTap: () => context.push(AppRoutes.settingsAbout),
+                ),
+                Divider(height: 1),
                 _buildInfoTile(
                   icon: Icons.info,
                   title: 'Version',
@@ -245,13 +251,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildNavigationTile(
                   icon: Icons.description,
                   title: 'Terms of Service',
-                  onTap: () => _showComingSoon('Terms of Service'),
+                  onTap: () => context.push(AppRoutes.settingsTerms),
                 ),
                 Divider(height: 1),
                 _buildNavigationTile(
                   icon: Icons.privacy_tip,
                   title: 'Privacy Policy',
-                  onTap: () => _showComingSoon('Privacy Policy'),
+                  onTap: () => context.push(AppRoutes.settingsPrivacy),
                 ),
                 Divider(height: 1),
                 _buildNavigationTile(
@@ -437,7 +443,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       value: value,
       onChanged: onChanged,
-      activeColor: colorScheme.primary,
+      activeThumbColor: colorScheme.primary,
     );
   }
 
@@ -497,16 +503,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         style: AppTextStyles.bodyMedium.copyWith(color: color),
       ),
       onTap: onTap,
-    );
-  }
-
-  void _showComingSoon(String feature) {
-    final colorScheme = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature coming soon!'),
-        backgroundColor: colorScheme.primary,
-      ),
     );
   }
 

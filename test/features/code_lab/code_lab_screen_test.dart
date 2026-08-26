@@ -25,6 +25,7 @@ void main() {
 
     expect(find.text('Python Sandbox'), findsOneWidget);
     expect(find.text('No network'), findsOneWidget);
+    expect(find.byKey(const ValueKey('code-lab-stdin')), findsNothing);
 
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('code-lab-run')),
@@ -35,10 +36,57 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.lastSource, contains('print'));
-    expect(repository.lastStdin, 'Student');
-    expect(find.text('Hello, Student!'), findsOneWidget);
+    expect(repository.lastStdin, isEmpty);
+    expect(find.text('0\n1\n2\n3\n4\n'), findsOneWidget);
     expect(find.textContaining('exit 0'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sends multiline inputs and echoes them in the console', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeCodeExecutionRepository();
+    await tester.pumpWidget(
+      RepositoryProvider<CodeExecutionRepository>.value(
+        value: repository,
+        child: const MaterialApp(home: CodeLabScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('code-lab-add-input')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('code-lab-add-input')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('code-lab-stdin')),
+      'Maria\n20\nManila',
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('code-lab-run')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('code-lab-run')));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastStdin, 'Maria\n20\nManila');
+    expect(find.text('Input supplied'), findsOneWidget);
+    expect(find.text('> Maria\n> 20\n> Manila'), findsOneWidget);
+
+    await tester.tap(find.text('Reset'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('code-lab-stdin')), findsNothing);
+    expect(find.byKey(const ValueKey('code-lab-input-echo')), findsNothing);
   });
 
   testWidgets('shows a safe runner error', (tester) async {
@@ -83,7 +131,7 @@ class _FakeCodeExecutionRepository implements CodeExecutionRepository {
     lastStdin = stdin;
     if (error != null) throw error!;
     return const CodeExecutionResult(
-      stdout: 'Hello, Student!',
+      stdout: '0\n1\n2\n3\n4\n',
       stderr: '',
       exitCode: 0,
       durationMs: 37,
