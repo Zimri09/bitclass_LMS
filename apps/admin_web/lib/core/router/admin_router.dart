@@ -8,6 +8,7 @@ import '../../features/audit/presentation/admin_audit_screen.dart';
 import '../../features/courses/presentation/admin_courses_screen.dart';
 import '../../features/dashboard/data/admin_repository.dart';
 import '../../features/dashboard/presentation/admin_overview_screen.dart';
+import '../../features/support/presentation/admin_support_screen.dart';
 import '../../features/users/presentation/admin_users_screen.dart';
 import '../auth/admin_session_controller.dart';
 import '../widgets/admin_shell.dart';
@@ -58,6 +59,7 @@ GoRouter createAdminRouter(
       ShellRoute(
         builder: (context, state, child) => AdminShell(
           session: session,
+          repository: repository,
           currentPath: state.uri.path,
           child: child,
         ),
@@ -77,6 +79,10 @@ GoRouter createAdminRouter(
           GoRoute(
             path: '/audit',
             builder: (_, _) => AdminAuditScreen(repository: repository),
+          ),
+          GoRoute(
+            path: '/support',
+            builder: (_, _) => AdminSupportScreen(repository: repository),
           ),
         ],
       ),

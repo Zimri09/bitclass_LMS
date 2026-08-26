@@ -4,6 +4,7 @@ import 'package:bitclass_admin/core/auth/admin_auth_service.dart';
 import 'package:bitclass_admin/core/auth/admin_session_controller.dart';
 import 'package:bitclass_admin/features/dashboard/data/admin_models.dart';
 import 'package:bitclass_admin/features/dashboard/data/admin_repository.dart';
+import 'package:bitclass_admin/features/support/data/admin_support_request.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -109,6 +110,14 @@ class _FakeRepository implements AdminRepository {
       const [];
 
   @override
+  Future<List<AdminSupportRequest>> fetchSupportRequests({
+    int limit = 200,
+  }) async => const [];
+
+  @override
+  Future<bool> hasOpenSupportRequests() async => false;
+
+  @override
   Future<AdminDashboardSnapshot> fetchOverview() async {
     return const AdminDashboardSnapshot(
       userCount: 0,
@@ -136,4 +145,10 @@ class _FakeRepository implements AdminRepository {
     required bool suspended,
     String? reason,
   }) async => account!;
+
+  @override
+  Future<void> updateSupportRequestStatus({
+    required String requestId,
+    required AdminSupportRequestStatus status,
+  }) async {}
 }

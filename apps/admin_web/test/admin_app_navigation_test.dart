@@ -5,6 +5,7 @@ import 'package:bitclass_admin/core/auth/admin_auth_service.dart';
 import 'package:bitclass_admin/core/auth/admin_session_controller.dart';
 import 'package:bitclass_admin/features/dashboard/data/admin_models.dart';
 import 'package:bitclass_admin/features/dashboard/data/admin_repository.dart';
+import 'package:bitclass_admin/features/support/data/admin_support_request.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,6 +47,12 @@ void main() {
       find.text('student@example.com · admin@example.com'),
       findsOneWidget,
     );
+
+    await tester.tap(find.text('Support inbox'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Quiz timer stopped'), findsOneWidget);
+    expect(find.byTooltip('New support request'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await auth.close();
@@ -122,6 +129,28 @@ class _AdminRepository implements AdminRepository {
   ];
 
   @override
+  Future<List<AdminSupportRequest>> fetchSupportRequests({
+    int limit = 200,
+  }) async => const [
+    AdminSupportRequest(
+      id: 'request-1',
+      userId: 'student-1',
+      type: AdminSupportRequestType.bug,
+      category: 'Quiz',
+      subject: 'Quiz timer stopped',
+      description: 'The timer stopped after resuming the app.',
+      metadata: {'platform': 'android'},
+      status: AdminSupportRequestStatus.open,
+      email: 'student@example.com',
+      displayName: 'Student User',
+      role: 'student',
+    ),
+  ];
+
+  @override
+  Future<bool> hasOpenSupportRequests() async => true;
+
+  @override
   Future<AdminAccount?> findAccount(String userId) async => admin;
 
   @override
@@ -137,4 +166,10 @@ class _AdminRepository implements AdminRepository {
     required bool suspended,
     String? reason,
   }) async => admin;
+
+  @override
+  Future<void> updateSupportRequestStatus({
+    required String requestId,
+    required AdminSupportRequestStatus status,
+  }) async {}
 }

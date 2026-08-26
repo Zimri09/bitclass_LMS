@@ -2,6 +2,7 @@ import 'package:bitclass_admin/core/theme/admin_theme.dart';
 import 'package:bitclass_admin/features/courses/presentation/admin_courses_screen.dart';
 import 'package:bitclass_admin/features/dashboard/data/admin_models.dart';
 import 'package:bitclass_admin/features/dashboard/data/admin_repository.dart';
+import 'package:bitclass_admin/features/support/data/admin_support_request.dart';
 import 'package:bitclass_admin/features/users/presentation/admin_users_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -89,6 +90,14 @@ class _DirectoryRepository implements AdminRepository {
       const [];
 
   @override
+  Future<List<AdminSupportRequest>> fetchSupportRequests({
+    int limit = 200,
+  }) async => const [];
+
+  @override
+  Future<bool> hasOpenSupportRequests() async => false;
+
+  @override
   Future<AdminDashboardSnapshot> fetchOverview() async {
     return const AdminDashboardSnapshot(
       userCount: 2,
@@ -119,4 +128,10 @@ class _DirectoryRepository implements AdminRepository {
     required bool suspended,
     String? reason,
   }) async => users.firstWhere((user) => user.id == userId);
+
+  @override
+  Future<void> updateSupportRequestStatus({
+    required String requestId,
+    required AdminSupportRequestStatus status,
+  }) async {}
 }

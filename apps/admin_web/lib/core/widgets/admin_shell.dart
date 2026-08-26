@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/dashboard/data/admin_models.dart';
+import '../../features/dashboard/data/admin_repository.dart';
 import '../auth/admin_session_controller.dart';
 import '../theme/admin_theme.dart';
 import 'admin_brand_logo.dart';
 
 class AdminShell extends StatelessWidget {
   final AdminSessionController session;
+  final AdminRepository repository;
   final String currentPath;
   final Widget child;
 
   const AdminShell({
     super.key,
     required this.session,
+    required this.repository,
     required this.currentPath,
     required this.child,
   });
@@ -43,6 +46,13 @@ class AdminShell extends StatelessWidget {
       icon: Icons.history_outlined,
       selectedIcon: Icons.history,
     ),
+    _AdminDestination(
+      path: '/support',
+      label: 'Support inbox',
+      icon: Icons.support_agent_outlined,
+      selectedIcon: Icons.support_agent,
+      showsOpenRequestBadge: true,
+    ),
   ];
 
   @override
@@ -56,6 +66,7 @@ class AdminShell extends StatelessWidget {
               width: 260,
               child: _AdminNavigation(
                 session: session,
+                repository: repository,
                 currentPath: currentPath,
               ),
             ),
@@ -93,6 +104,7 @@ class AdminShell extends StatelessWidget {
         width: 280,
         child: _AdminNavigation(
           session: session,
+          repository: repository,
           currentPath: currentPath,
           closeOnNavigate: true,
         ),
@@ -104,11 +116,13 @@ class AdminShell extends StatelessWidget {
 
 class _AdminNavigation extends StatelessWidget {
   final AdminSessionController session;
+  final AdminRepository repository;
   final String currentPath;
   final bool closeOnNavigate;
 
   const _AdminNavigation({
     required this.session,
+    required this.repository,
     required this.currentPath,
     this.closeOnNavigate = false,
   });
@@ -165,13 +179,19 @@ class _AdminNavigation extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             for (final destination in AdminShell._destinations)
-              _NavigationTile(
-                destination: destination,
-                selected: currentPath == destination.path,
-                onTap: () {
-                  if (closeOnNavigate) Navigator.of(context).pop();
-                  context.go(destination.path);
-                },
+              FutureBuilder<bool>(
+                future: destination.showsOpenRequestBadge
+                    ? repository.hasOpenSupportRequests()
+                    : null,
+                builder: (context, snapshot) => _NavigationTile(
+                  destination: destination,
+                  selected: currentPath == destination.path,
+                  showBadge: snapshot.data ?? false,
+                  onTap: () {
+                    if (closeOnNavigate) Navigator.of(context).pop();
+                    context.go(destination.path);
+                  },
+                ),
               ),
             const Spacer(),
             const Divider(),
@@ -192,11 +212,13 @@ class _AdminNavigation extends StatelessWidget {
 class _NavigationTile extends StatelessWidget {
   final _AdminDestination destination;
   final bool selected;
+  final bool showBadge;
   final VoidCallback onTap;
 
   const _NavigationTile({
     required this.destination,
     required this.selected,
+    required this.showBadge,
     required this.onTap,
   });
 
@@ -222,15 +244,33 @@ class _NavigationTile extends StatelessWidget {
                       : AdminColors.textSecondary,
                 ),
                 const SizedBox(width: 14),
-                Text(
-                  destination.label,
-                  style: TextStyle(
-                    color: selected
-                        ? AdminColors.textPrimary
-                        : AdminColors.textSecondary,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected
+                          ? AdminColors.textPrimary
+                          : AdminColors.textSecondary,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
                   ),
                 ),
+                if (showBadge) ...[
+                  const Tooltip(
+                    message: 'New support request',
+                    child: SizedBox.square(
+                      dimension: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AdminColors.danger,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -413,11 +453,13 @@ class _AdminDestination {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+  final bool showsOpenRequestBadge;
 
   const _AdminDestination({
     required this.path,
     required this.label,
     required this.icon,
     required this.selectedIcon,
+    this.showsOpenRequestBadge = false,
   });
 }

@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_models.dart';
 import 'admin_repository.dart';
+import '../../support/data/admin_support_request.dart';
 
 class SupabaseAdminRepository implements AdminRepository {
   final SupabaseClient _client;
@@ -127,5 +128,42 @@ class SupabaseAdminRepository implements AdminRepository {
         .order('created_at', ascending: false)
         .limit(limit);
     return rows.map(AdminAuditLog.fromMap).toList(growable: false);
+  }
+
+  @override
+  Future<List<AdminSupportRequest>> fetchSupportRequests({
+    int limit = 200,
+  }) async {
+    final rows = await _client
+        .from('support_requests')
+        .select(
+          'id,user_id,request_type,category,subject,description,metadata,'
+          'status,created_at,profile:profiles!support_requests_user_id_fkey('
+          'email,first_name,last_name,role)',
+        )
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return rows.map(AdminSupportRequest.fromMap).toList(growable: false);
+  }
+
+  @override
+  Future<bool> hasOpenSupportRequests() async {
+    final rows = await _client
+        .from('support_requests')
+        .select('id')
+        .eq('status', AdminSupportRequestStatus.open.databaseValue)
+        .limit(1);
+    return rows.isNotEmpty;
+  }
+
+  @override
+  Future<void> updateSupportRequestStatus({
+    required String requestId,
+    required AdminSupportRequestStatus status,
+  }) async {
+    await _client
+        .from('support_requests')
+        .update({'status': status.databaseValue})
+        .eq('id', requestId);
   }
 }
