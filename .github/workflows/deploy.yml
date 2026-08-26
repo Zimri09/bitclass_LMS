@@ -30,7 +30,7 @@ jobs:
 
       # 4. Build for web
       - name: Build web app
-        run: flutter build web --release --web-renderer canvaskit --base-href /
+        run: flutter build web --release --base-href /
 
       # 5. Copy .htaccess into the build output
       - name: Copy .htaccess for SPA routing
