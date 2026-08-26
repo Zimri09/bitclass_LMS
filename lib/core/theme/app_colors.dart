@@ -5,7 +5,7 @@ class AppColors {
   AppColors._();
 
   // Active theme status (updated in main.dart)
-  static bool isDarkMode = true;
+  static bool isDarkMode = false;
 
   // ── Primary background colors ──────────────────────────────────────────────
   static Color get background => isDarkMode ? const Color(0xFF0D1117) : const Color(0xFFF5F7FA);

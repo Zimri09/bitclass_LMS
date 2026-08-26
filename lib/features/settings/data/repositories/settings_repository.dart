@@ -6,7 +6,7 @@ import '../models/models.dart';
 class SettingsRepository {
   static const String _boxName = 'app_settings';
   static const String _settingsKey = 'settings';
-  static const String _themeDefaultAppliedKey = 'theme_default_applied_v1';
+  static const String _themeDefaultAppliedKey = 'theme_default_applied_v2';
 
   Box? _box;
 
@@ -26,7 +26,7 @@ class SettingsRepository {
     final themeDefaultApplied =
         _box!.get(_themeDefaultAppliedKey) as bool? ?? false;
     if (!themeDefaultApplied) {
-      final updatedSettings = currentSettings.copyWith(darkMode: true);
+      final updatedSettings = currentSettings.copyWith(darkMode: false);
       await _box!.put(_settingsKey, updatedSettings.toMap());
       await _box!.put(_themeDefaultAppliedKey, true);
       return updatedSettings;

@@ -6,7 +6,7 @@ void main() {
     test('has correct default values', () {
       const settings = AppSettingsModel();
 
-      expect(settings.darkMode, true);
+      expect(settings.darkMode, false);
       expect(settings.autoPlayVideos, false);
       expect(settings.downloadOverWifiOnly, true);
     });
@@ -30,9 +30,9 @@ void main() {
     test('copyWith updates only specified fields', () {
       const original = AppSettingsModel();
 
-      final updated = original.copyWith(darkMode: false);
+      final updated = original.copyWith(darkMode: true);
 
-      expect(updated.darkMode, false);
+      expect(updated.darkMode, true);
       expect(updated.autoPlayVideos, false); // unchanged
       expect(updated.downloadOverWifiOnly, true); // unchanged
     });
@@ -76,7 +76,7 @@ void main() {
     test('fromMap uses defaults for missing keys', () {
       final settings = AppSettingsModel.fromMap({});
 
-      expect(settings.darkMode, true);
+      expect(settings.darkMode, false);
       expect(settings.autoPlayVideos, false);
       expect(settings.downloadOverWifiOnly, true);
     });
@@ -88,7 +88,7 @@ void main() {
         'downloadOverWifiOnly': null,
       });
 
-      expect(settings.darkMode, true);
+      expect(settings.darkMode, false);
       expect(settings.autoPlayVideos, false);
       expect(settings.downloadOverWifiOnly, true);
     });

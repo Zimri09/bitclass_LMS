@@ -7,7 +7,7 @@ class AppSettingsModel extends Equatable {
   final bool downloadOverWifiOnly;
 
   const AppSettingsModel({
-    this.darkMode = true,
+    this.darkMode = false,
     this.autoPlayVideos = false,
     this.downloadOverWifiOnly = true,
   });
@@ -40,7 +40,7 @@ class AppSettingsModel extends Equatable {
 
   factory AppSettingsModel.fromMap(Map<String, dynamic> map) {
     return AppSettingsModel(
-      darkMode: map['darkMode'] as bool? ?? true,
+      darkMode: map['darkMode'] as bool? ?? false,
       autoPlayVideos: map['autoPlayVideos'] as bool? ?? false,
       downloadOverWifiOnly: map['downloadOverWifiOnly'] as bool? ?? true,
     );

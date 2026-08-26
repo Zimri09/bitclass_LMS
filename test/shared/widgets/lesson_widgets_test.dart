@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   setUp(() => AppColors.isDarkMode = false);
-  tearDown(() => AppColors.isDarkMode = true);
+  tearDown(() => AppColors.isDarkMode = false);
 
   Widget buildSubject(Widget child) {
     return MaterialApp(
