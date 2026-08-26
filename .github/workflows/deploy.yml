@@ -4,7 +4,16 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Allows you to manually trigger this from GitHub
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Select where to deploy"
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 jobs:
   build-and-deploy:
@@ -36,12 +45,24 @@ jobs:
       - name: Copy .htaccess for SPA routing
         run: cp web/.htaccess build/web/.htaccess
 
-      # 6. Deploy to FTP server
-      - name: Deploy to FTP
+      # 6. Deploy to FTP server (production)
+      - name: Deploy to FTP (production)
+        if: ${{ github.event_name == 'push' || inputs.deploy_target == 'production' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./build/web/
+          server-dir: ./  # Change this if your server needs files in a subfolder like public_html/
+
+      # 7. Deploy to FTP server (staging)
+      - name: Deploy to FTP (staging)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_target == 'staging' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER_STAGING }}
+          username: ${{ secrets.FTP_USERNAME_STAGING }}
+          password: ${{ secrets.FTP_PASSWORD_STAGING }}
           local-dir: ./build/web/
           server-dir: ./  # Change this if your server needs files in a subfolder like public_html/
