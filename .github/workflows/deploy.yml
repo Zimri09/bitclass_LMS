@@ -45,3 +45,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./build/web/
           server-dir: ./  # Change this if your server needs files in a subfolder like public_html/
+          timeout: 120000
