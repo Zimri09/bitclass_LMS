@@ -1,6 +1,6 @@
 # BitClass Code Runner
 
-This service runs one Python file per disposable gVisor container. It is
+This service runs one Python or C file per disposable gVisor container. It is
 intended for a dedicated Linux host and must not share a machine with Supabase,
 databases, CI workers, or other sensitive services.
 
@@ -18,18 +18,19 @@ Each execution uses a fixed command and enforces:
 - no image pulls during requests
 - immediate container cleanup
 
-The service sends bounded source and program input to a fixed Python bootstrap
-over standard input. It does not accept shell commands, filenames, compiler
-arguments, packages, environment variables, or mounts from the caller, and it
-logs neither source code nor program input.
+The service sends bounded source and program input to fixed, language-specific
+bootstraps over standard input. C source is compiled as C17 with a fixed GCC
+command before its temporary binary is executed. It does not accept shell
+commands, filenames, compiler arguments, packages, environment variables, or
+mounts from the caller, and it logs neither source code nor program input.
 
 ## Host setup
 
 1. Provision a dedicated Linux VM.
 2. Install Docker Engine and gVisor, then configure Docker's `runsc` runtime.
 3. Verify isolation with `docker run --rm --runtime=runsc hello-world`.
-4. Pull an approved Python image as an administrator.
-5. Record its immutable digest with
+4. Pull approved Python and GCC images as an administrator.
+5. Record both immutable digests with
    `docker image inspect --format '{{index .RepoDigests 0}}' IMAGE_NAME`.
 6. Set the variables shown in `.env.example`. Use the same random shared secret
    for `CODE_RUNNER_SHARED_SECRET` in Supabase.
@@ -46,5 +47,5 @@ run on an otherwise disposable, dedicated VM.
 ## Health check
 
 `GET /healthz` returns `{"status":"ok"}` without running a container. Program
-execution requires `POST /v1/execute/python` with the private `X-Runner-Token`
-header. Never expose that token to Flutter clients.
+execution requires `POST /v1/execute/python` or `POST /v1/execute/c` with the
+private `X-Runner-Token` header. Never expose that token to Flutter clients.

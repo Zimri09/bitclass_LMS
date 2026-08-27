@@ -8,6 +8,7 @@ class RunnerConfig {
   final int port;
   final String sharedSecret;
   final String pythonImage;
+  final String cImage;
   final String dockerBinary;
   final String containerRuntime;
   final int maxConcurrentJobs;
@@ -18,6 +19,7 @@ class RunnerConfig {
     required this.port,
     required this.sharedSecret,
     required this.pythonImage,
+    required this.cImage,
     required this.dockerBinary,
     required this.containerRuntime,
     required this.maxConcurrentJobs,
@@ -31,11 +33,15 @@ class RunnerConfig {
         'RUNNER_SHARED_SECRET must contain at least 32 characters.',
       );
     }
-    final image = environment['PYTHON_RUNNER_IMAGE']?.trim() ?? '';
-    if (!image.contains('@sha256:')) {
+    final pythonImage = environment['PYTHON_RUNNER_IMAGE']?.trim() ?? '';
+    if (!pythonImage.contains('@sha256:')) {
       throw StateError(
         'PYTHON_RUNNER_IMAGE must be pinned to a sha256 digest.',
       );
+    }
+    final cImage = environment['C_RUNNER_IMAGE']?.trim() ?? '';
+    if (!cImage.contains('@sha256:')) {
+      throw StateError('C_RUNNER_IMAGE must be pinned to a sha256 digest.');
     }
     final port = int.tryParse(environment['RUNNER_PORT'] ?? '') ?? 8080;
     final maxConcurrent =
@@ -64,7 +70,8 @@ class RunnerConfig {
           : '127.0.0.1',
       port: port,
       sharedSecret: secret,
-      pythonImage: image,
+      pythonImage: pythonImage,
+      cImage: cImage,
       dockerBinary: environment['DOCKER_BINARY']?.trim().isNotEmpty == true
           ? environment['DOCKER_BINARY']!.trim()
           : 'docker',
@@ -74,6 +81,8 @@ class RunnerConfig {
     );
   }
 }
+
+enum _ExecutionLanguage { python, c }
 
 class CodeRunnerServer {
   static const int _maxRequestBytes = 32 * 1024;
@@ -89,6 +98,21 @@ class CodeRunnerServer {
       'encoding="utf-8");'
       'g={"__name__":"__main__","__file__":"main.py"};'
       'exec(compile(p["source"],"main.py","exec"),g,g)';
+  static const String _cBootstrap = r'''
+set -eu
+IFS= read -r source_length
+case "$source_length" in
+  ''|*[!0-9]*) exit 126 ;;
+esac
+dd iflag=fullblock bs=1 count="$source_length" of=/tmp/main.c status=none
+cat > /tmp/stdin
+if ! gcc -std=c17 -Wall -Wextra -pedantic -O0 -pipe /tmp/main.c -o /tmp/program; then
+  printf '\n__BITCLASS_COMPILE_ERROR__\n' >&2
+  exit 125
+fi
+exec /tmp/program < /tmp/stdin
+''';
+  static const String _compileErrorMarker = '__BITCLASS_COMPILE_ERROR__';
 
   final RunnerConfig config;
   final Map<String, List<DateTime>> _recentRequests = {};
@@ -127,7 +151,8 @@ class CodeRunnerServer {
       await _json(request.response, HttpStatus.ok, {'status': 'ok'});
       return;
     }
-    if (request.method != 'POST' || request.uri.path != '/v1/execute/python') {
+    final language = _languageForPath(request.uri.path);
+    if (request.method != 'POST' || language == null) {
       await _json(request.response, HttpStatus.notFound, {
         'error': 'Not found.',
       });
@@ -145,7 +170,7 @@ class CodeRunnerServer {
     try {
       final body = await _readJsonBody(request);
       final execution = _ExecutionRequest.fromJson(body);
-      _validate(execution);
+      _validate(execution, language);
       if (!_allowRequest(execution.userId)) {
         await _json(request.response, HttpStatus.tooManyRequests, {
           'error': 'Too many runs. Wait a minute and try again.',
@@ -161,7 +186,7 @@ class CodeRunnerServer {
 
       _activeJobs++;
       try {
-        final result = await _execute(execution);
+        final result = await _execute(execution, language);
         await _json(request.response, HttpStatus.ok, result.toJson());
       } finally {
         _activeJobs--;
@@ -174,6 +199,14 @@ class CodeRunnerServer {
         'error': 'The isolated runner could not start the program.',
       });
     }
+  }
+
+  _ExecutionLanguage? _languageForPath(String path) {
+    return switch (path) {
+      '/v1/execute/python' => _ExecutionLanguage.python,
+      '/v1/execute/c' => _ExecutionLanguage.c,
+      _ => null,
+    };
   }
 
   Future<Map<String, dynamic>> _readJsonBody(HttpRequest request) async {
@@ -206,7 +239,10 @@ class CodeRunnerServer {
     }
   }
 
-  void _validate(_ExecutionRequest request) {
+  void _validate(
+    _ExecutionRequest request,
+    _ExecutionLanguage language,
+  ) {
     final userIdPattern = RegExp(
       r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
     );
@@ -215,9 +251,9 @@ class CodeRunnerServer {
     }
     if (request.source.trim().isEmpty ||
         utf8.encode(request.source).length > _maxSourceBytes) {
-      throw const _RequestError(
+      throw _RequestError(
         HttpStatus.badRequest,
-        'Python source must be between 1 byte and 20 KB.',
+        '${language == _ExecutionLanguage.python ? 'Python' : 'C'} source must be between 1 byte and 20 KB.',
       );
     }
     if (utf8.encode(request.stdin).length > _maxStdinBytes) {
@@ -254,14 +290,38 @@ class CodeRunnerServer {
     return true;
   }
 
-  Future<_ExecutionResult> _execute(_ExecutionRequest request) async {
+  Future<_ExecutionResult> _execute(
+    _ExecutionRequest request,
+    _ExecutionLanguage language,
+  ) async {
     final jobId = _randomId();
-    final containerName = 'bitclass-python-$jobId';
+    final containerName = 'bitclass-${language.name}-$jobId';
     final stopwatch = Stopwatch()..start();
     Process? process;
     var timedOut = false;
 
     try {
+      final languageArguments = switch (language) {
+        _ExecutionLanguage.python => [
+          '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m',
+          '--env=PYTHONDONTWRITEBYTECODE=1',
+          config.pythonImage,
+          'python3',
+          '-I',
+          '-S',
+          '-B',
+          '-c',
+          _pythonBootstrap,
+        ],
+        _ExecutionLanguage.c => [
+          '--tmpfs=/tmp:rw,exec,nosuid,nodev,size=16m',
+          '--env=TMPDIR=/tmp',
+          config.cImage,
+          'sh',
+          '-c',
+          _cBootstrap,
+        ],
+      };
       process = await Process.start(config.dockerBinary, [
         'run',
         '--name=$containerName',
@@ -281,24 +341,24 @@ class CodeRunnerServer {
         '--cpus=0.5',
         '--pids-limit=32',
         '--ulimit=nofile=256:256',
-        '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m',
-        '--env=PYTHONDONTWRITEBYTECODE=1',
-        config.pythonImage,
-        'python3',
-        '-I',
-        '-S',
-        '-B',
-        '-c',
-        _pythonBootstrap,
+        ...languageArguments,
       ], mode: ProcessStartMode.normal);
 
       final stdoutFuture = _collect(process.stdout);
       final stderrFuture = _collect(process.stderr);
-      process.stdin.add(
-        utf8.encode(
-          jsonEncode({'source': request.source, 'stdin': request.stdin}),
-        ),
-      );
+      if (language == _ExecutionLanguage.python) {
+        process.stdin.add(
+          utf8.encode(
+            jsonEncode({'source': request.source, 'stdin': request.stdin}),
+          ),
+        );
+      } else {
+        final sourceBytes = utf8.encode(request.source);
+        process.stdin
+          ..add(utf8.encode('${sourceBytes.length}\n'))
+          ..add(sourceBytes)
+          ..add(utf8.encode(request.stdin));
+      }
       await process.stdin.close();
 
       var exitCode = -1;
@@ -318,13 +378,25 @@ class CodeRunnerServer {
         ],
       );
       stopwatch.stop();
+      final isCompileError =
+          language == _ExecutionLanguage.c &&
+          exitCode == 125 &&
+          outputs[1].text.contains(_compileErrorMarker);
+      final phase = isCompileError
+          ? 'compile'
+          : exitCode == 0 && !timedOut
+          ? 'completed'
+          : 'runtime';
       return _ExecutionResult(
         stdout: outputs[0].text,
-        stderr: outputs[1].text,
-        exitCode: exitCode,
+        stderr: isCompileError
+            ? outputs[1].text.replaceAll(_compileErrorMarker, '').trimRight()
+            : outputs[1].text,
+        exitCode: isCompileError ? 1 : exitCode,
         durationMs: stopwatch.elapsedMilliseconds,
         timedOut: timedOut,
         truncated: outputs.any((output) => output.truncated),
+        phase: phase,
       );
     } finally {
       process?.kill(ProcessSignal.sigkill);
@@ -345,15 +417,22 @@ class CodeRunnerServer {
       );
     }
 
-    final imageResult = await Process.run(config.dockerBinary, [
-      'image',
-      'inspect',
-      config.pythonImage,
-      '--format',
-      '{{.Id}}',
-    ]).timeout(const Duration(seconds: 10));
-    if (imageResult.exitCode != 0) {
-      throw StateError('The pinned Python runner image is not installed.');
+    for (final entry in {
+      'Python': config.pythonImage,
+      'C': config.cImage,
+    }.entries) {
+      final imageResult = await Process.run(config.dockerBinary, [
+        'image',
+        'inspect',
+        entry.value,
+        '--format',
+        '{{.Id}}',
+      ]).timeout(const Duration(seconds: 10));
+      if (imageResult.exitCode != 0) {
+        throw StateError(
+          'The pinned ${entry.key} runner image is not installed.',
+        );
+      }
     }
   }
 
@@ -489,6 +568,7 @@ class _ExecutionResult {
   final int durationMs;
   final bool timedOut;
   final bool truncated;
+  final String phase;
 
   const _ExecutionResult({
     required this.stdout,
@@ -497,6 +577,7 @@ class _ExecutionResult {
     required this.durationMs,
     required this.timedOut,
     required this.truncated,
+    required this.phase,
   });
 
   Map<String, Object?> toJson() => {
@@ -506,6 +587,7 @@ class _ExecutionResult {
     'durationMs': durationMs,
     'timedOut': timedOut,
     'truncated': truncated,
+    'phase': phase,
   };
 }
 

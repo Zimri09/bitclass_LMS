@@ -7,6 +7,87 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/models.dart';
 
+enum CodeEditorSyntax { automatic, python, c }
+
+class _SyntaxHighlightingController extends TextEditingController {
+  CodeEditorSyntax syntax;
+
+  _SyntaxHighlightingController({required String text, required this.syntax})
+    : super(text: text);
+
+  static final RegExp _pythonTokens = RegExp(
+    r'(#[^\n]*)'
+    r'''|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')'''
+    r'|(\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|False|finally|for|from|global|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|True|try|while|with|yield)\b)'
+    r'|(\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?)\b)',
+    multiLine: true,
+  );
+
+  static final RegExp _cTokens = RegExp(
+    r'(/\*[\s\S]*?\*/|//[^\n]*)'
+    r'''|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')'''
+    r'|(^\s*#[^\n]*)'
+    r'|(\b(?:auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|inline|int|long|register|restrict|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while|_Bool|_Complex|_Imaginary)\b)'
+    r'|(\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?[fFlLuU]*)\b)',
+    multiLine: true,
+  );
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    if (withComposing &&
+        value.composing.isValid &&
+        !value.composing.isCollapsed) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+
+    final pattern = switch (syntax) {
+      CodeEditorSyntax.python => _pythonTokens,
+      CodeEditorSyntax.c => _cTokens,
+      CodeEditorSyntax.automatic => null,
+    };
+    final baseStyle = style ?? const TextStyle();
+    if (pattern == null || text.isEmpty) {
+      return TextSpan(text: text, style: baseStyle);
+    }
+
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, match.start)));
+      }
+      final color = match.group(1) != null
+          ? const Color(0xFF6A9955)
+          : match.group(2) != null
+          ? const Color(0xFFCE9178)
+          : match.group(3) != null
+          ? const Color(0xFFDCDCAA)
+          : match.group(4) != null
+          ? const Color(0xFFC586C0)
+          : const Color(0xFFB5CEA8);
+      spans.add(
+        TextSpan(
+          text: match.group(0),
+          style: TextStyle(color: color, fontWeight: FontWeight.w500),
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+    return TextSpan(style: baseStyle, children: spans);
+  }
+}
+
 /// A snapshot of the editor state at a point in time.
 class _EditorSnapshot {
   final String text;
@@ -73,6 +154,8 @@ class CodeEditor extends StatefulWidget {
   final bool readOnly;
   final ValueChanged<String>? onChanged;
   final double? height;
+  final CodeEditorSyntax syntax;
+  final String? languageLabel;
 
   const CodeEditor({
     super.key,
@@ -81,6 +164,8 @@ class CodeEditor extends StatefulWidget {
     this.readOnly = false,
     this.onChanged,
     this.height,
+    this.syntax = CodeEditorSyntax.automatic,
+    this.languageLabel,
   });
 
   @override
@@ -88,7 +173,7 @@ class CodeEditor extends StatefulWidget {
 }
 
 class _CodeEditorState extends State<CodeEditor> {
-  late TextEditingController _controller;
+  late _SyntaxHighlightingController _controller;
   late ScrollController _scrollController;
   late FocusNode _focusNode;
   int _lineCount = 1;
@@ -101,7 +186,10 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialCode);
+    _controller = _SyntaxHighlightingController(
+      text: widget.initialCode,
+      syntax: _effectiveSyntax,
+    );
     _scrollController = ScrollController();
     _focusNode = FocusNode();
     _undoRedoManager.init(widget.initialCode);
@@ -112,11 +200,21 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void didUpdateWidget(CodeEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _controller.syntax = _effectiveSyntax;
     if (widget.initialCode != oldWidget.initialCode &&
         widget.initialCode != _controller.text) {
       _controller.text = widget.initialCode;
       _updateLineCount();
     }
+  }
+
+  CodeEditorSyntax get _effectiveSyntax {
+    if (widget.syntax != CodeEditorSyntax.automatic) return widget.syntax;
+    return switch (widget.language) {
+      ProgrammingLanguage.python => CodeEditorSyntax.python,
+      ProgrammingLanguage.cpp => CodeEditorSyntax.c,
+      _ => CodeEditorSyntax.automatic,
+    };
   }
 
   @override
@@ -274,7 +372,7 @@ class _CodeEditorState extends State<CodeEditor> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  widget.language.displayName,
+                  widget.languageLabel ?? widget.language.displayName,
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -405,6 +503,7 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   Color _getLanguageAccentColor(ProgrammingLanguage language) {
+    if (_effectiveSyntax == CodeEditorSyntax.c) return AppColors.info;
     switch (language) {
       case ProgrammingLanguage.dart:
         return AppColors.primary;
@@ -426,6 +525,10 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   Color _getLanguageTextColor(ProgrammingLanguage language) {
+    if (_effectiveSyntax == CodeEditorSyntax.python ||
+        _effectiveSyntax == CodeEditorSyntax.c) {
+      return const Color(0xFFD4D4D4);
+    }
     switch (language) {
       case ProgrammingLanguage.python:
         return AppColors.warning;
@@ -446,6 +549,7 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   IconData _getLanguageIcon(ProgrammingLanguage language) {
+    if (_effectiveSyntax == CodeEditorSyntax.c) return Icons.memory;
     switch (language) {
       case ProgrammingLanguage.dart:
         return Icons.flutter_dash;

@@ -9,6 +9,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_shell.dart';
 import '../../../assignments/data/models/assignment_model.dart';
 import '../../../assignments/presentation/widgets/code_editor.dart';
+import '../../data/models/code_execution_language.dart';
 import '../../data/models/code_execution_result.dart';
 import '../../data/repositories/code_execution_repository.dart';
 
@@ -20,17 +21,20 @@ class CodeLabScreen extends StatefulWidget {
 }
 
 class _CodeLabScreenState extends State<CodeLabScreen> {
-  static const _starterCode = '''for number in range(5):
-    print(number)''';
-
   final _stdinController = TextEditingController();
-  String _source = _starterCode;
+  final Map<CodeExecutionLanguage, String> _sources = {
+    for (final language in CodeExecutionLanguage.values)
+      language: language.starterCode,
+  };
+  CodeExecutionLanguage _language = CodeExecutionLanguage.python;
   CodeExecutionResult? _result;
   String? _error;
   String _submittedStdin = '';
   bool _isRunning = false;
   bool _showProgramInput = false;
   int _editorRevision = 0;
+
+  String get _source => _sources[_language] ?? _language.starterCode;
 
   @override
   void dispose() {
@@ -48,9 +52,9 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
         stdinBytes > CodeExecutionRepository.maxStdinBytes) {
       setState(() {
         _error = _source.trim().isEmpty
-            ? 'Enter Python code before running.'
+            ? 'Enter ${_language.displayName} code before running.'
             : sourceBytes > CodeExecutionRepository.maxSourceBytes
-            ? 'Python source must be 20 KB or less.'
+            ? '${_language.displayName} source must be 20 KB or less.'
             : 'Program input must be 8 KB or less.';
       });
       return;
@@ -65,7 +69,7 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
     try {
       final result = await context
           .read<CodeExecutionRepository>()
-          .executePython(source: _source, stdin: stdin);
+          .execute(language: _language, source: _source, stdin: stdin);
       if (!mounted) return;
       setState(() => _result = result);
     } catch (error) {
@@ -79,12 +83,24 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
   void _reset() {
     FocusScope.of(context).unfocus();
     setState(() {
-      _source = _starterCode;
+      _sources[_language] = _language.starterCode;
       _stdinController.clear();
       _result = null;
       _error = null;
       _submittedStdin = '';
       _showProgramInput = false;
+      _editorRevision++;
+    });
+  }
+
+  void _selectLanguage(CodeExecutionLanguage language) {
+    if (_isRunning || language == _language) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _language = language;
+      _result = null;
+      _error = null;
+      _submittedStdin = '';
       _editorRevision++;
     });
   }
@@ -191,16 +207,35 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Python Sandbox', style: AppTextStyles.h3),
+                Text('Python & C Sandbox', style: AppTextStyles.h3),
                 const SizedBox(height: 5),
                 Text(
-                  'Practice one Python file at a time. Each run is isolated and automatically discarded.',
+                  'Write, compile, and run one isolated program at a time. Your Python and C drafts are kept separately while you switch.',
                   style: AppTextStyles.bodySmall.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
               ],
             ),
+          ),
+          SegmentedButton<CodeExecutionLanguage>(
+            key: const ValueKey('code-lab-language-selector'),
+            segments: const [
+              ButtonSegment(
+                value: CodeExecutionLanguage.python,
+                label: Text('Python'),
+                icon: Icon(Icons.code),
+              ),
+              ButtonSegment(
+                value: CodeExecutionLanguage.c,
+                label: Text('C'),
+                icon: Icon(Icons.memory),
+              ),
+            ],
+            selected: {_language},
+            onSelectionChanged: _isRunning
+                ? null
+                : (selection) => _selectLanguage(selection.first),
           ),
           const _SafetyPill(icon: Icons.wifi_off, label: 'No network'),
           const _SafetyPill(
@@ -223,7 +258,11 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
       children: [
         Row(
           children: [
-            Text('main.py', style: AppTextStyles.h4),
+            Text(
+              'main${_language.fileExtension}',
+              key: const ValueKey('code-lab-filename'),
+              style: AppTextStyles.h4,
+            ),
             const Spacer(),
             Text(
               '$sourceBytes / ${CodeExecutionRepository.maxSourceBytes} bytes',
@@ -237,12 +276,20 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
         ),
         const SizedBox(height: 10),
         CodeEditor(
-          key: ValueKey('code-lab-editor-$_editorRevision'),
+          key: ValueKey(
+            'code-lab-editor-${_language.name}-$_editorRevision',
+          ),
           initialCode: _source,
-          language: ProgrammingLanguage.python,
+          language: _language == CodeExecutionLanguage.python
+              ? ProgrammingLanguage.python
+              : ProgrammingLanguage.cpp,
+          syntax: _language == CodeExecutionLanguage.python
+              ? CodeEditorSyntax.python
+              : CodeEditorSyntax.c,
+          languageLabel: _language.displayName,
           height: height,
           readOnly: _isRunning,
-          onChanged: (value) => setState(() => _source = value),
+          onChanged: (value) => setState(() => _sources[_language] = value),
         ),
       ],
     );
@@ -267,7 +314,9 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
                   ),
                 )
               : const Icon(Icons.play_arrow_rounded),
-          label: Text(_isRunning ? 'Running safely...' : 'Run Python'),
+          label: Text(
+            _isRunning ? 'Running safely...' : 'Run ${_language.displayName}',
+          ),
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 15),
             backgroundColor: AppColors.secondary,
@@ -316,7 +365,9 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Enter one answer per line. Each input() call reads the next line.',
+          _language == CodeExecutionLanguage.python
+              ? 'Enter one answer per line. Each input() call reads the next line.'
+              : 'Enter input exactly as the program expects. scanf() and fgets() read from these lines.',
           style: AppTextStyles.bodySmall.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 10),
@@ -366,6 +417,11 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
                     ? '\n'
                     : '',
               ));
+    final outputTitle = switch (result?.phase) {
+      CodeExecutionPhase.compile => 'Compile error',
+      CodeExecutionPhase.runtime when hasError => 'Runtime error',
+      _ => 'Console',
+    };
 
     return Container(
       constraints: const BoxConstraints(minHeight: 190),
@@ -397,7 +453,7 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
                   color: hasError ? AppColors.error : AppColors.secondary,
                 ),
                 const SizedBox(width: 8),
-                Text('Console', style: AppTextStyles.label),
+                Text(outputTitle, style: AppTextStyles.label),
                 const Spacer(),
                 if (result != null)
                   Text(
