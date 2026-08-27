@@ -38,7 +38,18 @@ mounts from the caller, and it logs neither source code nor program input.
    the host; the example uses one 1 GB job on a 2 GB VM.
 7. Start the service with `dart run bin/server.dart` from this directory.
 8. Place an HTTPS reverse proxy in front of the loopback listener and allow
-   requests only from the Supabase relay where infrastructure permits.
+   requests only from the Supabase relay where infrastructure permits. When
+   using Caddy, explicitly proxy both execution routes:
+
+   ```caddyfile
+   runner.example.com {
+     @runner path /healthz /v1/execute/python /v1/execute/c
+     handle @runner {
+       reverse_proxy 127.0.0.1:8080
+     }
+     respond 404
+   }
+   ```
 
 The service intentionally refuses to start on Windows or macOS. Membership in
 the Docker group is effectively privileged host access, which is why this must
