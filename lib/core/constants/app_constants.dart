@@ -8,7 +8,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = 'BitClass';
-  static const String appTagline = 'Learn to Code, Code to Learn';
+  static const String appTagline = 'Learn · Connect · Grow';
 
   /// Cached package info — call [initPackageInfo] before accessing
   static PackageInfo? _packageInfo;

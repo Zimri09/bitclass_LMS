@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -108,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text('BitClass', style: AppTextStyles.h1),
         const SizedBox(height: 8),
         Text(
-          'Learn to Code, Code to Learn',
+          AppConstants.appTagline,
           style: AppTextStyles.bodyMedium.copyWith(
             color: AppColors.textSecondary,
           ),

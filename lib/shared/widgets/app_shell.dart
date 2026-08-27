@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/router/back_navigation_controller.dart';
 import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
@@ -560,7 +561,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   style: AppTextStyles.h4.copyWith(color: colors.textPrimary),
                 ),
                 Text(
-                  'Learn to Code',
+                  AppConstants.appTagline,
                   style: AppTextStyles.caption.copyWith(
                     color: colors.textMuted,
                   ),
