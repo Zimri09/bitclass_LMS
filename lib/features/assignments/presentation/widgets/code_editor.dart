@@ -489,6 +489,8 @@ class _CodeEditorState extends State<CodeEditor> {
           color: codeTextColor,
         ),
         decoration: InputDecoration(
+          filled: true,
+          fillColor: AppColors.codeBackground,
           contentPadding: const EdgeInsets.all(12),
           border: InputBorder.none,
           hintText: widget.readOnly ? null : 'Start coding here...',

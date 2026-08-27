@@ -1,3 +1,4 @@
+import 'package:bitclass/core/theme/app_colors.dart';
 import 'package:bitclass/features/assignments/presentation/widgets/code_editor.dart';
 import 'package:bitclass/features/code_lab/data/models/code_execution_language.dart';
 import 'package:bitclass/features/code_lab/data/models/code_execution_result.dart';
@@ -209,6 +210,34 @@ void main() {
 
     expect(find.text('Compile error'), findsOneWidget);
     expect(find.textContaining('expected semicolon'), findsOneWidget);
+  });
+
+  testWidgets('keeps the code surface dark in light mode', (tester) async {
+    await tester.pumpWidget(
+      RepositoryProvider<CodeExecutionRepository>.value(
+        value: _FakeCodeExecutionRepository(),
+        child: MaterialApp(
+          theme: ThemeData.light().copyWith(
+            inputDecorationTheme: const InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          ),
+          home: const CodeLabScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editorField = tester.widget<TextField>(
+      find.descendant(
+        of: find.byType(CodeEditor),
+        matching: find.byType(TextField),
+      ),
+    );
+
+    expect(editorField.decoration?.filled, isTrue);
+    expect(editorField.decoration?.fillColor, AppColors.codeBackground);
   });
 }
 
