@@ -12,8 +12,8 @@ Each execution uses a fixed command and enforces:
 - no container network
 - non-root user and all Linux capabilities dropped
 - read-only root filesystem with no host directory mounted
-- a bounded memory limit (1 GB by default), 0.5 CPU, 32 process, 256 open
-  file, and 5 second limits
+- a bounded memory limit (1 GB by default), 0.5 CPU, 32 processes for
+  Python or 64 for GCC, 256 open files, and a 5 second limit
 - 32 KB each for stdout and stderr
 - no image pulls during requests
 - immediate container cleanup

@@ -91,6 +91,8 @@ class CodeRunnerServer {
   static const int _maxOutputBytesPerStream = 32 * 1024;
   static const int _requestsPerMinute = 10;
   static const Duration _executionTimeout = Duration(seconds: 5);
+  static const int _pythonPidsLimit = 32;
+  static const int _cPidsLimit = 64;
   static const String _pythonBootstrap =
       'import io,json,sys;'
       'p=json.load(sys.stdin);'
@@ -339,7 +341,7 @@ exec /tmp/program < /tmp/stdin
         '--memory=${config.memoryLimitMb}m',
         '--memory-swap=${config.memoryLimitMb}m',
         '--cpus=0.5',
-        '--pids-limit=32',
+        '--pids-limit=${language == _ExecutionLanguage.c ? _cPidsLimit : _pythonPidsLimit}',
         '--ulimit=nofile=256:256',
         ...languageArguments,
       ], mode: ProcessStartMode.normal);
