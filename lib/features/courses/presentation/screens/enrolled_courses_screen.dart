@@ -109,21 +109,11 @@ class _EnrolledCoursesScreenState extends State<EnrolledCoursesScreen> {
                 ),
               )
             else
-              SliverPadding(
-                padding: EdgeInsets.all(
-                  MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                ),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _EnrolledCourseCard(
-                        data: _enrolledCourses![index],
-                        onUnenrolled: _loadEnrollments,
-                      ),
-                    ),
-                    childCount: _enrolledCourses!.length,
-                  ),
+              SliverClassroomCourseLayout(
+                itemCount: _enrolledCourses!.length,
+                itemBuilder: (context, index) => _EnrolledCourseCard(
+                  data: _enrolledCourses![index],
+                  onUnenrolled: _loadEnrollments,
                 ),
               ),
           ],

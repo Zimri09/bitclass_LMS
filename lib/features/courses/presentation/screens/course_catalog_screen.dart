@@ -128,20 +128,12 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                       );
                     }
 
-                    return SliverPadding(
-                      padding: const EdgeInsets.all(16),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _CourseCard(
-                              course: visibleCourses[index],
-                              onTap: () => _openCourse(visibleCourses[index]),
-                              onUnenrolled: _refreshCourses,
-                            ),
-                          ),
-                          childCount: visibleCourses.length,
-                        ),
+                    return SliverClassroomCourseLayout(
+                      itemCount: visibleCourses.length,
+                      itemBuilder: (context, index) => _CourseCard(
+                        course: visibleCourses[index],
+                        onTap: () => _openCourse(visibleCourses[index]),
+                        onUnenrolled: _refreshCourses,
                       ),
                     );
                   }
