@@ -61,8 +61,8 @@ class NotificationRepository {
         id: 'notif-2',
         userId: _demoStudentUserId,
         type: NotificationType.assignmentDue,
-        title: 'Assignment Due Soon',
-        body: 'Flutter Counter App assignment is due in 2 days',
+        title: 'Activity Due Soon',
+        body: 'Flutter Counter App activity is due in 2 days',
         createdAt: now.subtract(const Duration(hours: 2)),
         courseId: 'course-1',
         actionUrl: '/courses/course-1/assignments/assignment-1',
@@ -102,7 +102,7 @@ class NotificationRepository {
         id: 'notif-6',
         userId: _demoStudentUserId,
         type: NotificationType.assignmentGraded,
-        title: 'Assignment Graded',
+        title: 'Activity Graded',
         body: 'Python FizzBuzz Solution received 95/100',
         isRead: true,
         createdAt: now.subtract(const Duration(days: 3)),
@@ -145,7 +145,7 @@ class NotificationRepository {
         userId: _demoInstructorUserId,
         type: NotificationType.assignmentSubmitted,
         title: 'Submission Waiting for Review',
-        body: 'You have new assignment submissions to grade',
+        body: 'You have new activity submissions to grade',
         isRead: true,
         createdAt: now.subtract(const Duration(hours: 4)),
         courseId: 'course-1',
@@ -280,9 +280,11 @@ class NotificationRepository {
   Future<Set<NotificationType>> getUnreadTypes(String userId) async {
     if (EnvironmentConfig.isDemoMode) {
       return _notifications
-          .where((notification) =>
-              _isDemoUserMatch(notification.userId, userId) &&
-              !notification.isRead)
+          .where(
+            (notification) =>
+                _isDemoUserMatch(notification.userId, userId) &&
+                !notification.isRead,
+          )
           .map((notification) => notification.type)
           .toSet();
     }

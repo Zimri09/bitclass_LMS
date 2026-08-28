@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bitclass/features/assignments/data/models/criterion_score.dart';
 import 'package:bitclass/features/assignments/data/models/submission_model.dart';
 import 'package:bitclass/features/auth/data/models/user_model.dart';
 import 'package:bitclass/features/auth/data/repositories/auth_repository.dart';
@@ -48,7 +49,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Assignments'));
+    await tester.tap(find.text('Activities'));
     await tester.pumpAndSettle();
 
     expect(find.text('CODE YOUR PIC'), findsOneWidget);
@@ -56,6 +57,11 @@ void main() {
     expect(find.text('96%'), findsOneWidget);
     expect(find.text('24/100'), findsNothing);
     expect(find.text('24%'), findsNothing);
+    expect(find.text('Criteria breakdown'), findsOneWidget);
+    expect(find.text('Accuracy'), findsOneWidget);
+    expect(find.text('10/10'), findsOneWidget);
+    expect(find.text('Completeness'), findsOneWidget);
+    expect(find.text('14/15'), findsOneWidget);
   });
 }
 
@@ -102,6 +108,20 @@ final _summary = GradesSummaryModel(
           code: '',
           status: SubmissionStatus.graded,
           score: 24,
+          criterionScores: const [
+            CriterionScore(
+              criterionId: 'accuracy',
+              criterionName: 'Accuracy',
+              maxPoints: 10,
+              score: 10,
+            ),
+            CriterionScore(
+              criterionId: 'completeness',
+              criterionName: 'Completeness',
+              maxPoints: 15,
+              score: 14,
+            ),
+          ],
           assignmentTitle: 'CODE YOUR PIC',
           assignmentMaxPoints: 25,
           createdAt: DateTime.utc(2026, 8, 18),

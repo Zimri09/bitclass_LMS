@@ -480,6 +480,7 @@ begin
        tg_op = 'INSERT'
        or old.graded_at is null
        or old.score is distinct from new.score
+       or old.criterion_scores is distinct from new.criterion_scores
      ) then
     select title into assignment_title
     from public.assignments
@@ -491,8 +492,8 @@ begin
     values (
       new.user_id,
       'assignmentGraded',
-      'Assignment graded',
-      coalesce(assignment_title, 'Your assignment') || ' has been graded.',
+      'Activity graded',
+      coalesce(assignment_title, 'Your activity') || ' has been graded.',
       jsonb_build_object(
         'course_id', new.course_id,
         'assignment_id', new.assignment_id,
@@ -508,7 +509,7 @@ $$;
 
 drop trigger if exists notify_assignment_graded on public.submissions;
 create trigger notify_assignment_graded
-after insert or update of graded_at, score on public.submissions
+after insert or update of graded_at, score, criterion_scores on public.submissions
 for each row execute function private.notify_assignment_graded();
 
 -- Instructor-facing push events for student coursework and discussions.
@@ -555,9 +556,9 @@ begin
   values (
     course_instructor_id,
     'assignmentSubmitted',
-    'Assignment submitted',
+    'Activity submitted',
     coalesce(nullif(trim(new.user_display_name), ''), 'A student') ||
-      ' submitted "' || coalesce(assignment_title, 'an assignment') || '".',
+      ' submitted "' || coalesce(assignment_title, 'an activity') || '".',
     jsonb_build_object(
       'course_id', new.course_id,
       'assignment_id', new.assignment_id,

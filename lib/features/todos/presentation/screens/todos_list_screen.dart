@@ -437,7 +437,7 @@ List<_TodoGroupData> _groupsFor(
       const planningGroups = [
         (TodoTaskType.draftCourse, 'Draft courses'),
         (TodoTaskType.draftLesson, 'Draft lessons'),
-        (TodoTaskType.draftAssignment, 'Draft assignments'),
+        (TodoTaskType.draftAssignment, 'Draft activities'),
         (TodoTaskType.draftQuiz, 'Draft quizzes'),
         (TodoTaskType.personal, 'Personal tasks'),
       ];
@@ -577,12 +577,12 @@ String _subtitle(TodoModel todo, {required bool isMissing}) {
 String _taskLabel(TodoTaskType type) {
   return switch (type) {
     TodoTaskType.personal => 'Personal task',
-    TodoTaskType.assignment => 'Assignment',
+    TodoTaskType.assignment => 'Activity',
     TodoTaskType.quiz => 'Quiz',
     TodoTaskType.lesson => 'Lesson',
     TodoTaskType.grading => 'Submission',
     TodoTaskType.draftCourse => 'Draft course',
-    TodoTaskType.draftAssignment => 'Draft assignment',
+    TodoTaskType.draftAssignment => 'Draft activity',
     TodoTaskType.draftQuiz => 'Draft quiz',
     TodoTaskType.draftLesson => 'Draft lesson',
   };

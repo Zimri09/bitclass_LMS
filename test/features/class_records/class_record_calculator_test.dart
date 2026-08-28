@@ -156,7 +156,7 @@ SubmissionModel _submission(DateTime now, {required int score}) {
     userDisplayName: 'Ada Lovelace',
     code: 'answer',
     status: SubmissionStatus.graded,
-    score: score,
+    score: score.toDouble(),
     createdAt: now,
   );
 }

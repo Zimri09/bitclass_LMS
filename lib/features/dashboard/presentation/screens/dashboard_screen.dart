@@ -274,7 +274,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Your assignment deadlines will appear here',
+              'Your activity deadlines will appear here',
               style: AppTextStyles.bodySmall,
             ),
           ],

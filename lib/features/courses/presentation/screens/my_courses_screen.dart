@@ -177,7 +177,7 @@ class _InstructorCourseCard extends StatelessWidget {
           const PopupMenuDivider(),
           _menuItem('lesson', Icons.video_library_outlined, 'Add lesson'),
           _menuItem('quiz', Icons.quiz_outlined, 'Add quiz'),
-          _menuItem('assignment', Icons.assignment_outlined, 'Add assignment'),
+          _menuItem('assignment', Icons.assignment_outlined, 'Add activity'),
           _menuItem('files', Icons.upload_file_outlined, 'Upload materials'),
           const PopupMenuDivider(),
           _menuItem(

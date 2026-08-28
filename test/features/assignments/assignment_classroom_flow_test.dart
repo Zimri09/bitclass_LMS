@@ -84,10 +84,17 @@ void main() {
       find.byKey(const ValueKey('assignment-points')),
       '25',
     );
+    final criterionName = find.widgetWithText(TextFormField, 'Criteria Name');
+    final criterionPercentage = find.widgetWithText(
+      TextFormField,
+      'Percentage Weight',
+    );
+    await tester.enterText(criterionName, 'Completion');
+    await tester.enterText(criterionPercentage, '100');
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('Leave assignment editor?'), findsOneWidget);
+    expect(find.text('Leave activity editor?'), findsOneWidget);
     await tester.tap(
       find.descendant(
         of: find.byType(AlertDialog),
@@ -102,6 +109,10 @@ void main() {
     expect(saved!.title, 'Community research activity');
     expect(saved.instructions, 'Read the guide and submit your findings.');
     expect(saved.maxPoints, 25);
+    expect(saved.gradingCriteria, hasLength(1));
+    expect(saved.gradingCriteria.single.name, 'Completion');
+    expect(saved.gradingCriteria.single.percentage, 100);
+    expect(saved.gradingCriteria.single.id, isNotEmpty);
     expect(saved.isPublished, isFalse);
     expect(saved.requiresAttachment, isTrue);
     expect(saved.language, ProgrammingLanguage.plaintext);

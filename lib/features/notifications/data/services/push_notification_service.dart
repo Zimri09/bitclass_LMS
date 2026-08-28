@@ -112,7 +112,7 @@ class PushNotificationService with WidgetsBindingObserver {
     const channel = AndroidNotificationChannel(
       _notificationChannelId,
       _notificationChannelName,
-      description: 'Lessons, assignments, discussions, and course updates.',
+      description: 'Lessons, activities, discussions, and course updates.',
       importance: Importance.high,
     );
     await _localNotifications
@@ -385,7 +385,7 @@ class PushNotificationService with WidgetsBindingObserver {
           _notificationChannelId,
           _notificationChannelName,
           channelDescription:
-              'Lessons, assignments, discussions, and course updates.',
+              'Lessons, activities, discussions, and course updates.',
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',

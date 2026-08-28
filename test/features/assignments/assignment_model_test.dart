@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bitclass/features/assignments/data/models/assignment_attachment.dart';
 import 'package:bitclass/features/assignments/data/models/assignment_model.dart';
+import 'package:bitclass/features/assignments/data/models/criterion_score.dart';
+import 'package:bitclass/features/assignments/data/models/grading_criterion.dart';
 
 void main() {
   // ====================================================
@@ -100,6 +102,14 @@ void main() {
         starterCode: 'void mergeSort(List<int> arr) {}',
         solutionCode: 'void mergeSort(List<int> arr) { /* ... */ }',
         maxPoints: 50,
+        gradingCriteria: const [
+          GradingCriterion(id: 'accuracy', name: 'Accuracy', percentage: 30),
+          GradingCriterion(
+            id: 'completion',
+            name: 'Completion',
+            percentage: 70,
+          ),
+        ],
         dueDate: dueDate,
         allowLateSubmission: false,
         latePenaltyPercent: 20,
@@ -200,6 +210,14 @@ void main() {
         ],
         requiresAttachment: true,
         maxPoints: 50,
+        gradingCriteria: const [
+          GradingCriterion(id: 'accuracy', name: 'Accuracy', percentage: 30),
+          GradingCriterion(
+            id: 'completion',
+            name: 'Completion',
+            percentage: 70,
+          ),
+        ],
         dueDate: DateTime(2024, 5, 1),
         allowLateSubmission: false,
         latePenaltyPercent: 25,
@@ -213,6 +231,65 @@ void main() {
       expect(roundtripped, equals(original));
       expect(roundtripped.attachments, hasLength(2));
       expect(roundtripped.requiresAttachment, isTrue);
+      expect(roundtripped.gradingCriteria, hasLength(2));
+      expect(
+        roundtripped.gradingCriteria.first.equivalentPoints(
+          roundtripped.maxPoints,
+        ),
+        15,
+      );
+    });
+
+    test('grading criteria total and points follow the activity total', () {
+      const criteria = [
+        GradingCriterion(id: 'accuracy', name: 'Accuracy', percentage: 30),
+        GradingCriterion(id: 'completion', name: 'Completion', percentage: 70),
+      ];
+
+      expect(criteria.totalPercentage, 100);
+      expect(criteria.hasValidPercentageTotal, isTrue);
+      expect(criteria.first.equivalentPoints(100), 30);
+      expect(criteria.first.equivalentPoints(25), 7.5);
+
+      const belowTotal = [
+        GradingCriterion(id: 'accuracy', name: 'Accuracy', percentage: 30),
+        GradingCriterion(id: 'completion', name: 'Completion', percentage: 60),
+      ];
+      const aboveTotal = [
+        GradingCriterion(id: 'accuracy', name: 'Accuracy', percentage: 60),
+        GradingCriterion(id: 'completion', name: 'Completion', percentage: 50),
+      ];
+      expect(belowTotal.totalPercentage, 90);
+      expect(belowTotal.hasValidPercentageTotal, isFalse);
+      expect(aboveTotal.totalPercentage, 110);
+      expect(aboveTotal.hasValidPercentageTotal, isFalse);
+    });
+
+    test('criterion scores preserve the rubric snapshot and sum the grade', () {
+      const scores = [
+        CriterionScore(
+          criterionId: 'accuracy',
+          criterionName: 'Accuracy',
+          maxPoints: 40,
+          score: 39,
+        ),
+        CriterionScore(
+          criterionId: 'completeness',
+          criterionName: 'Completeness',
+          maxPoints: 30,
+          score: 28,
+        ),
+        CriterionScore(
+          criterionId: 'presentation',
+          criterionName: 'Presentation',
+          maxPoints: 30,
+          score: 27,
+        ),
+      ];
+
+      expect(scores.totalScore, 94);
+      expect(scores.totalMaxPoints, 100);
+      expect(CriterionScore.fromMap(scores.first.toMap()), scores.first);
     });
 
     test('identifies plain activities and code activities', () {

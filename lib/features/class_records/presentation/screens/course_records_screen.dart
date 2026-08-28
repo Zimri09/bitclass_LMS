@@ -251,7 +251,7 @@ class _RecordSummary extends StatelessWidget {
             children: [
               _WeightChip(label: 'Quizzes', value: record.weights.quizPercent),
               _WeightChip(
-                label: 'Assignments',
+                label: 'Activities',
                 value: record.weights.assignmentPercent,
               ),
               _WeightChip(
@@ -263,7 +263,7 @@ class _RecordSummary extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             '${record.quizCount} quizzes  |  '
-            '${record.assignmentCount} assignments  |  '
+            '${record.assignmentCount} activities  |  '
             '${record.attendanceSessionCount} attendance sessions',
             style: AppTextStyles.caption,
           ),
@@ -384,7 +384,7 @@ class _StudentRecordCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _GradeMetric(
-                  label: 'Assignments',
+                  label: 'Activities',
                   grade: student.assignmentGrade,
                 ),
               ),

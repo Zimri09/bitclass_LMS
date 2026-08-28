@@ -35,7 +35,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
         AssignmentsLoaded(assignments: assignments, courseId: event.courseId),
       );
     } catch (e) {
-      emit(AssignmentError(message: 'Failed to load assignments: $e'));
+      emit(AssignmentError(message: 'Failed to load activities: $e'));
     }
   }
 
@@ -49,7 +49,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
         event.assignmentId,
       );
       if (assignment == null) {
-        emit(const AssignmentError(message: 'Assignment not found'));
+        emit(const AssignmentError(message: 'Activity not found'));
         return;
       }
 
@@ -70,7 +70,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
         ),
       );
     } catch (e) {
-      emit(AssignmentError(message: 'Failed to load assignment: $e'));
+      emit(AssignmentError(message: 'Failed to load activity: $e'));
     }
   }
 
@@ -155,7 +155,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
           ),
         );
       } catch (e) {
-        emit(AssignmentError(message: 'Failed to submit assignment: $e'));
+        emit(AssignmentError(message: 'Failed to submit activity: $e'));
         emit(currentState.copyWith(isSubmitting: false));
       }
     }
@@ -215,7 +215,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
         ),
       );
     } catch (e) {
-      emit(AssignmentError(message: 'Failed to unsubmit assignment: $e'));
+      emit(AssignmentError(message: 'Failed to unsubmit activity: $e'));
       emit(currentState.copyWith(isUnsubmitting: false));
     }
   }
@@ -229,6 +229,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
         submissionId: event.submissionId,
         assignmentId: event.assignmentId,
         score: event.score,
+        criterionScores: event.criterionScores,
         feedback: event.feedback,
         gradedBy: event.gradedBy,
       );
@@ -248,7 +249,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
         event.assignmentId,
       );
       if (assignment == null) {
-        emit(const AssignmentError(message: 'Assignment not found'));
+        emit(const AssignmentError(message: 'Activity not found'));
         return;
       }
 

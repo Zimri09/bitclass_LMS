@@ -28,13 +28,13 @@ extension NotificationTypeExtension on NotificationType {
       case NotificationType.newLesson:
         return 'New Lesson';
       case NotificationType.newAssignment:
-        return 'New Assignment';
+        return 'New Activity';
       case NotificationType.assignmentSubmitted:
-        return 'Assignment Submitted';
+        return 'Activity Submitted';
       case NotificationType.assignmentDue:
-        return 'Assignment Due';
+        return 'Activity Due';
       case NotificationType.assignmentGraded:
-        return 'Assignment Graded';
+        return 'Activity Graded';
       case NotificationType.quizAvailable:
         return 'Quiz Available';
       case NotificationType.quizSubmitted:

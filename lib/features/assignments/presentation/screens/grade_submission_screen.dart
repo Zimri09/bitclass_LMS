@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,7 +16,10 @@ import '../bloc/assignment_event.dart';
 import '../bloc/assignment_state.dart';
 import '../widgets/assignment_attachment_tile.dart';
 
-/// Screen for instructors to view and grade assignment submissions
+String _gradeNumber(num value) =>
+    value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+
+/// Screen for instructors to view and grade activity submissions
 class GradeSubmissionScreen extends StatefulWidget {
   final String courseId;
   final String assignmentId;
@@ -34,6 +38,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
   late AssignmentBloc _assignmentBloc;
   SubmissionModel? _selectedSubmission;
   final _scoreController = TextEditingController();
+  final Map<String, TextEditingController> _criterionScoreControllers = {};
   final _feedbackController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -49,20 +54,66 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
   @override
   void dispose() {
     _scoreController.dispose();
+    _disposeCriterionScoreControllers();
     _feedbackController.dispose();
     _assignmentBloc.close();
     super.dispose();
   }
 
-  void _selectSubmission(SubmissionModel submission) {
+  void _disposeCriterionScoreControllers() {
+    for (final controller in _criterionScoreControllers.values) {
+      controller.dispose();
+    }
+    _criterionScoreControllers.clear();
+  }
+
+  void _selectSubmission(
+    SubmissionModel submission,
+    AssignmentModel assignment,
+  ) {
+    _disposeCriterionScoreControllers();
+    final previousScores = {
+      for (final item in submission.criterionScores)
+        item.criterionId: item.score,
+    };
+    for (final criterion in assignment.gradingCriteria) {
+      final previousScore = previousScores[criterion.id];
+      _criterionScoreControllers[criterion.id] = TextEditingController(
+        text: previousScore == null ? '' : _gradeNumber(previousScore),
+      );
+    }
     setState(() {
       _selectedSubmission = submission;
-      _scoreController.text = submission.score?.toString() ?? '';
+      _scoreController.text = submission.score == null
+          ? ''
+          : _gradeNumber(submission.score!);
       _feedbackController.text = submission.feedback ?? '';
     });
   }
 
-  void _gradeSubmission() {
+  List<CriterionScore> _criterionScores(AssignmentModel assignment) {
+    return assignment.gradingCriteria
+        .map(
+          (criterion) => CriterionScore(
+            criterionId: criterion.id,
+            criterionName: criterion.name,
+            maxPoints: criterion.equivalentPoints(assignment.maxPoints),
+            score:
+                double.tryParse(
+                  _criterionScoreControllers[criterion.id]?.text.trim() ?? '',
+                ) ??
+                0,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  double _currentTotal(AssignmentModel assignment) =>
+      assignment.gradingCriteria.isEmpty
+      ? double.tryParse(_scoreController.text.trim()) ?? 0
+      : _criterionScores(assignment).totalScore;
+
+  void _gradeSubmission(AssignmentModel assignment) {
     if (_selectedSubmission?.isCompleted != true) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('This work has not been turned in yet.')),
@@ -78,7 +129,10 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
       GradeSubmission(
         submissionId: _selectedSubmission!.id,
         assignmentId: widget.assignmentId,
-        score: int.parse(_scoreController.text.trim()),
+        score: double.parse(_currentTotal(assignment).toStringAsFixed(2)),
+        criterionScores: assignment.gradingCriteria.isEmpty
+            ? const []
+            : _criterionScores(assignment),
         feedback: _feedbackController.text.trim(),
         gradedBy: authState.user.id,
       ),
@@ -106,6 +160,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
               ),
             );
             // Reload submissions to reflect the update
+            _disposeCriterionScoreControllers();
             setState(() => _selectedSubmission = null);
             _assignmentBloc.add(
               LoadSubmissions(assignmentId: widget.assignmentId),
@@ -168,7 +223,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
             Text('No submissions yet', style: AppTextStyles.h4),
             const SizedBox(height: 8),
             Text(
-              'Students haven\'t submitted anything for this assignment.',
+              'Students haven\'t submitted anything for this activity.',
               style: AppTextStyles.bodySmall,
             ),
           ],
@@ -308,7 +363,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
     return ListTile(
       selected: isSelected,
       selectedTileColor: AppColors.primary.withValues(alpha: 0.1),
-      onTap: () => _selectSubmission(submission),
+      onTap: () => _selectSubmission(submission, assignment),
       leading: CircleAvatar(
         backgroundColor: statusColor.withValues(alpha: 0.15),
         child: Text(
@@ -327,7 +382,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
       subtitle: Text(
         (submission.isLate ? 'Late' : submission.status.displayName) +
             (submission.isGraded
-                ? ' - ${submission.score}/${assignment.maxPoints}'
+                ? ' - ${_gradeNumber(submission.score ?? 0)}/${assignment.maxPoints}'
                 : ''),
         style: AppTextStyles.caption.copyWith(color: statusColor),
       ),
@@ -471,7 +526,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
           ],
 
           // Grading form
-          Text('Grade Submission', style: AppTextStyles.h4),
+          Text('Grade Activity', style: AppTextStyles.h4),
           const SizedBox(height: 12),
 
           GlowCard(
@@ -483,30 +538,111 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Score
-                  TextFormField(
-                    controller: _scoreController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Score',
-                      hintText: 'Out of ${assignment.maxPoints}',
-                      prefixIcon: Icon(Icons.grade),
-                      suffixText: '/ ${assignment.maxPoints}',
+                  if (assignment.gradingCriteria.isNotEmpty) ...[
+                    Text('Score each criterion', style: AppTextStyles.label),
+                    const SizedBox(height: 4),
+                    Text(
+                      'The final Activity score is calculated automatically.',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a score';
-                      }
-                      final score = int.tryParse(value);
-                      if (score == null) {
-                        return 'Please enter a valid number';
-                      }
-                      if (score < 0 || score > assignment.maxPoints) {
-                        return 'Score must be between 0 and ${assignment.maxPoints}';
-                      }
-                      return null;
-                    },
-                  ),
+                    const SizedBox(height: 16),
+                    ...assignment.gradingCriteria.map(
+                      (criterion) => Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: TextFormField(
+                          key: ValueKey('criterion-score-${criterion.id}'),
+                          controller: _criterionScoreControllers[criterion.id],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d{0,5}(?:\.\d{0,2})?$'),
+                            ),
+                          ],
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            labelText: criterion.name,
+                            helperText:
+                                '${_gradeNumber(criterion.percentage)}% of the Activity grade',
+                            prefixIcon: const Icon(Icons.checklist_outlined),
+                            suffixText:
+                                '/ ${_gradeNumber(criterion.equivalentPoints(assignment.maxPoints))}',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Enter a score for ${criterion.name}';
+                            }
+                            final score = double.tryParse(value.trim());
+                            final maximum = criterion.equivalentPoints(
+                              assignment.maxPoints,
+                            );
+                            if (score == null) {
+                              return 'Enter a valid number';
+                            }
+                            if (score < 0 || score > maximum + 0.0001) {
+                              return 'Score must be from 0 to ${_gradeNumber(maximum)}';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calculate_outlined),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Final Activity score',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          Text(
+                            '${_gradeNumber(_currentTotal(assignment))} / ${assignment.maxPoints}',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else
+                    TextFormField(
+                      controller: _scoreController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Score',
+                        hintText: 'Out of ${assignment.maxPoints}',
+                        prefixIcon: const Icon(Icons.grade),
+                        suffixText: '/ ${assignment.maxPoints}',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a score';
+                        }
+                        final score = double.tryParse(value);
+                        if (score == null) {
+                          return 'Please enter a valid number';
+                        }
+                        if (score < 0 || score > assignment.maxPoints) {
+                          return 'Score must be between 0 and ${assignment.maxPoints}';
+                        }
+                        return null;
+                      },
+                    ),
                   const SizedBox(height: 16),
 
                   // Feedback
@@ -537,7 +673,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: submission.isCompleted
-                          ? _gradeSubmission
+                          ? () => _gradeSubmission(assignment)
                           : null,
                       icon: Icon(Icons.check),
                       label: Text(
@@ -581,9 +717,28 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Score: ${submission.score}/${assignment.maxPoints}',
+                    'Score: ${_gradeNumber(submission.score ?? 0)}/${assignment.maxPoints}',
                     style: AppTextStyles.bodyMedium,
                   ),
+                  if (submission.criterionScores.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ...submission.criterionScores.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(item.criterionName)),
+                            Text(
+                              '${_gradeNumber(item.score)}/${_gradeNumber(item.maxPoints)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   if (submission.feedback != null &&
                       submission.feedback!.isNotEmpty) ...[
                     const SizedBox(height: 4),

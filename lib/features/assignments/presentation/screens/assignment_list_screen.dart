@@ -138,7 +138,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
           : Scaffold(
               backgroundColor: AppColors.background,
               appBar: AppBar(
-                title: const Text('Assignments'),
+                title: const Text('Activities'),
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () => context.pop(),
@@ -146,7 +146,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                 actions: [
                   if (_canManageAssignments)
                     IconButton(
-                      tooltip: 'Create assignment',
+                      tooltip: 'Create activity',
                       onPressed: _createAssignment,
                       icon: const Icon(Icons.add),
                     ),
@@ -199,12 +199,12 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Text('No assignments yet', style: AppTextStyles.h4),
+            Text('No activities yet', style: AppTextStyles.h4),
             const SizedBox(height: 6),
             Text(
               _canManageAssignments
-                  ? 'Create an assignment or activity for your class.'
-                  : 'Published assignments will appear here.',
+                  ? 'Create an activity for your class.'
+                  : 'Published activities will appear here.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.textSecondary),
             ),
@@ -213,7 +213,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
               FilledButton.icon(
                 onPressed: _createAssignment,
                 icon: const Icon(Icons.add),
-                label: const Text('Create assignment'),
+                label: const Text('Create activity'),
               ),
             ],
           ],
@@ -274,7 +274,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.delete_outline, color: AppColors.error),
-        title: const Text('Delete assignment?'),
+        title: const Text('Delete activity?'),
         content: Text(
           '"${assignment.title}" and all student submissions will be '
           'permanently removed. This cannot be undone.',
@@ -301,13 +301,13 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Assignment deleted.')));
+      ).showSnackBar(const SnackBar(content: Text('Activity deleted.')));
       _loadAssignments();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Unable to delete this assignment.'),
+          content: Text('Unable to delete this activity.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -451,10 +451,7 @@ class _AssignmentCard extends StatelessWidget {
                     if (action == 'delete') onDelete();
                   },
                   itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Text('Edit assignment'),
-                    ),
+                    PopupMenuItem(value: 'edit', child: Text('Edit activity')),
                     PopupMenuItem(
                       value: 'review',
                       child: Text('Review submissions'),
@@ -462,7 +459,7 @@ class _AssignmentCard extends StatelessWidget {
                     PopupMenuItem(
                       value: 'delete',
                       child: Text(
-                        'Delete assignment',
+                        'Delete activity',
                         style: TextStyle(color: AppColors.error),
                       ),
                     ),

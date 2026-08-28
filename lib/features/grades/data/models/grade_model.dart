@@ -43,8 +43,8 @@ class CourseGradeModel extends Equatable {
 
   /// Overall grade percentage across all graded items in this course
   double get overallGrade {
-    int totalPoints = 0;
-    int earnedPoints = 0;
+    var totalPoints = 0.0;
+    var earnedPoints = 0.0;
 
     for (final attempt in gradedQuizAttempts) {
       totalPoints += attempt.totalPoints;

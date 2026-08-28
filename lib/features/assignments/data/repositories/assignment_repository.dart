@@ -67,6 +67,7 @@ class AssignmentRepository {
       'attachments': row['attachments'],
       'requiresAttachment': row['requires_attachment'],
       'maxPoints': row['max_points'],
+      'gradingCriteria': row['grading_criteria'],
       'dueDate': row['due_date']?.toString(),
       'allowLateSubmission': row['allow_late_submission'],
       'latePenaltyPercent': row['late_penalty_percent'],
@@ -96,6 +97,7 @@ class AssignmentRepository {
       'attachments': row['attachments'],
       'status': row['status'],
       'score': row['score'],
+      'criterionScores': row['criterion_scores'],
       'assignmentTitle': assignment?['title'],
       'assignmentMaxPoints': assignment?['max_points'],
       'feedback': row['feedback'],
@@ -131,6 +133,9 @@ class AssignmentRepository {
           .toList(),
       'requires_attachment': assignment.requiresAttachment,
       'max_points': assignment.maxPoints,
+      'grading_criteria': assignment.gradingCriteria
+          .map((criterion) => criterion.toMap())
+          .toList(),
       'due_date': assignment.dueDate?.toUtc().toIso8601String(),
       'allow_late_submission': assignment.allowLateSubmission,
       'late_penalty_percent': assignment.latePenaltyPercent,
@@ -156,6 +161,9 @@ class AssignmentRepository {
           .toList(),
       'status': submission.status.name,
       'score': submission.score,
+      'criterion_scores': submission.criterionScores
+          .map((item) => item.toMap())
+          .toList(),
       'feedback': submission.feedback,
       'graded_by': submission.gradedBy,
       'graded_at': submission.gradedAt?.toUtc().toIso8601String(),
@@ -262,6 +270,7 @@ class AssignmentRepository {
   /// Create a new assignment (instructor only)
   Future<AssignmentModel> createAssignment(AssignmentModel assignment) async {
     _validateAttachments(assignment.attachments);
+    _validateGradingCriteria(assignment.gradingCriteria);
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       _assignments[assignment.id] = assignment;
@@ -278,6 +287,7 @@ class AssignmentRepository {
   /// Update an assignment (instructor only)
   Future<AssignmentModel> updateAssignment(AssignmentModel assignment) async {
     _validateAttachments(assignment.attachments);
+    _validateGradingCriteria(assignment.gradingCriteria);
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       _assignments[assignment.id] = assignment;
@@ -421,6 +431,36 @@ class AssignmentRepository {
     }
   }
 
+  void _validateGradingCriteria(List<GradingCriterion> criteria) {
+    // Empty criteria remain readable for activities created before this feature.
+    if (criteria.isEmpty) return;
+    if (criteria.length > 50) {
+      throw Exception('An activity can have up to 50 grading criteria.');
+    }
+    for (final criterion in criteria) {
+      final percentageText = criterion.percentage.toString();
+      final decimalPlaces = percentageText.contains('.')
+          ? percentageText.split('.').last.length
+          : 0;
+      if (criterion.id.trim().isEmpty || criterion.id.length > 64) {
+        throw Exception('Every grading criterion needs a valid ID.');
+      }
+      if (criterion.name.trim().isEmpty || criterion.name.length > 120) {
+        throw Exception('Every grading criterion needs a valid name.');
+      }
+      if (criterion.percentage <= 0 ||
+          criterion.percentage > 100 ||
+          decimalPlaces > 2) {
+        throw Exception(
+          'Criterion percentages must be between 0 and 100 with up to 2 decimals.',
+        );
+      }
+    }
+    if (!criteria.hasValidPercentageTotal) {
+      throw Exception('Grading criteria percentages must total exactly 100%.');
+    }
+  }
+
   /// Get user's submission for an assignment
   Future<SubmissionModel?> getUserSubmission(
     String assignmentId,
@@ -541,10 +581,10 @@ class AssignmentRepository {
   }) async {
     final assignment = await getAssignment(assignmentId);
     if (assignment == null || assignment.courseId != courseId) {
-      throw Exception('Assignment not found for this course.');
+      throw Exception('Activity not found for this course.');
     }
     if (!assignment.isPublished) {
-      throw Exception('This assignment is not available for submission.');
+      throw Exception('This activity is not available for submission.');
     }
 
     final now = DateTime.now();
@@ -609,13 +649,13 @@ class AssignmentRepository {
   }) async {
     final assignment = await getAssignment(assignmentId);
     if (assignment == null || assignment.courseId != courseId) {
-      throw Exception('Assignment not found for this course.');
+      throw Exception('Activity not found for this course.');
     }
     if (!assignment.isPublished) {
-      throw Exception('This assignment is not available for completion.');
+      throw Exception('This activity is not available for completion.');
     }
     if (assignment.requiresAttachment || assignment.isCodeActivity) {
-      throw Exception('This assignment must be submitted with work.');
+      throw Exception('This activity must be submitted with work.');
     }
 
     final now = DateTime.now();
@@ -705,10 +745,47 @@ class AssignmentRepository {
   Future<SubmissionModel> gradeSubmission({
     required String submissionId,
     required String assignmentId,
-    required int score,
+    required double score,
+    List<CriterionScore> criterionScores = const [],
     required String feedback,
     required String gradedBy,
   }) async {
+    final assignment = await getAssignment(assignmentId);
+    if (assignment == null) throw Exception('Activity not found');
+
+    var finalScore = score;
+    var normalizedCriterionScores = const <CriterionScore>[];
+    if (assignment.gradingCriteria.isNotEmpty) {
+      if (criterionScores.length != assignment.gradingCriteria.length) {
+        throw Exception('Enter a score for every grading criterion.');
+      }
+      final enteredById = {
+        for (final item in criterionScores) item.criterionId: item.score,
+      };
+      normalizedCriterionScores = assignment.gradingCriteria
+          .map((criterion) {
+            final enteredScore = enteredById[criterion.id];
+            final maxPoints = criterion.equivalentPoints(assignment.maxPoints);
+            if (enteredScore == null ||
+                enteredScore < 0 ||
+                enteredScore > maxPoints + 0.0001) {
+              throw Exception('Invalid score for ${criterion.name}.');
+            }
+            return CriterionScore(
+              criterionId: criterion.id,
+              criterionName: criterion.name,
+              maxPoints: maxPoints,
+              score: enteredScore,
+            );
+          })
+          .toList(growable: false);
+      finalScore = double.parse(
+        normalizedCriterionScores.totalScore.toStringAsFixed(2),
+      );
+    } else if (score < 0 || score > assignment.maxPoints) {
+      throw Exception('Score must be between 0 and ${assignment.maxPoints}.');
+    }
+
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 400));
 
@@ -724,7 +801,8 @@ class AssignmentRepository {
 
       final updatedSubmission = submissions[index].copyWith(
         status: SubmissionStatus.graded,
-        score: score,
+        score: finalScore,
+        criterionScores: normalizedCriterionScores,
         feedback: feedback,
         gradedBy: gradedBy,
         gradedAt: DateTime.now(),
@@ -744,7 +822,10 @@ class AssignmentRepository {
         .from(_submissionsTable)
         .update({
           'status': SubmissionStatus.graded.name,
-          'score': score,
+          'score': finalScore,
+          'criterion_scores': normalizedCriterionScores
+              .map((item) => item.toMap())
+              .toList(),
           'feedback': feedback,
           'graded_by': gradedBy,
           'graded_at': DateTime.now().toIso8601String(),

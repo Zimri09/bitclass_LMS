@@ -33,7 +33,9 @@ class LegalDocumentScreen extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             children: [
               Text(
-                _isTerms ? 'BitClass Terms of Service' : 'BitClass Privacy Policy',
+                _isTerms
+                    ? 'BitClass Terms of Service'
+                    : 'BitClass Privacy Policy',
                 style: AppTextStyles.h2.copyWith(color: colors.onSurface),
               ),
               const SizedBox(height: 8),
@@ -45,10 +47,8 @@ class LegalDocumentScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ...sections.indexed.map(
-                (entry) => _LegalSectionView(
-                  number: entry.$1 + 1,
-                  section: entry.$2,
-                ),
+                (entry) =>
+                    _LegalSectionView(number: entry.$1 + 1, section: entry.$2),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
@@ -138,7 +138,7 @@ const _termsSections = <_LegalSection>[
 const _privacySections = <_LegalSection>[
   _LegalSection(
     'Information collected',
-    'BitClass processes account and profile information, enrollment and course activity, assignments and quiz responses, grades and feedback, discussions, uploaded files, notification preferences, device tokens, and support requests. Technical logs may include app version, device platform, timestamps, and error details.',
+    'BitClass processes account and profile information, enrollment and course activities, quiz responses, grades and feedback, discussions, uploaded files, notification preferences, device tokens, and support requests. Technical logs may include app version, device platform, timestamps, and error details.',
   ),
   _LegalSection(
     'How information is used',

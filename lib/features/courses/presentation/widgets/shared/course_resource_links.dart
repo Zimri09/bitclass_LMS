@@ -28,8 +28,8 @@ class CourseResourceLinks extends StatelessWidget {
     final classwork = _CourseResourceCard(
       icon: Icons.assignment_outlined,
       color: AppColors.warning,
-      title: 'Assignments & activities',
-      description: 'Quizzes, assignments, and class activities',
+      title: 'Activities',
+      description: 'Quizzes and class activities',
       onTap: onOpenClasswork,
     );
 

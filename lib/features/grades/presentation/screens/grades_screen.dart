@@ -13,6 +13,9 @@ import '../bloc/grades_bloc.dart';
 import '../bloc/grades_event.dart';
 import '../bloc/grades_state.dart';
 
+String _gradeValue(num value) =>
+    value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+
 /// Screen showing all grades for a student
 class GradesScreen extends StatefulWidget {
   const GradesScreen({super.key});
@@ -55,7 +58,7 @@ class _GradesScreenState extends State<GradesScreen>
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Quizzes'),
-            Tab(text: 'Assignments'),
+            Tab(text: 'Activities'),
           ],
           indicatorColor: AppColors.primary,
         ),
@@ -93,7 +96,7 @@ class _GradesScreenState extends State<GradesScreen>
       return const EmptyState(
         icon: Icons.school_outlined,
         title: 'No grades yet',
-        subtitle: 'Enroll in courses and complete quizzes/assignments',
+        subtitle: 'Enroll in courses and complete quizzes/activities',
       );
     }
 
@@ -138,8 +141,8 @@ class _GradesScreenState extends State<GradesScreen>
     if (gradedSubmissions.isEmpty) {
       return const EmptyState(
         icon: Icons.assignment_outlined,
-        title: 'No assignment grades',
-        subtitle: 'Submit assignments to see your grades',
+        title: 'No activity grades',
+        subtitle: 'Submit activities to see your grades',
       );
     }
 
@@ -238,7 +241,7 @@ class _CourseGradeCard extends StatelessWidget {
               const SizedBox(width: 24),
               _buildStatItem(
                 Icons.assignment_outlined,
-                '${courseGrade.gradedSubmissions.length} Assignments',
+                '${courseGrade.gradedSubmissions.length} Activities',
               ),
             ],
           ),
@@ -380,66 +383,94 @@ class _AssignmentSubmissionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: gradeColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.assignment_turned_in, color: gradeColor),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  submission.assignmentDisplayTitle,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: gradeColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                Text(
-                  'Graded ${_formatDate(submission.gradedAt ?? submission.submittedAt ?? submission.createdAt)}',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                if (submission.feedback != null &&
-                    submission.feedback!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      submission.feedback!,
+                child: Icon(Icons.assignment_turned_in, color: gradeColor),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      submission.assignmentDisplayTitle,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Graded ${_formatDate(submission.gradedAt ?? submission.submittedAt ?? submission.createdAt)}',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textSecondary,
-                        fontStyle: FontStyle.italic,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '$grade/$maxPoints',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: gradeColor,
+                    if (submission.feedback != null &&
+                        submission.feedback!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          submission.feedback!,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              Text(
-                '${percentage.toStringAsFixed(0)}%',
-                style: AppTextStyles.bodySmall.copyWith(color: gradeColor),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${_gradeValue(grade)}/$maxPoints',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: gradeColor,
+                    ),
+                  ),
+                  Text(
+                    '${percentage.toStringAsFixed(0)}%',
+                    style: AppTextStyles.bodySmall.copyWith(color: gradeColor),
+                  ),
+                ],
               ),
             ],
           ),
+          if (submission.criterionScores.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Text('Criteria breakdown', style: AppTextStyles.label),
+            const SizedBox(height: 6),
+            ...submission.criterionScores.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(item.criterionName)),
+                    Text(
+                      '${_gradeValue(item.score)}/${_gradeValue(item.maxPoints)}',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -192,7 +192,7 @@ class _NotificationSettingsViewState extends State<NotificationSettingsView> {
                     settings,
                     NotificationType.assignmentSubmitted,
                     Icons.assignment_turned_in,
-                    'Assignment submissions',
+                    'Activity submissions',
                     'New student work that is ready for review',
                   ),
                   _buildDivider(),
@@ -237,8 +237,8 @@ class _NotificationSettingsViewState extends State<NotificationSettingsView> {
                     settings,
                     NotificationType.newAssignment,
                     Icons.assignment,
-                    'Assignments',
-                    'New assignments and due date reminders',
+                    'Activities',
+                    'New activities and due date reminders',
                   ),
                   _buildDivider(),
                   _buildTypeToggle(
@@ -247,7 +247,7 @@ class _NotificationSettingsViewState extends State<NotificationSettingsView> {
                     NotificationType.assignmentGraded,
                     Icons.grade,
                     'Grades',
-                    'When your assignment work is graded',
+                    'When your activity work is graded',
                   ),
                   _buildDivider(),
                   _buildTypeToggle(

@@ -29,7 +29,7 @@ void main() {
     );
 
     expect(find.text('Learning materials'), findsOneWidget);
-    expect(find.text('Assignments & activities'), findsOneWidget);
+    expect(find.text('Activities'), findsOneWidget);
   });
 
   testWidgets('instructor actions contain all content creation choices', (
@@ -43,7 +43,7 @@ void main() {
 
     expect(find.text('Add Lesson'), findsOneWidget);
     expect(find.text('Add Quiz'), findsOneWidget);
-    expect(find.text('Add Assignment'), findsOneWidget);
+    expect(find.text('Add Activity'), findsOneWidget);
     expect(find.text('Course materials'), findsOneWidget);
   });
 }

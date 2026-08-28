@@ -46,7 +46,7 @@ class InstructorContentActions extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Add lessons, activities, assignments, or supporting files.',
+            'Add lessons, activities, or supporting files.',
             style: AppTextStyles.bodySmall.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -72,7 +72,7 @@ class InstructorContentActions extends StatelessWidget {
               ),
               _InstructorAction(
                 icon: Icons.assignment_outlined,
-                label: 'Add Assignment',
+                label: 'Add Activity',
                 color: AppColors.warning,
                 onTap: () =>
                     _open(context, AppRoutes.createAssignmentPath(courseId)),

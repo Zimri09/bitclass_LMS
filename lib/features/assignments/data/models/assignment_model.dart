@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'assignment_attachment.dart';
+import 'grading_criterion.dart';
 
 /// Programming language type for code assignments
 enum ProgrammingLanguage {
@@ -102,6 +103,7 @@ class AssignmentModel extends Equatable {
   final List<AssignmentAttachment> attachments;
   final bool requiresAttachment;
   final int maxPoints;
+  final List<GradingCriterion> gradingCriteria;
   final DateTime? dueDate;
   final bool allowLateSubmission;
   final int latePenaltyPercent; // Percentage deducted for late submission
@@ -122,6 +124,7 @@ class AssignmentModel extends Equatable {
     this.attachments = const [],
     this.requiresAttachment = false,
     this.maxPoints = 100,
+    this.gradingCriteria = const [],
     this.dueDate,
     this.allowLateSubmission = true,
     this.latePenaltyPercent = 10,
@@ -144,6 +147,7 @@ class AssignmentModel extends Equatable {
     attachments,
     requiresAttachment,
     maxPoints,
+    gradingCriteria,
     dueDate,
     allowLateSubmission,
     latePenaltyPercent,
@@ -174,6 +178,12 @@ class AssignmentModel extends Equatable {
           .toList(growable: false),
       requiresAttachment: map['requiresAttachment'] as bool? ?? false,
       maxPoints: map['maxPoints'] as int? ?? 100,
+      gradingCriteria: ((map['gradingCriteria'] as List<dynamic>?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) => GradingCriterion.fromMap(Map<String, dynamic>.from(item)),
+          )
+          .toList(growable: false),
       dueDate: map['dueDate'] != null
           ? DateTime.parse(map['dueDate'] as String)
           : null,
@@ -201,6 +211,9 @@ class AssignmentModel extends Equatable {
       'attachments': attachments.map((item) => item.toMap()).toList(),
       'requiresAttachment': requiresAttachment,
       'maxPoints': maxPoints,
+      'gradingCriteria': gradingCriteria
+          .map((criterion) => criterion.toMap())
+          .toList(),
       'dueDate': dueDate?.toIso8601String(),
       'allowLateSubmission': allowLateSubmission,
       'latePenaltyPercent': latePenaltyPercent,
@@ -223,6 +236,7 @@ class AssignmentModel extends Equatable {
     List<AssignmentAttachment>? attachments,
     bool? requiresAttachment,
     int? maxPoints,
+    List<GradingCriterion>? gradingCriteria,
     DateTime? dueDate,
     bool? allowLateSubmission,
     int? latePenaltyPercent,
@@ -243,6 +257,7 @@ class AssignmentModel extends Equatable {
       attachments: attachments ?? this.attachments,
       requiresAttachment: requiresAttachment ?? this.requiresAttachment,
       maxPoints: maxPoints ?? this.maxPoints,
+      gradingCriteria: gradingCriteria ?? this.gradingCriteria,
       dueDate: dueDate ?? this.dueDate,
       allowLateSubmission: allowLateSubmission ?? this.allowLateSubmission,
       latePenaltyPercent: latePenaltyPercent ?? this.latePenaltyPercent,

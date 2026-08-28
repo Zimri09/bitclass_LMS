@@ -145,7 +145,8 @@ class UnsubmitAssignment extends AssignmentEvent {
 class GradeSubmission extends AssignmentEvent {
   final String submissionId;
   final String assignmentId;
-  final int score;
+  final double score;
+  final List<CriterionScore> criterionScores;
   final String feedback;
   final String gradedBy;
 
@@ -153,6 +154,7 @@ class GradeSubmission extends AssignmentEvent {
     required this.submissionId,
     required this.assignmentId,
     required this.score,
+    this.criterionScores = const [],
     required this.feedback,
     required this.gradedBy,
   });
@@ -162,6 +164,7 @@ class GradeSubmission extends AssignmentEvent {
     submissionId,
     assignmentId,
     score,
+    criterionScores,
     feedback,
     gradedBy,
   ];

@@ -22,7 +22,7 @@ class _CourseWorkTab extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text('Quizzes & Assignments', style: AppTextStyles.h3),
+                  child: Text('Quizzes & Activities', style: AppTextStyles.h3),
                 ),
                 if (isCourseOwner)
                   PopupMenuButton<String>(
@@ -39,7 +39,7 @@ class _CourseWorkTab extends StatelessWidget {
                       PopupMenuItem(value: 'quiz', child: Text('Add quiz')),
                       PopupMenuItem(
                         value: 'assignment',
-                        child: Text('Add assignment'),
+                        child: Text('Add activity'),
                       ),
                     ],
                   ),
@@ -50,7 +50,7 @@ class _CourseWorkTab extends StatelessWidget {
           const TabBar(
             tabs: [
               Tab(text: 'Quizzes'),
-              Tab(text: 'Assignments'),
+              Tab(text: 'Activities'),
             ],
           ),
           Expanded(

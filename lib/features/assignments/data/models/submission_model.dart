@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import 'assignment_attachment.dart';
 import 'assignment_model.dart';
+import 'criterion_score.dart';
 
 /// Submission status enum
 enum SubmissionStatus {
@@ -70,7 +71,8 @@ class SubmissionModel extends Equatable {
   final String code;
   final List<AssignmentAttachment> attachments;
   final SubmissionStatus status;
-  final int? score;
+  final double? score;
+  final List<CriterionScore> criterionScores;
   final String? assignmentTitle;
   final int? assignmentMaxPoints;
   final String? feedback;
@@ -91,6 +93,7 @@ class SubmissionModel extends Equatable {
     this.attachments = const [],
     this.status = SubmissionStatus.draft,
     this.score,
+    this.criterionScores = const [],
     this.assignmentTitle,
     this.assignmentMaxPoints,
     this.feedback,
@@ -113,6 +116,7 @@ class SubmissionModel extends Equatable {
     attachments,
     status,
     score,
+    criterionScores,
     assignmentTitle,
     assignmentMaxPoints,
     feedback,
@@ -140,7 +144,13 @@ class SubmissionModel extends Equatable {
           )
           .toList(growable: false),
       status: SubmissionStatus.fromString(map['status'] as String? ?? 'draft'),
-      score: map['score'] as int?,
+      score: (map['score'] as num?)?.toDouble(),
+      criterionScores: ((map['criterionScores'] as List<dynamic>?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) => CriterionScore.fromMap(Map<String, dynamic>.from(item)),
+          )
+          .toList(growable: false),
       assignmentTitle: map['assignmentTitle'] as String?,
       assignmentMaxPoints: (map['assignmentMaxPoints'] as num?)?.toInt(),
       feedback: map['feedback'] as String?,
@@ -170,6 +180,7 @@ class SubmissionModel extends Equatable {
       'attachments': attachments.map((item) => item.toMap()).toList(),
       'status': status.name,
       'score': score,
+      'criterionScores': criterionScores.map((item) => item.toMap()).toList(),
       'assignmentTitle': assignmentTitle,
       'assignmentMaxPoints': assignmentMaxPoints,
       'feedback': feedback,
@@ -191,7 +202,8 @@ class SubmissionModel extends Equatable {
     String? code,
     List<AssignmentAttachment>? attachments,
     SubmissionStatus? status,
-    int? score,
+    double? score,
+    List<CriterionScore>? criterionScores,
     String? assignmentTitle,
     int? assignmentMaxPoints,
     String? feedback,
@@ -213,6 +225,7 @@ class SubmissionModel extends Equatable {
       attachments: attachments ?? this.attachments,
       status: status ?? this.status,
       score: score ?? this.score,
+      criterionScores: criterionScores ?? this.criterionScores,
       assignmentTitle: assignmentTitle ?? this.assignmentTitle,
       assignmentMaxPoints: assignmentMaxPoints ?? this.assignmentMaxPoints,
       feedback: feedback ?? this.feedback,
@@ -246,7 +259,7 @@ class SubmissionModel extends Equatable {
 
   String get assignmentDisplayTitle {
     final title = assignmentTitle?.trim();
-    return title == null || title.isEmpty ? 'Assignment Submission' : title;
+    return title == null || title.isEmpty ? 'Activity Submission' : title;
   }
 
   ClassroomSubmissionStatus classroomStatus(

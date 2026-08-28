@@ -35,7 +35,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Enrollments'), findsOneWidget);
-    expect(find.text('Assignment submissions'), findsOneWidget);
+    expect(find.text('Activity submissions'), findsOneWidget);
     expect(find.text('Quiz submissions'), findsOneWidget);
     expect(find.text('Student discussions'), findsOneWidget);
     expect(find.text('New Lessons'), findsNothing);

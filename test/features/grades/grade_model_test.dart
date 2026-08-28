@@ -57,7 +57,7 @@ void main() {
     createdAt: DateTime(2024, 2, 10),
     submittedAt: DateTime(2024, 2, 10),
     status: status,
-    score: score,
+    score: score?.toDouble(),
     assignmentMaxPoints: assignmentMaxPoints,
   );
 

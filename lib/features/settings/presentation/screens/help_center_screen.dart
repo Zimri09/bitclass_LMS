@@ -104,7 +104,12 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                         leading: Icon(article.icon, color: colors.primary),
                         title: Text(article.question),
                         subtitle: Text(article.category),
-                        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          20,
+                          0,
+                          20,
+                          20,
+                        ),
                         expandedCrossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Divider(),
@@ -214,7 +219,7 @@ const _helpArticles = <_HelpArticle>[
     category: 'Coursework',
     question: 'Where are upcoming activities shown?',
     answer:
-        'Open To-do to review upcoming assignments, quizzes, and lessons. A red indicator appears in navigation when new activity is available.',
+        'Open To-do to review upcoming activities, quizzes, and lessons. A red indicator appears in navigation when new activity is available.',
     icon: Icons.check_box_outlined,
   ),
   _HelpArticle(

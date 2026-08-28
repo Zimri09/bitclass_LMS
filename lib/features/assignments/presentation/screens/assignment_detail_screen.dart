@@ -19,6 +19,9 @@ import '../bloc/assignment_event.dart';
 import '../bloc/assignment_state.dart';
 import '../widgets/widgets.dart';
 
+String _displayNumber(num value) =>
+    value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+
 class AssignmentDetailScreen extends StatefulWidget {
   final String courseId;
   final String assignmentId;
@@ -140,7 +143,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         ? state.assignment
         : null;
     return AppBar(
-      title: const Text('Assignment'),
+      title: const Text('Activity'),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () => context.pop(),
@@ -148,7 +151,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
       actions: [
         if (_canManage && assignment != null)
           PopupMenuButton<String>(
-            tooltip: 'Assignment actions',
+            tooltip: 'Activity actions',
             onSelected: (action) async {
               if (action == 'edit') {
                 await context.push(
@@ -170,12 +173,12 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
               }
             },
             itemBuilder: (context) => const [
-              PopupMenuItem(value: 'edit', child: Text('Edit assignment')),
+              PopupMenuItem(value: 'edit', child: Text('Edit activity')),
               PopupMenuItem(value: 'review', child: Text('Review submissions')),
               PopupMenuItem(
                 value: 'delete',
                 child: Text(
-                  'Delete assignment',
+                  'Delete activity',
                   style: TextStyle(color: AppColors.error),
                 ),
               ),
@@ -222,7 +225,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                     ? _buildInstructorPanel(state.assignment)
                     : const _DetailCard(
                         child: Text(
-                          'This assignment is read-only for this instructor.',
+                          'This activity is read-only for this instructor.',
                         ),
                       ))
               : _buildYourWork(state);
@@ -333,6 +336,49 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                   'No instructions were provided.',
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
+              if (assignment.gradingCriteria.isNotEmpty) ...[
+                const SizedBox(height: 26),
+                Text('Grading criteria', style: AppTextStyles.h4),
+                const SizedBox(height: 6),
+                Text(
+                  'Each value is calculated from ${assignment.maxPoints} total points.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                ...assignment.gradingCriteria.map(
+                  (criterion) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            criterion.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          '${_displayNumber(criterion.percentage)}%',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          '${_displayNumber(criterion.equivalentPoints(assignment.maxPoints))} pts',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (assignment.attachments.isNotEmpty) ...[
                 const SizedBox(height: 26),
                 Text('Materials', style: AppTextStyles.h4),
@@ -426,8 +472,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
           const SizedBox(height: 8),
           Text(
             assignment.isPublished
-                ? 'This assignment is visible to students.'
-                : 'This assignment is currently a draft.',
+                ? 'This activity is visible to students.'
+                : 'This activity is currently a draft.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 18),
@@ -458,7 +504,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                 if (mounted) _loadAssignment();
               },
               icon: const Icon(Icons.edit_outlined),
-              label: const Text('Edit assignment'),
+              label: const Text('Edit activity'),
             ),
           ),
         ],
@@ -509,9 +555,37 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                 color: AppColors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(
-                'Grade: ${submission!.score}/${assignment.maxPoints}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Final grade: ${_displayNumber(submission!.score!)}/${assignment.maxPoints}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  if (submission.criterionScores.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Divider(height: 1),
+                    const SizedBox(height: 10),
+                    Text('Criteria breakdown', style: AppTextStyles.label),
+                    const SizedBox(height: 6),
+                    ...submission.criterionScores.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(item.criterionName)),
+                            Text(
+                              '${_displayNumber(item.score)}/${_displayNumber(item.maxPoints)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -925,7 +999,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.delete_outline, color: AppColors.error),
-        title: const Text('Delete assignment?'),
+        title: const Text('Delete activity?'),
         content: Text(
           '"${assignment.title}" and every student submission will be '
           'permanently deleted. This cannot be undone.',

@@ -352,7 +352,7 @@ class TodosRepository {
         final assignmentId = row['assignment_id'] as String;
         final courseId = row['course_id'] as String;
         final assignmentTitle =
-            assignmentsById[assignmentId]?['title'] as String? ?? 'Assignment';
+            assignmentsById[assignmentId]?['title'] as String? ?? 'Activity';
         final studentName =
             row['user_display_name'] as String? ?? 'Student submission';
         final status = row['status']?.toString();
