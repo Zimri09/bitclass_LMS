@@ -145,21 +145,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Gmail often files this under Promotions or Spam. '
-                  'The code is in the email subject and body — not a Confirm link.',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
                 const SizedBox(height: 28),
                 TextField(
                   controller: _otpController,
                   autofocus: true,
                   keyboardType: TextInputType.number,
-                  autofillHints: const [AutofillHints.oneTimeCode],
                   textInputAction: TextInputAction.done,
                   maxLength: authEmailOtpLength,
                   textAlign: TextAlign.center,

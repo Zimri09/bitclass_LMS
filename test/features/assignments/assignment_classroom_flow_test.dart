@@ -4,6 +4,7 @@ import 'package:bitclass/features/assignments/data/models/models.dart';
 import 'package:bitclass/features/assignments/data/repositories/assignment_repository.dart';
 import 'package:bitclass/features/assignments/presentation/screens/assignment_detail_screen.dart';
 import 'package:bitclass/features/assignments/presentation/screens/assignment_editor_screen.dart';
+import 'package:bitclass/features/assignments/presentation/screens/assignment_list_screen.dart';
 import 'package:bitclass/features/auth/data/models/user_model.dart';
 import 'package:bitclass/features/auth/data/repositories/auth_repository.dart';
 import 'package:bitclass/features/auth/presentation/bloc/auth_bloc.dart';
@@ -209,6 +210,44 @@ void main() {
     expect(find.text('Posted: Aug 28, 2026 at 12:18 PM'), findsOneWidget);
   });
 
+  testWidgets('activity card stays aligned at phone width', (tester) async {
+    _usePhoneSize(tester);
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_admin));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+    final assignmentRepository = _FakeAssignmentRepository(
+      assignment: _publishedAssignment(requiresAttachment: false),
+    );
+
+    addTearDown(() async {
+      assignmentRepository.dispose();
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<AssignmentRepository>.value(
+        value: assignmentRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: const MaterialApp(
+            home: Scaffold(
+              body: AssignmentListScreen(courseId: 'course-1', embedded: true),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final posted = find.text('Posted: Aug 28, 2026 at 12:18 PM');
+    expect(posted, findsOneWidget);
+    expect(find.byTooltip('Activity actions'), findsOneWidget);
+    expect(tester.getSize(posted).height, lessThanOrEqualTo(36));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'student can mark an activity done and unsubmit before due date',
     (tester) async {
@@ -374,6 +413,15 @@ final _instructor = UserModel(
   createdAt: DateTime.utc(2026, 8, 13),
 );
 
+final _admin = UserModel(
+  id: 'admin-1',
+  email: 'admin@example.com',
+  firstName: 'Admin',
+  lastName: 'User',
+  role: 'admin',
+  createdAt: DateTime.utc(2026, 8, 13),
+);
+
 final _student = UserModel(
   id: 'student-1',
   email: 'student@example.com',
@@ -429,6 +477,12 @@ class _FakeAssignmentRepository extends AssignmentRepository {
   @override
   Future<AssignmentModel?> getAssignment(String assignmentId) async =>
       assignment;
+
+  @override
+  Future<List<AssignmentModel>> getAssignmentsForCourse(
+    String courseId, {
+    bool includeDrafts = false,
+  }) async => assignment == null ? const [] : [assignment!];
 
   @override
   Future<SubmissionModel?> getUserSubmission(

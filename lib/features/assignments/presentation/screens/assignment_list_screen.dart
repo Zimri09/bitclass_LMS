@@ -399,6 +399,41 @@ class _AssignmentCard extends StatelessWidget {
                             label: status.displayName,
                             color: _statusColor(status),
                           ),
+                        if (showInstructorControls) ...[
+                          const SizedBox(width: 4),
+                          SizedBox.square(
+                            dimension: 40,
+                            child: PopupMenuButton<String>(
+                              padding: EdgeInsets.zero,
+                              tooltip: 'Activity actions',
+                              onSelected: (action) {
+                                if (action == 'edit') onEdit();
+                                if (action == 'review') onReview();
+                                if (action == 'delete') onDelete();
+                              },
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Edit activity'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'review',
+                                  child: Text('Review submissions'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text(
+                                    'Delete activity',
+                                    style: TextStyle(color: AppColors.error),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(width: 8),
+                          const Icon(Icons.chevron_right),
+                        ],
                       ],
                     ),
                     if (assignment.description.isNotEmpty) ...[
@@ -413,15 +448,16 @@ class _AssignmentCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    _CardMeta(
+                      icon: Icons.schedule_outlined,
+                      label: formatPostedDateTime(assignment.createdAt),
+                    ),
+                    const SizedBox(height: 7),
                     Wrap(
                       spacing: 14,
                       runSpacing: 7,
                       children: [
-                        _CardMeta(
-                          icon: Icons.schedule_outlined,
-                          label: formatPostedDateTime(assignment.createdAt),
-                        ),
                         _CardMeta(
                           icon: Icons.event_outlined,
                           label: assignment.dueDate == null
@@ -448,33 +484,6 @@ class _AssignmentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (showInstructorControls)
-                PopupMenuButton<String>(
-                  onSelected: (action) {
-                    if (action == 'edit') onEdit();
-                    if (action == 'review') onReview();
-                    if (action == 'delete') onDelete();
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit activity')),
-                    PopupMenuItem(
-                      value: 'review',
-                      child: Text('Review submissions'),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        'Delete activity',
-                        style: TextStyle(color: AppColors.error),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                const Padding(
-                  padding: EdgeInsets.only(top: 10),
-                  child: Icon(Icons.chevron_right),
-                ),
             ],
           ),
         ),
@@ -506,9 +515,12 @@ class _CardMeta extends StatelessWidget {
       children: [
         Icon(icon, size: 15, color: AppColors.textSecondary),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        Flexible(
+          child: Text(
+            label,
+            softWrap: true,
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
         ),
       ],
     );

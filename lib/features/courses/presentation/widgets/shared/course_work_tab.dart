@@ -182,6 +182,7 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
         glowIntensity: 0.08,
         onTap: () => _openQuiz(quiz),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               width: 48,
@@ -231,6 +232,43 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                               fontSize: 10,
                             ),
                           ),
+                        ),
+                      ],
+                      if (widget.canManage) ...[
+                        const SizedBox(width: 4),
+                        IconButtonTheme(
+                          data: IconButtonThemeData(
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size.square(36),
+                              padding: EdgeInsets.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                key: ValueKey('edit-quiz-${quiz.id}'),
+                                tooltip: quiz.isPublished
+                                    ? 'Edit quiz'
+                                    : 'Continue editing',
+                                onPressed: () => _openQuiz(quiz, edit: true),
+                                color: AppColors.primary,
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              QuizDeleteButton(
+                                quiz: quiz,
+                                onDeleted: _handleDeleted,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.chevron_right,
+                          color: AppColors.textSecondary,
                         ),
                       ],
                     ],
@@ -311,17 +349,6 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                 ],
               ),
             ),
-            if (widget.canManage) ...[
-              IconButton(
-                key: ValueKey('edit-quiz-${quiz.id}'),
-                tooltip: quiz.isPublished ? 'Edit quiz' : 'Continue editing',
-                onPressed: () => _openQuiz(quiz, edit: true),
-                color: AppColors.primary,
-                icon: const Icon(Icons.edit_outlined),
-              ),
-              QuizDeleteButton(quiz: quiz, onDeleted: _handleDeleted),
-            ] else
-              Icon(Icons.chevron_right, color: AppColors.textSecondary),
           ],
         ),
       ),
