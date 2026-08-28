@@ -621,7 +621,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           expiresAt: completedAt.add(otpLifetime),
           resendAvailableAt: completedAt.add(otpResendCooldown),
           attemptsRemaining: otpMaxAttempts,
-          successMessage: 'A new verification code was sent.',
+          successMessage:
+              'A new verification code was sent. Check the inbox, Promotions, and Spam folders.',
         ),
       );
     } catch (error) {
