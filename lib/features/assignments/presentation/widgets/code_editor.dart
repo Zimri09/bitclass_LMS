@@ -356,32 +356,37 @@ class _CodeEditorState extends State<CodeEditor> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _getLanguageIcon(widget.language),
-                  size: 14,
-                  color: accentColor,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  widget.languageLabel ?? widget.language.displayName,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _getLanguageIcon(widget.language),
+                    size: 14,
+                    color: accentColor,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.languageLabel ?? widget.language.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 4),
           if (!widget.readOnly) ...[
             _buildToolbarAction(
               icon: Icons.undo,

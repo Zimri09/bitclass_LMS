@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bitclass/core/theme/app_colors.dart';
 import 'package:bitclass/features/assignments/data/models/models.dart';
 import 'package:bitclass/features/assignments/data/repositories/assignment_repository.dart';
 import 'package:bitclass/features/assignments/presentation/screens/assignment_detail_screen.dart';
@@ -127,6 +128,48 @@ void main() {
     );
   });
 
+  testWidgets('editor repairs a missing legacy grading criterion ID', (
+    tester,
+  ) async {
+    _usePhoneSize(tester);
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_instructor));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+    final assignmentRepository = _FakeAssignmentRepository(
+      assignment: _publishedAssignment(requiresAttachment: false).copyWith(
+        gradingCriteria: const [
+          GradingCriterion(id: '', name: 'Creativity', percentage: 100),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      assignmentRepository.dispose();
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<AssignmentRepository>.value(
+        value: assignmentRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: _assignmentEditorNavigationApp(assignmentId: 'assignment-1'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open Assignment Editor'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish'));
+    await tester.pumpAndSettle();
+
+    final repaired = assignmentRepository.updatedAssignment;
+    expect(repaired, isNotNull);
+    expect(repaired!.gradingCriteria.single.id, isNotEmpty);
+    expect(repaired.gradingCriteria.single.id.length, lessThanOrEqualTo(64));
+    expect(find.textContaining('valid ID'), findsNothing);
+  });
+
   testWidgets('student can turn in attached work', (tester) async {
     _usePhoneSize(tester);
     final assignment = _publishedAssignment(requiresAttachment: true);
@@ -210,9 +253,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Enable code editor'));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('activity-language-dropdown')),
+    expect(
+      find.byKey(const ValueKey('activity-starter-code-editor')),
+      findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('activity-reference-code-editor')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('activity-language-dropdown')));
     await tester.pumpAndSettle();
 
     expect(find.text('Python'), findsWidgets);
@@ -220,6 +269,74 @@ void main() {
     expect(find.text('Dart'), findsNothing);
     expect(find.text('JavaScript'), findsNothing);
     expect(find.text('C++'), findsNothing);
+  });
+
+  testWidgets('instructor code editors are dark and preserve exact content', (
+    tester,
+  ) async {
+    _usePhoneSize(tester);
+    const originalStarter = '  #include <stdio.h>\n\n';
+    const originalSolution = 'int main(void) {\n    return 0;\n}\n';
+    const updatedStarter = '  int value = 1;\n\n';
+    const updatedSolution = 'int main(void) {\n    printf("%d", value);\n}\n';
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_instructor));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+    final assignmentRepository = _FakeAssignmentRepository(
+      assignment: _publishedAssignment(
+        requiresAttachment: false,
+        language: ProgrammingLanguage.c,
+      ).copyWith(starterCode: originalStarter, solutionCode: originalSolution),
+    );
+    addTearDown(() async {
+      assignmentRepository.dispose();
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<AssignmentRepository>.value(
+        value: assignmentRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: _assignmentEditorNavigationApp(assignmentId: 'assignment-1'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open Assignment Editor'));
+    await tester.pumpAndSettle();
+
+    final starter = find.byKey(const ValueKey('activity-starter-code-editor'));
+    final reference = find.byKey(
+      const ValueKey('activity-reference-code-editor'),
+    );
+    expect(starter, findsOneWidget);
+    expect(reference, findsOneWidget);
+    _expectTerminalBackground(tester, starter);
+    _expectTerminalBackground(tester, reference);
+    expect(_editorText(tester, starter), originalStarter);
+    expect(_editorText(tester, reference), originalSolution);
+
+    final pageScroll = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(starter, 350, scrollable: pageScroll);
+    await tester.enterText(
+      find.descendant(of: starter, matching: find.byType(EditableText)),
+      updatedStarter,
+    );
+    await tester.scrollUntilVisible(reference, 350, scrollable: pageScroll);
+    await tester.enterText(
+      find.descendant(of: reference, matching: find.byType(EditableText)),
+      updatedSolution,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish'));
+    await tester.pumpAndSettle();
+
+    expect(assignmentRepository.updatedAssignment?.starterCode, updatedStarter);
+    expect(
+      assignmentRepository.updatedAssignment?.solutionCode,
+      updatedSolution,
+    );
   });
 
   testWidgets('student submits exact code and selected language', (
@@ -476,6 +593,28 @@ void _usePhoneSize(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
+void _expectTerminalBackground(WidgetTester tester, Finder editor) {
+  final hasTerminalBackground = tester
+      .widgetList<Container>(
+        find.descendant(of: editor, matching: find.byType(Container)),
+      )
+      .any(
+        (container) =>
+            (container.decoration as BoxDecoration?)?.color ==
+            AppColors.codeBackground,
+      );
+  expect(hasTerminalBackground, isTrue);
+}
+
+String _editorText(WidgetTester tester, Finder editor) {
+  return tester
+      .widget<EditableText>(
+        find.descendant(of: editor, matching: find.byType(EditableText)),
+      )
+      .controller
+      .text;
+}
+
 Future<_StudentFixture> _pumpStudentAssignment(
   WidgetTester tester, {
   required AssignmentModel assignment,
@@ -513,7 +652,7 @@ Future<_StudentFixture> _pumpStudentAssignment(
   );
 }
 
-Widget _assignmentEditorNavigationApp() {
+Widget _assignmentEditorNavigationApp({String? assignmentId}) {
   return MaterialApp(
     home: Builder(
       builder: (context) => Scaffold(
@@ -521,8 +660,10 @@ Widget _assignmentEditorNavigationApp() {
           child: ElevatedButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) =>
-                    const AssignmentEditorScreen(courseId: 'course-1'),
+                builder: (_) => AssignmentEditorScreen(
+                  courseId: 'course-1',
+                  assignmentId: assignmentId,
+                ),
               ),
             ),
             child: const Text('Open Assignment Editor'),
@@ -617,6 +758,7 @@ class _FakeAssignmentRepository extends AssignmentRepository {
   AssignmentModel? assignment;
   SubmissionModel? submission;
   AssignmentModel? createdAssignment;
+  AssignmentModel? updatedAssignment;
   int submitCalls = 0;
   String? submittedCode;
   int markDoneCalls = 0;
@@ -663,6 +805,13 @@ class _FakeAssignmentRepository extends AssignmentRepository {
   Future<AssignmentModel> createAssignment(AssignmentModel value) async {
     assignment = value;
     createdAssignment = value;
+    return value;
+  }
+
+  @override
+  Future<AssignmentModel> updateAssignment(AssignmentModel value) async {
+    assignment = value;
+    updatedAssignment = value;
     return value;
   }
 

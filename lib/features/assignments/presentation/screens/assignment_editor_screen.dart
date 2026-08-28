@@ -31,13 +31,32 @@ class _PendingMaterial {
   );
 }
 
+String _criterionId(String? storedId, {Set<String>? usedIds}) {
+  final isUsable =
+      storedId != null &&
+      storedId.trim().isNotEmpty &&
+      storedId.length <= 64 &&
+      (usedIds == null || !usedIds.contains(storedId));
+  if (isUsable) {
+    usedIds?.add(storedId);
+    return storedId;
+  }
+
+  var generated = const Uuid().v4();
+  while (usedIds?.contains(generated) ?? false) {
+    generated = const Uuid().v4();
+  }
+  usedIds?.add(generated);
+  return generated;
+}
+
 class _CriterionInput {
   final String id;
   final TextEditingController nameController;
   final TextEditingController percentageController;
 
   _CriterionInput({String? id, String? name, double? percentage})
-    : id = id ?? const Uuid().v4(),
+    : id = _criterionId(id),
       nameController = TextEditingController(text: name ?? ''),
       percentageController = TextEditingController(
         text: percentage == null ? '' : _formatNumber(percentage),
@@ -53,6 +72,8 @@ String _formatNumber(num value) {
   final fixed = value.toStringAsFixed(2);
   return fixed.replaceFirst(RegExp(r'\.?0+$'), '');
 }
+
+String? _optionalCode(String value) => value.trim().isEmpty ? null : value;
 
 /// A simple, Classroom-style editor for assignments and activities.
 class AssignmentEditorScreen extends StatefulWidget {
@@ -163,12 +184,13 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
                 ),
               ]
             : assignment.gradingCriteria;
+        final usedCriterionIds = <String>{};
         _criteria
           ..clear()
           ..addAll(
             storedCriteria.map(
               (criterion) => _CriterionInput(
-                id: criterion.id,
+                id: _criterionId(criterion.id, usedIds: usedCriterionIds),
                 name: criterion.name,
                 percentage: criterion.percentage,
               ),
@@ -205,8 +227,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
     if (!assignment.isCodeActivity) return ProgrammingLanguage.plaintext;
     return switch (assignment.language) {
       ProgrammingLanguage.python => ProgrammingLanguage.python,
-      ProgrammingLanguage.c || ProgrammingLanguage.cpp =>
-        ProgrammingLanguage.c,
+      ProgrammingLanguage.c || ProgrammingLanguage.cpp => ProgrammingLanguage.c,
       _ => ProgrammingLanguage.python,
     };
   }
@@ -286,13 +307,11 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
       description: description,
       instructions: instructions.isEmpty ? null : instructions,
       language: _isCodeActivity ? _language : ProgrammingLanguage.plaintext,
-      starterCode:
-          _isCodeActivity && _starterCodeController.text.trim().isNotEmpty
-          ? _starterCodeController.text.trim()
+      starterCode: _isCodeActivity
+          ? _optionalCode(_starterCodeController.text)
           : null,
-      solutionCode:
-          _isCodeActivity && _solutionCodeController.text.trim().isNotEmpty
-          ? _solutionCodeController.text.trim()
+      solutionCode: _isCodeActivity
+          ? _optionalCode(_solutionCodeController.text)
           : null,
       attachments: attachments,
       requiresAttachment: _requiresAttachment,
@@ -877,26 +896,44 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _starterCodeController,
-                  onChanged: (_) => _markChanged(),
-                  minLines: 5,
-                  maxLines: 12,
-                  decoration: const InputDecoration(
-                    labelText: 'Starter code (optional)',
-                    alignLabelWithHint: true,
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Starter code (optional)',
+                    style: AppTextStyles.label,
                   ),
                 ),
+                const SizedBox(height: 8),
+                CodeEditor(
+                  key: const ValueKey('activity-starter-code-editor'),
+                  initialCode: _starterCodeController.text,
+                  language: _language,
+                  languageLabel: 'Starter · ${_language.displayName}',
+                  height: 240,
+                  onChanged: (code) {
+                    _starterCodeController.text = code;
+                    _markChanged();
+                  },
+                ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _solutionCodeController,
-                  onChanged: (_) => _markChanged(),
-                  minLines: 5,
-                  maxLines: 12,
-                  decoration: const InputDecoration(
-                    labelText: 'Reference solution (instructor only)',
-                    alignLabelWithHint: true,
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Reference solution (instructor only)',
+                    style: AppTextStyles.label,
                   ),
+                ),
+                const SizedBox(height: 8),
+                CodeEditor(
+                  key: const ValueKey('activity-reference-code-editor'),
+                  initialCode: _solutionCodeController.text,
+                  language: _language,
+                  languageLabel: 'Solution · ${_language.displayName}',
+                  height: 240,
+                  onChanged: (code) {
+                    _solutionCodeController.text = code;
+                    _markChanged();
+                  },
                 ),
                 const SizedBox(height: 8),
               ],

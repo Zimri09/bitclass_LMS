@@ -58,6 +58,44 @@ void main() {
     expect(request.body, isNot(contains('created_at')));
     expect(created.createdAt, DateTime.parse(_databaseCreatedAt));
   });
+
+  test('activity update sends the repaired grading criterion ID', () async {
+    const criterionId = '1c45dc4c-8a8a-43d0-b36b-c4e14cfec672';
+    final responseRow = <String, dynamic>{
+      ..._assignmentRow,
+      'grading_criteria': const [
+        {'id': criterionId, 'name': 'Creativity', 'percentage': 100},
+      ],
+    };
+    final fixture = await _PostgrestFixture.start(
+      responseForPath: {'/rest/v1/assignments': responseRow},
+    );
+    addTearDown(fixture.close);
+    final repository = AssignmentRepository(supabase: fixture.client);
+
+    final updated = await repository.updateAssignment(
+      AssignmentModel(
+        id: 'assignment-1',
+        courseId: 'course-1',
+        title: 'Database timestamp activity',
+        description: 'Created by the instructor.',
+        language: ProgrammingLanguage.plaintext,
+        gradingCriteria: const [
+          GradingCriterion(
+            id: criterionId,
+            name: 'Creativity',
+            percentage: 100,
+          ),
+        ],
+        createdAt: DateTime.parse(_databaseCreatedAt),
+      ),
+    );
+
+    final request = await fixture.nextRequest;
+    final criteria = request.body['grading_criteria'] as List<dynamic>;
+    expect((criteria.single as Map<String, dynamic>)['id'], criterionId);
+    expect(updated.gradingCriteria.single.id, criterionId);
+  });
 }
 
 const _databaseCreatedAt = '2026-08-28T04:18:00.000Z';

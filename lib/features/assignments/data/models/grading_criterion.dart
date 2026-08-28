@@ -19,7 +19,7 @@ class GradingCriterion extends Equatable {
 
   factory GradingCriterion.fromMap(Map<String, dynamic> map) {
     return GradingCriterion(
-      id: map['id'] as String? ?? '',
+      id: map['id'] as String? ?? map['criterionId'] as String? ?? '',
       name: map['name'] as String? ?? '',
       percentage: (map['percentage'] as num?)?.toDouble() ?? 0,
     );

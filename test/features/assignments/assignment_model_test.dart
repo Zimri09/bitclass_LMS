@@ -60,6 +60,16 @@ void main() {
     });
   });
 
+  test('grading criterion reads the legacy criterionId key', () {
+    final criterion = GradingCriterion.fromMap(const {
+      'criterionId': 'legacy-creativity',
+      'name': 'Creativity',
+      'percentage': 100,
+    });
+
+    expect(criterion.id, 'legacy-creativity');
+  });
+
   // ====================================================
   // AssignmentModel
   // ====================================================
