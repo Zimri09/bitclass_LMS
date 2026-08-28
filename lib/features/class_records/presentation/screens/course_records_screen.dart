@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:file_picker/file_picker.dart' as fp;
+import 'package:intl/intl.dart';
 
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -9,6 +11,7 @@ import '../../../attendance/presentation/screens/attendance_screen.dart';
 import '../../../courses/data/models/course_model.dart';
 import '../../data/models/class_record_model.dart';
 import '../../data/repositories/class_record_repository.dart';
+import '../../data/services/bisu_class_record_document_service.dart';
 
 class CourseRecordsScreen extends StatefulWidget {
   final CourseModel course;
@@ -71,7 +74,7 @@ class _CourseRecordsScreenState extends State<CourseRecordsScreen> {
           child: IndexedStack(
             index: _selectedSection,
             children: [
-              _ClassRecordView(courseId: widget.course.id),
+              _ClassRecordView(course: widget.course),
               AttendanceScreen(
                 course: widget.course,
                 isCourseOwner: true,
@@ -86,9 +89,9 @@ class _CourseRecordsScreenState extends State<CourseRecordsScreen> {
 }
 
 class _ClassRecordView extends StatefulWidget {
-  final String courseId;
+  final CourseModel course;
 
-  const _ClassRecordView({required this.courseId});
+  const _ClassRecordView({required this.course});
 
   @override
   State<_ClassRecordView> createState() => _ClassRecordViewState();
@@ -98,6 +101,7 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
   final _searchController = TextEditingController();
   CourseClassRecord? _record;
   bool _isLoading = true;
+  bool _isExporting = false;
   String? _error;
 
   @override
@@ -122,7 +126,7 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
     try {
       final record = await context
           .read<ClassRecordRepository>()
-          .getCourseRecord(widget.courseId);
+          .getCourseRecord(widget.course.id);
       if (!mounted) return;
       setState(() {
         _record = record;
@@ -134,6 +138,50 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
         _error = userFriendlyErrorMessage(error);
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _exportClassRecord() async {
+    if (_isExporting || _record == null) return;
+    setState(() => _isExporting = true);
+    try {
+      final bytes = await const BisuClassRecordDocumentService().generate(
+        course: widget.course,
+        record: _record!,
+      );
+      final safeCourseTitle = widget.course.title
+          .trim()
+          .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
+          .replaceAll(RegExp(r'_+'), '_')
+          .replaceAll(RegExp(r'^_|_$'), '');
+      final dateStamp = DateFormat('yyyyMMdd').format(DateTime.now());
+      final savedUri = await fp.FilePicker.saveFile(
+        fileName:
+            'BISU_Class_Record_${safeCourseTitle.isEmpty ? 'Course' : safeCourseTitle}_$dateStamp.docx',
+        bytes: bytes,
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        dialogTitle: 'Save BISU class record',
+      );
+      if (!mounted || savedUri == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('BISU class record Word form saved.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to export class record: ${userFriendlyErrorMessage(error)}',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
     }
   }
 
@@ -163,6 +211,21 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           _RecordSummary(record: record),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _isExporting ? null : _exportClassRecord,
+            icon: _isExporting
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.description_outlined),
+            label: Text(
+              _isExporting
+                  ? 'Preparing BISU Word form...'
+                  : 'Export BISU Word form',
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _searchController,
