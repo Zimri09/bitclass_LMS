@@ -123,7 +123,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
             );
           } else if (state is AssignmentUnsubmitted) {
             _showMessage(
-              'Submission taken back. You can edit your work now.',
+              'Activity returned to Assigned. You can continue working on it.',
               AppColors.info,
             );
           } else if (state is AssignmentError) {
@@ -658,27 +658,57 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
               ],
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                key: ValueKey(shouldSubmit ? 'turn-in-work' : 'mark-work-done'),
-                onPressed: state.isSubmitting || _isWorkBusy
-                    ? null
-                    : () => shouldSubmit
-                          ? _confirmTurnIn(state)
-                          : _confirmMarkDone(state),
-                child: state.isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(shouldSubmit ? 'Turn in' : 'Mark as done'),
+            if (shouldSubmit) ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const ValueKey('turn-in-work'),
+                  onPressed: state.isSubmitting || _isWorkBusy
+                      ? null
+                      : () => _confirmTurnIn(state),
+                  child: state.isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Turn in'),
+                ),
               ),
-            ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  key: const ValueKey('mark-work-done'),
+                  onPressed: state.isSubmitting || _isWorkBusy
+                      ? null
+                      : () => _confirmMarkDone(state),
+                  child: const Text('Mark as done'),
+                ),
+              ),
+            ] else
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const ValueKey('mark-work-done'),
+                  onPressed: state.isSubmitting || _isWorkBusy
+                      ? null
+                      : () => _confirmMarkDone(state),
+                  child: state.isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Mark as done'),
+                ),
+              ),
           ] else if (submission?.canUnsubmit(assignment) == true) ...[
             const SizedBox(height: 14),
             SizedBox(
@@ -694,7 +724,11 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Unsubmit'),
+                    : Text(
+                        submission?.status == SubmissionStatus.done
+                            ? 'Undo'
+                            : 'Unsubmit',
+                      ),
               ),
             ),
             const SizedBox(height: 8),
@@ -934,9 +968,13 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
   }
 
   Future<void> _confirmMarkDone(AssignmentDetailLoaded state) async {
+    final requiresWork =
+        state.assignment.requiresAttachment || state.assignment.isCodeActivity;
     final confirmed = await _confirmationDialog(
       title: 'Mark this activity as done?',
-      message: 'This activity does not require an attachment.',
+      message: requiresWork
+          ? 'This marks the activity Done without turning in your file, link, or code. You can undo it before the deadline.'
+          : 'This records the activity as completed. You can undo it before the deadline.',
       action: 'Mark as done',
     );
     if (confirmed != true) return;
@@ -953,10 +991,13 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
   }
 
   Future<void> _confirmUnsubmit(AssignmentDetailLoaded state) async {
+    final isMarkedDone = state.submission?.status == SubmissionStatus.done;
     final confirmed = await _confirmationDialog(
-      title: 'Unsubmit this work?',
-      message: 'Your work will return to draft so you can edit or replace it.',
-      action: 'Unsubmit',
+      title: isMarkedDone ? 'Undo mark as done?' : 'Unsubmit this work?',
+      message: isMarkedDone
+          ? 'The activity will return to Assigned so you can continue working on it.'
+          : 'Your work will return to draft so you can edit or replace it.',
+      action: isMarkedDone ? 'Undo' : 'Unsubmit',
     );
     if (confirmed != true) return;
     _assignmentBloc.add(

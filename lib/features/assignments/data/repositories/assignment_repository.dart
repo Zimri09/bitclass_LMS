@@ -661,10 +661,6 @@ class AssignmentRepository {
     if (!assignment.isPublished) {
       throw Exception('This activity is not available for completion.');
     }
-    if (assignment.requiresAttachment || assignment.isCodeActivity) {
-      throw Exception('This activity must be submitted with work.');
-    }
-
     final now = DateTime.now();
     final isLate =
         assignment.dueDate != null && now.isAfter(assignment.dueDate!);

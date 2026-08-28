@@ -197,6 +197,7 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    expect(find.byKey(const ValueKey('mark-work-done')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('turn-in-work')));
     await tester.pumpAndSettle();
 
@@ -372,6 +373,7 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    expect(find.byKey(const ValueKey('mark-work-done')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('turn-in-work')));
     await tester.pumpAndSettle();
     await tester.tap(
@@ -526,12 +528,12 @@ void main() {
   });
 
   testWidgets(
-    'student can mark an activity done and unsubmit before due date',
+    'student can mark required work done without submitting and undo before due date',
     (tester) async {
       _usePhoneSize(tester);
       final fixture = await _pumpStudentAssignment(
         tester,
-        assignment: _publishedAssignment(requiresAttachment: false),
+        assignment: _publishedAssignment(requiresAttachment: true),
       );
       addTearDown(fixture.dispose);
 
@@ -541,6 +543,7 @@ void main() {
         300,
         scrollable: find.byType(Scrollable).first,
       );
+      expect(find.byKey(const ValueKey('turn-in-work')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('mark-work-done')));
       await tester.pumpAndSettle();
 
@@ -561,26 +564,30 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fixture.assignmentRepository.markDoneCalls, 1);
+      expect(fixture.assignmentRepository.submitCalls, 0);
+      expect(fixture.assignmentRepository.submission?.submittedAt, isNotNull);
       expect(find.text('Done'), findsWidgets);
+      expect(find.textContaining('Completed '), findsOneWidget);
       expect(find.byKey(const ValueKey('unsubmit-work')), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('unsubmit-work')));
       await tester.pumpAndSettle();
       dialog = find.byType(AlertDialog);
       expect(
-        find.descendant(of: dialog, matching: find.text('Unsubmit this work?')),
+        find.descendant(of: dialog, matching: find.text('Undo mark as done?')),
         findsOneWidget,
       );
       await tester.tap(
         find.descendant(
           of: dialog,
-          matching: find.widgetWithText(FilledButton, 'Unsubmit'),
+          matching: find.widgetWithText(FilledButton, 'Undo'),
         ),
       );
       await tester.pumpAndSettle();
 
       expect(fixture.assignmentRepository.unsubmitCalls, 1);
       expect(find.text('Assigned'), findsWidgets);
+      expect(find.byKey(const ValueKey('turn-in-work')), findsOneWidget);
       expect(find.byKey(const ValueKey('mark-work-done')), findsOneWidget);
     },
   );
