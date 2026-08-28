@@ -52,6 +52,7 @@ class SaveDraft extends AssignmentEvent {
   final String userId;
   final String userDisplayName;
   final String code;
+  final ProgrammingLanguage language;
   final List<AssignmentAttachment>? attachments;
 
   const SaveDraft({
@@ -60,6 +61,7 @@ class SaveDraft extends AssignmentEvent {
     required this.userId,
     required this.userDisplayName,
     required this.code,
+    required this.language,
     this.attachments,
   });
 
@@ -70,6 +72,7 @@ class SaveDraft extends AssignmentEvent {
     userId,
     userDisplayName,
     code,
+    language,
     attachments,
   ];
 }

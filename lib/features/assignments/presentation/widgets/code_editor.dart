@@ -212,7 +212,7 @@ class _CodeEditorState extends State<CodeEditor> {
     if (widget.syntax != CodeEditorSyntax.automatic) return widget.syntax;
     return switch (widget.language) {
       ProgrammingLanguage.python => CodeEditorSyntax.python,
-      ProgrammingLanguage.cpp => CodeEditorSyntax.c,
+      ProgrammingLanguage.c || ProgrammingLanguage.cpp => CodeEditorSyntax.c,
       _ => CodeEditorSyntax.automatic,
     };
   }

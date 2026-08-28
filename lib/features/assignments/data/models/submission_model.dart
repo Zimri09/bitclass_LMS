@@ -69,6 +69,7 @@ class SubmissionModel extends Equatable {
   final String userId;
   final String userDisplayName;
   final String code;
+  final ProgrammingLanguage language;
   final List<AssignmentAttachment> attachments;
   final SubmissionStatus status;
   final double? score;
@@ -90,6 +91,7 @@ class SubmissionModel extends Equatable {
     required this.userId,
     required this.userDisplayName,
     required this.code,
+    this.language = ProgrammingLanguage.plaintext,
     this.attachments = const [],
     this.status = SubmissionStatus.draft,
     this.score,
@@ -113,6 +115,7 @@ class SubmissionModel extends Equatable {
     userId,
     userDisplayName,
     code,
+    language,
     attachments,
     status,
     score,
@@ -136,6 +139,9 @@ class SubmissionModel extends Equatable {
       userId: map['userId'] as String,
       userDisplayName: map['userDisplayName'] as String? ?? 'Unknown User',
       code: map['code'] as String? ?? '',
+      language: ProgrammingLanguage.fromString(
+        map['language'] as String? ?? 'plaintext',
+      ),
       attachments: ((map['attachments'] as List<dynamic>?) ?? const [])
           .whereType<Map>()
           .map(
@@ -177,6 +183,7 @@ class SubmissionModel extends Equatable {
       'userId': userId,
       'userDisplayName': userDisplayName,
       'code': code,
+      'language': language.name,
       'attachments': attachments.map((item) => item.toMap()).toList(),
       'status': status.name,
       'score': score,
@@ -200,6 +207,7 @@ class SubmissionModel extends Equatable {
     String? userId,
     String? userDisplayName,
     String? code,
+    ProgrammingLanguage? language,
     List<AssignmentAttachment>? attachments,
     SubmissionStatus? status,
     double? score,
@@ -222,6 +230,7 @@ class SubmissionModel extends Equatable {
       userId: userId ?? this.userId,
       userDisplayName: userDisplayName ?? this.userDisplayName,
       code: code ?? this.code,
+      language: language ?? this.language,
       attachments: attachments ?? this.attachments,
       status: status ?? this.status,
       score: score ?? this.score,

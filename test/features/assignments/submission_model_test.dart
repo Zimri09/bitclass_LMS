@@ -25,6 +25,7 @@ void main() {
     userId: 'student-1',
     userDisplayName: 'Student One',
     code: '',
+    language: ProgrammingLanguage.python,
     attachments: const [
       AssignmentAttachment(
         id: 'work-1',
@@ -126,6 +127,7 @@ void main() {
     final restored = SubmissionModel.fromMap(original.toMap());
 
     expect(restored, original);
+    expect(restored.language, ProgrammingLanguage.python);
     expect(restored.attachments.single.name, 'Answer.pdf');
     expect(restored.assignmentDisplayTitle, 'Research activity');
     expect(restored.resolvedMaxPoints, 25);

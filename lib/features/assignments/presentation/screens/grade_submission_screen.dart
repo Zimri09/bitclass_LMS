@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -15,6 +14,7 @@ import '../bloc/assignment_bloc.dart';
 import '../bloc/assignment_event.dart';
 import '../bloc/assignment_state.dart';
 import '../widgets/assignment_attachment_tile.dart';
+import '../widgets/code_editor.dart';
 
 String _gradeNumber(num value) =>
     value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
@@ -483,25 +483,14 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
           if (submission.code.trim().isNotEmpty) ...[
             Text('Submitted Code', style: AppTextStyles.h4),
             const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(maxHeight: 400),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E2E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: SelectableText(
-                  submission.code,
-                  style: GoogleFonts.firaCode(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
-                ),
-              ),
+            CodeViewer(
+              key: ValueKey('submitted-code-${submission.id}'),
+              code: submission.code,
+              language:
+                  submission.language == ProgrammingLanguage.plaintext
+                  ? assignment.language
+                  : submission.language,
+              height: 300,
             ),
             const SizedBox(height: 24),
           ],

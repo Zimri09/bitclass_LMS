@@ -7,6 +7,7 @@ import 'grading_criterion.dart';
 enum ProgrammingLanguage {
   dart,
   python,
+  c,
   javascript,
   java,
   cpp,
@@ -32,6 +33,8 @@ enum ProgrammingLanguage {
         return 'Dart';
       case ProgrammingLanguage.python:
         return 'Python';
+      case ProgrammingLanguage.c:
+        return 'C';
       case ProgrammingLanguage.javascript:
         return 'JavaScript';
       case ProgrammingLanguage.java:
@@ -63,6 +66,8 @@ enum ProgrammingLanguage {
         return '.dart';
       case ProgrammingLanguage.python:
         return '.py';
+      case ProgrammingLanguage.c:
+        return '.c';
       case ProgrammingLanguage.javascript:
         return '.js';
       case ProgrammingLanguage.java:

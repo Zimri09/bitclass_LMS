@@ -5,6 +5,8 @@ import 'package:bitclass/features/assignments/data/repositories/assignment_repos
 import 'package:bitclass/features/assignments/presentation/screens/assignment_detail_screen.dart';
 import 'package:bitclass/features/assignments/presentation/screens/assignment_editor_screen.dart';
 import 'package:bitclass/features/assignments/presentation/screens/assignment_list_screen.dart';
+import 'package:bitclass/features/assignments/presentation/screens/grade_submission_screen.dart';
+import 'package:bitclass/features/assignments/presentation/widgets/code_editor.dart';
 import 'package:bitclass/features/auth/data/models/user_model.dart';
 import 'package:bitclass/features/auth/data/repositories/auth_repository.dart';
 import 'package:bitclass/features/auth/presentation/bloc/auth_bloc.dart';
@@ -171,6 +173,164 @@ void main() {
     expect(fixture.assignmentRepository.submitCalls, 1);
     expect(find.text('Submitted'), findsWidgets);
     expect(find.byKey(const ValueKey('unsubmit-work')), findsOneWidget);
+  });
+
+  testWidgets('activity editor offers only Python and C', (tester) async {
+    _usePhoneSize(tester);
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_instructor));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+    final assignmentRepository = _FakeAssignmentRepository();
+    addTearDown(() async {
+      assignmentRepository.dispose();
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<AssignmentRepository>.value(
+        value: assignmentRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: _assignmentEditorNavigationApp(),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open Assignment Editor'));
+    await tester.pumpAndSettle();
+
+    final pageScroll = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('Advanced code activity'),
+      350,
+      scrollable: pageScroll,
+    );
+    await tester.tap(find.text('Advanced code activity'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Enable code editor'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('activity-language-dropdown')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Python'), findsWidgets);
+    expect(find.text('C'), findsOneWidget);
+    expect(find.text('Dart'), findsNothing);
+    expect(find.text('JavaScript'), findsNothing);
+    expect(find.text('C++'), findsNothing);
+  });
+
+  testWidgets('student submits exact code and selected language', (
+    tester,
+  ) async {
+    _usePhoneSize(tester);
+    final fixture = await _pumpStudentAssignment(
+      tester,
+      assignment: _publishedAssignment(
+        requiresAttachment: false,
+        language: ProgrammingLanguage.python,
+      ),
+    );
+    addTearDown(fixture.dispose);
+    const exactCode =
+        'def greet(name):\n'
+        '    print("Hello, " + name)\n'
+        '\n'
+        "greet('Student')";
+
+    await tester.scrollUntilVisible(
+      find.byType(CodeEditor),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final editor = find.descendant(
+      of: find.byType(CodeEditor),
+      matching: find.byType(EditableText),
+    );
+    await tester.enterText(editor, exactCode);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('turn-in-work')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('turn-in-work')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Turn in'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(fixture.assignmentRepository.submittedCode, exactCode);
+    expect(
+      fixture.assignmentRepository.submission?.language,
+      ProgrammingLanguage.python,
+    );
+  });
+
+  testWidgets('instructor code viewer loads exact saved code', (tester) async {
+    _usePhoneSize(tester);
+    const exactCode = 'if (ready) {\n    printf("Hello");\n}\n';
+    final assignment = _publishedAssignment(
+      requiresAttachment: false,
+      language: ProgrammingLanguage.c,
+    );
+    final submission = _draftSubmission().copyWith(
+      code: exactCode,
+      language: ProgrammingLanguage.c,
+      status: SubmissionStatus.submitted,
+      submittedAt: DateTime.utc(2026, 8, 28, 4, 28),
+    );
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_instructor));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+    final assignmentRepository = _FakeAssignmentRepository(
+      assignment: assignment,
+      submission: submission,
+    );
+    addTearDown(() async {
+      assignmentRepository.dispose();
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<AssignmentRepository>.value(
+        value: assignmentRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: const MaterialApp(
+            home: GradeSubmissionScreen(
+              courseId: 'course-1',
+              assignmentId: 'assignment-1',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_student.displayNameOrEmail));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Submitted Code'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    final codeViewer = find.byKey(
+      const ValueKey('submitted-code-submission-1'),
+    );
+    expect(codeViewer, findsOneWidget);
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: codeViewer, matching: find.byType(EditableText)),
+    );
+    expect(editable.controller.text, exactCode);
+    expect(editable.readOnly, isTrue);
   });
 
   testWidgets('instructor sees the original activity posted time', (
@@ -373,14 +533,17 @@ Widget _assignmentEditorNavigationApp() {
   );
 }
 
-AssignmentModel _publishedAssignment({required bool requiresAttachment}) {
+AssignmentModel _publishedAssignment({
+  required bool requiresAttachment,
+  ProgrammingLanguage language = ProgrammingLanguage.plaintext,
+}) {
   return AssignmentModel(
     id: 'assignment-1',
     courseId: 'course-1',
     title: 'Community research activity',
     description: 'Read the guide and complete the activity.',
     instructions: 'Read the guide and complete the activity.',
-    language: ProgrammingLanguage.plaintext,
+    language: language,
     requiresAttachment: requiresAttachment,
     maxPoints: 25,
     dueDate: DateTime.now().add(const Duration(days: 2)),
@@ -455,6 +618,7 @@ class _FakeAssignmentRepository extends AssignmentRepository {
   SubmissionModel? submission;
   AssignmentModel? createdAssignment;
   int submitCalls = 0;
+  String? submittedCode;
   int markDoneCalls = 0;
   int unsubmitCalls = 0;
 
@@ -485,6 +649,11 @@ class _FakeAssignmentRepository extends AssignmentRepository {
   }) async => assignment == null ? const [] : [assignment!];
 
   @override
+  Future<List<SubmissionModel>> getAssignmentSubmissions(
+    String assignmentId,
+  ) async => submission == null ? const [] : [submission!];
+
+  @override
   Future<SubmissionModel?> getUserSubmission(
     String assignmentId,
     String userId,
@@ -507,6 +676,7 @@ class _FakeAssignmentRepository extends AssignmentRepository {
     List<AssignmentAttachment>? attachments,
   }) async {
     submitCalls++;
+    submittedCode = code;
     submission = _completedSubmission(
       status: SubmissionStatus.submitted,
       userDisplayName: userDisplayName,
@@ -564,6 +734,7 @@ class _FakeAssignmentRepository extends AssignmentRepository {
       userId: _student.id,
       userDisplayName: userDisplayName,
       code: code,
+      language: assignment!.language,
       attachments: attachments ?? submission?.attachments ?? const [],
       status: status,
       createdAt: submission?.createdAt ?? now,

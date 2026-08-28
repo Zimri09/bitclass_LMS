@@ -70,6 +70,11 @@ class AssignmentEditorScreen extends StatefulWidget {
 }
 
 class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
+  static const _activityCodeLanguages = <ProgrammingLanguage>[
+    ProgrammingLanguage.python,
+    ProgrammingLanguage.c,
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _instructionsController = TextEditingController();
@@ -172,7 +177,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
         _starterCodeController.text = assignment.starterCode ?? '';
         _solutionCodeController.text = assignment.solutionCode ?? '';
         _attachments = List.of(assignment.attachments);
-        _language = assignment.language;
+        _language = _activityEditorLanguage(assignment);
         _dueDate = assignment.dueDate?.toLocal();
         _dueTime = assignment.dueDate == null
             ? null
@@ -194,6 +199,16 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
     if (rebuild || !_hasChanges) {
       setState(() => _hasChanges = true);
     }
+  }
+
+  ProgrammingLanguage _activityEditorLanguage(AssignmentModel assignment) {
+    if (!assignment.isCodeActivity) return ProgrammingLanguage.plaintext;
+    return switch (assignment.language) {
+      ProgrammingLanguage.python => ProgrammingLanguage.python,
+      ProgrammingLanguage.c || ProgrammingLanguage.cpp =>
+        ProgrammingLanguage.c,
+      _ => ProgrammingLanguage.python,
+    };
   }
 
   void _addCriterion({bool markChanged = true}) {
@@ -839,15 +854,13 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
               if (_isCodeActivity) ...[
                 const SizedBox(height: 8),
                 DropdownButtonFormField<ProgrammingLanguage>(
+                  key: const ValueKey('activity-language-dropdown'),
                   initialValue: _language,
                   decoration: const InputDecoration(
                     labelText: 'Programming language',
                     prefixIcon: Icon(Icons.code),
                   ),
-                  items: ProgrammingLanguage.values
-                      .where(
-                        (language) => language != ProgrammingLanguage.plaintext,
-                      )
+                  items: _activityCodeLanguages
                       .map(
                         (language) => DropdownMenuItem(
                           value: language,

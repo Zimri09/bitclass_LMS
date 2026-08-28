@@ -749,7 +749,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         courseId: widget.courseId,
         userId: _userId,
         userDisplayName: _userDisplayName,
-        code: state.currentCode,
+        code: _currentCode,
+        language: state.assignment.language,
         attachments: [...current, uploaded],
       );
       if (mounted) {
@@ -784,7 +785,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         courseId: widget.courseId,
         userId: _userId,
         userDisplayName: _userDisplayName,
-        code: state.currentCode,
+        code: _currentCode,
+        language: state.assignment.language,
         attachments: [...current, attachment],
       );
       if (mounted) {
@@ -874,7 +876,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         courseId: widget.courseId,
         userId: _userId,
         userDisplayName: _userDisplayName,
-        code: state.currentCode,
+        code: _currentCode,
+        language: state.assignment.language,
         attachments: updated,
       );
       await repository.deleteStoredAttachment(attachment);
@@ -896,7 +899,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         courseId: widget.courseId,
         userId: _userId,
         userDisplayName: _userDisplayName,
-        code: state.currentCode,
+        code: _currentCode,
+        language: state.assignment.language,
         attachments: state.submission?.attachments,
       ),
     );
@@ -923,7 +927,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         courseId: widget.courseId,
         userId: _userId,
         userDisplayName: _userDisplayName,
-        code: state.currentCode,
+        code: _currentCode,
         attachments: state.submission?.attachments,
       ),
     );
@@ -942,7 +946,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         courseId: widget.courseId,
         userId: _userId,
         userDisplayName: _userDisplayName,
-        code: state.currentCode,
+        code: _currentCode,
         attachments: state.submission?.attachments,
       ),
     );

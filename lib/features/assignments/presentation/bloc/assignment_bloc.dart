@@ -104,6 +104,7 @@ class AssignmentBloc extends Bloc<AssignmentEvent, AssignmentState> {
           userId: event.userId,
           userDisplayName: event.userDisplayName,
           code: event.code,
+          language: event.language,
           attachments: event.attachments,
         );
         emit(

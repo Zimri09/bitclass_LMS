@@ -15,6 +15,7 @@ void main() {
         ProgrammingLanguage.fromString('python'),
         ProgrammingLanguage.python,
       );
+      expect(ProgrammingLanguage.fromString('c'), ProgrammingLanguage.c);
       expect(
         ProgrammingLanguage.fromString('javascript'),
         ProgrammingLanguage.javascript,
@@ -40,6 +41,7 @@ void main() {
 
     test('displayName returns human-readable names', () {
       expect(ProgrammingLanguage.dart.displayName, 'Dart');
+      expect(ProgrammingLanguage.c.displayName, 'C');
       expect(ProgrammingLanguage.cpp.displayName, 'C++');
       expect(ProgrammingLanguage.csharp.displayName, 'C#');
       expect(ProgrammingLanguage.javascript.displayName, 'JavaScript');
@@ -49,6 +51,7 @@ void main() {
     test('fileExtension returns correct extensions', () {
       expect(ProgrammingLanguage.dart.fileExtension, '.dart');
       expect(ProgrammingLanguage.python.fileExtension, '.py');
+      expect(ProgrammingLanguage.c.fileExtension, '.c');
       expect(ProgrammingLanguage.javascript.fileExtension, '.js');
       expect(ProgrammingLanguage.typescript.fileExtension, '.ts');
       expect(ProgrammingLanguage.cpp.fileExtension, '.cpp');

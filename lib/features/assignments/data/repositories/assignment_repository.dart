@@ -94,6 +94,7 @@ class AssignmentRepository {
       'userId': row['user_id'],
       'userDisplayName': row['user_display_name'],
       'code': row['code'],
+      'language': row['language'],
       'attachments': row['attachments'],
       'status': row['status'],
       'score': row['score'],
@@ -151,6 +152,7 @@ class AssignmentRepository {
       'user_id': submission.userId,
       'user_display_name': submission.userDisplayName,
       'code': submission.code,
+      'language': submission.language.name,
       'attachments': submission.attachments
           .map((attachment) => attachment.toMap())
           .toList(),
@@ -529,6 +531,7 @@ class AssignmentRepository {
     required String userId,
     required String userDisplayName,
     required String code,
+    required ProgrammingLanguage language,
     List<AssignmentAttachment>? attachments,
   }) async {
     final existing = await getUserSubmission(assignmentId, userId);
@@ -550,6 +553,7 @@ class AssignmentRepository {
       userId: normalizedUserId,
       userDisplayName: userDisplayName,
       code: code,
+      language: language,
       attachments: draftAttachments,
       status: SubmissionStatus.draft,
       createdAt: existing?.createdAt ?? now,
@@ -559,13 +563,15 @@ class AssignmentRepository {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
       _cacheDemoSubmission(submission);
-    } else {
-      await _supabase!
-          .from(_submissionsTable)
-          .upsert(_submissionToRow(submission));
+      return submission;
     }
 
-    return submission;
+    final row = await _supabase!
+        .from(_submissionsTable)
+        .upsert(_submissionToRow(submission))
+        .select()
+        .single();
+    return _submissionFromRow(row);
   }
 
   /// Submit an assignment
@@ -617,6 +623,7 @@ class AssignmentRepository {
           : userId,
       userDisplayName: userDisplayName,
       code: code,
+      language: assignment.language,
       attachments: submittedAttachments,
       status: SubmissionStatus.submitted,
       isLate: isLate,
@@ -628,13 +635,15 @@ class AssignmentRepository {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 500));
       _cacheDemoSubmission(submission);
-    } else {
-      await _supabase!
-          .from(_submissionsTable)
-          .upsert(_submissionToRow(submission));
+      return submission;
     }
 
-    return submission;
+    final row = await _supabase!
+        .from(_submissionsTable)
+        .upsert(_submissionToRow(submission))
+        .select()
+        .single();
+    return _submissionFromRow(row);
   }
 
   Future<SubmissionModel> markAsDone({
@@ -683,6 +692,7 @@ class AssignmentRepository {
           : userId,
       userDisplayName: userDisplayName,
       code: code,
+      language: assignment.language,
       attachments: completedAttachments,
       status: SubmissionStatus.done,
       isLate: isLate,
@@ -694,12 +704,14 @@ class AssignmentRepository {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 400));
       _cacheDemoSubmission(submission);
-    } else {
-      await _supabase!
-          .from(_submissionsTable)
-          .upsert(_submissionToRow(submission));
+      return submission;
     }
-    return submission;
+    final row = await _supabase!
+        .from(_submissionsTable)
+        .upsert(_submissionToRow(submission))
+        .select()
+        .single();
+    return _submissionFromRow(row);
   }
 
   Future<SubmissionModel> unsubmitAssignment({
