@@ -144,6 +144,7 @@ void main() {
     );
     addTearDown(fixture.dispose);
 
+    expect(find.text('Posted: Aug 28, 2026 at 12:18 PM'), findsOneWidget);
     expect(find.text('Assigned'), findsWidgets);
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('turn-in-work')),
@@ -169,6 +170,43 @@ void main() {
     expect(fixture.assignmentRepository.submitCalls, 1);
     expect(find.text('Submitted'), findsWidgets);
     expect(find.byKey(const ValueKey('unsubmit-work')), findsOneWidget);
+  });
+
+  testWidgets('instructor sees the original activity posted time', (
+    tester,
+  ) async {
+    _usePhoneSize(tester);
+    final authRepository = _FakeAuthRepository();
+    final authBloc = AuthBloc(authRepository: authRepository)
+      ..add(AuthUserUpdated(_instructor));
+    await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+    final assignmentRepository = _FakeAssignmentRepository(
+      assignment: _publishedAssignment(requiresAttachment: false),
+    );
+
+    addTearDown(() async {
+      assignmentRepository.dispose();
+      await authBloc.close();
+      await authRepository.dispose();
+    });
+
+    await tester.pumpWidget(
+      RepositoryProvider<AssignmentRepository>.value(
+        value: assignmentRepository,
+        child: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: const MaterialApp(
+            home: AssignmentDetailScreen(
+              courseId: 'course-1',
+              assignmentId: 'assignment-1',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Posted: Aug 28, 2026 at 12:18 PM'), findsOneWidget);
   });
 
   testWidgets(
@@ -308,7 +346,7 @@ AssignmentModel _publishedAssignment({required bool requiresAttachment}) {
     maxPoints: 25,
     dueDate: DateTime.now().add(const Duration(days: 2)),
     isPublished: true,
-    createdAt: DateTime.utc(2026, 8, 13),
+    createdAt: DateTime(2026, 8, 28, 12, 18),
   );
 }
 

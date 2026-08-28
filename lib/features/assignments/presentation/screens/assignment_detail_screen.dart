@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_time_formatters.dart';
 import '../../../../core/utils/url_utils.dart';
 import '../../../../shared/widgets/lesson_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
@@ -297,6 +298,10 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                           spacing: 12,
                           runSpacing: 8,
                           children: [
+                            _MetaLabel(
+                              icon: Icons.schedule_outlined,
+                              text: formatPostedDateTime(assignment.createdAt),
+                            ),
                             _MetaLabel(
                               icon: Icons.star_outline,
                               text: '${assignment.maxPoints} points',

@@ -713,7 +713,7 @@ class QuizRepository {
       return;
     }
 
-    await _supabase!.from(_quizzesTable).upsert({
+    await _supabase!.from(_quizzesTable).insert({
       'id': quiz.id,
       'course_id': quiz.courseId,
       'lesson_id': quiz.lessonId,
@@ -729,8 +729,6 @@ class QuizRepository {
       'allow_retakes': quiz.allowRetakes,
       'max_attempts': quiz.maxAttempts,
       'is_published': quiz.isPublished,
-      'created_at': quiz.createdAt.toIso8601String(),
-      'updated_at': quiz.updatedAt?.toIso8601String(),
     });
   }
 

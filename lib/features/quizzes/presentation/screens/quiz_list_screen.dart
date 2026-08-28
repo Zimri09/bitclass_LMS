@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/date_time_formatters.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/quiz_repository.dart';
 
@@ -122,6 +123,26 @@ class _QuizCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.schedule_outlined,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            formatPostedDateTime(quiz.createdAt),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Row(

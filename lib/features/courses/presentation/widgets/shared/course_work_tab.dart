@@ -236,6 +236,23 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                     ],
                   ),
                   const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule_outlined,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          formatPostedDateTime(quiz.createdAt),
+                          style: AppTextStyles.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
                   Wrap(
                     spacing: 12,
                     runSpacing: 4,

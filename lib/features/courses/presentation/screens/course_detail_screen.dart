@@ -7,6 +7,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_time_formatters.dart';
 import '../../../../shared/widgets/course_banner.dart';
 import '../../../../shared/widgets/glow_card.dart';
 import '../../../../shared/widgets/loading_widgets.dart';

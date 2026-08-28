@@ -41,6 +41,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Posted: Aug 28, 2026 at 12:18 PM'), findsOneWidget);
     expect(find.text('Instructor preview mode'), findsOneWidget);
 
     await tester.tap(find.text('Instructor preview mode'));
@@ -73,7 +74,7 @@ final _quiz = QuizModel(
   description: 'Review AI-generated questions before publishing.',
   totalPoints: 1,
   questionCount: 1,
-  createdAt: DateTime.utc(2026, 8, 8),
+  createdAt: DateTime(2026, 8, 28, 12, 18),
 );
 
 const _question = QuestionModel(

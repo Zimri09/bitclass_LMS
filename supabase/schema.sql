@@ -163,6 +163,20 @@ before update on public.profiles
 for each row execute function public.set_updated_at();
 
 create schema if not exists private;
+
+create or replace function private.preserve_created_at()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $$
+begin
+  new.created_at = old.created_at;
+  return new;
+end;
+$$;
+
+comment on function private.preserve_created_at() is
+  'Keeps the original row creation timestamp unchanged during updates.';
 revoke all on schema private from public;
 
 -- Authenticated clients may update their profile, but not elevate their role.
@@ -714,6 +728,11 @@ create trigger assignments_updated_at
 before update on public.assignments
 for each row execute function public.set_updated_at();
 
+drop trigger if exists assignments_preserve_created_at on public.assignments;
+create trigger assignments_preserve_created_at
+before update of created_at on public.assignments
+for each row execute function private.preserve_created_at();
+
 create table if not exists public.submissions (
   id uuid primary key default gen_random_uuid(),
   assignment_id uuid not null references public.assignments(id) on delete cascade,
@@ -762,6 +781,11 @@ drop trigger if exists quizzes_updated_at on public.quizzes;
 create trigger quizzes_updated_at
 before update on public.quizzes
 for each row execute function public.set_updated_at();
+
+drop trigger if exists quizzes_preserve_created_at on public.quizzes;
+create trigger quizzes_preserve_created_at
+before update of created_at on public.quizzes
+for each row execute function private.preserve_created_at();
 
 create table if not exists public.questions (
   id uuid primary key default gen_random_uuid(),

@@ -114,10 +114,7 @@ class AssignmentRepository {
     return SubmissionModel.fromMap(_rowToSubmissionMap(row));
   }
 
-  Map<String, dynamic> _assignmentToRow(
-    AssignmentModel assignment, {
-    required bool includeCreatedAt,
-  }) {
+  Map<String, dynamic> _assignmentToRow(AssignmentModel assignment) {
     return {
       'id': assignment.id,
       'course_id': assignment.courseId,
@@ -140,8 +137,6 @@ class AssignmentRepository {
       'allow_late_submission': assignment.allowLateSubmission,
       'late_penalty_percent': assignment.latePenaltyPercent,
       'is_published': assignment.isPublished,
-      if (includeCreatedAt)
-        'created_at': assignment.createdAt.toUtc().toIso8601String(),
       'updated_at': (assignment.updatedAt ?? DateTime.now())
           .toUtc()
           .toIso8601String(),
@@ -277,11 +272,13 @@ class AssignmentRepository {
       return assignment;
     }
 
-    await _supabase!
+    final row = await _supabase!
         .from(_assignmentsTable)
-        .insert(_assignmentToRow(assignment, includeCreatedAt: true));
+        .insert(_assignmentToRow(assignment))
+        .select()
+        .single();
 
-    return assignment;
+    return _assignmentFromRow(row);
   }
 
   /// Update an assignment (instructor only)
@@ -294,14 +291,15 @@ class AssignmentRepository {
       return assignment;
     }
 
-    final row = _assignmentToRow(assignment, includeCreatedAt: false)
-      ..remove('id');
-    await _supabase!
+    final values = _assignmentToRow(assignment)..remove('id');
+    final row = await _supabase!
         .from(_assignmentsTable)
-        .update(row)
-        .eq('id', assignment.id);
+        .update(values)
+        .eq('id', assignment.id)
+        .select()
+        .single();
 
-    return assignment;
+    return _assignmentFromRow(row);
   }
 
   /// Delete an assignment (instructor only)

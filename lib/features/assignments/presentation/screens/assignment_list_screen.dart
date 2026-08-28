@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_time_formatters.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../courses/data/repositories/course_repository.dart';
 import '../../data/models/models.dart';
@@ -417,6 +418,10 @@ class _AssignmentCard extends StatelessWidget {
                       spacing: 14,
                       runSpacing: 7,
                       children: [
+                        _CardMeta(
+                          icon: Icons.schedule_outlined,
+                          label: formatPostedDateTime(assignment.createdAt),
+                        ),
                         _CardMeta(
                           icon: Icons.event_outlined,
                           label: assignment.dueDate == null

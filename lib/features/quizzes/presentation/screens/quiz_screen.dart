@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/date_time_formatters.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/quiz_repository.dart';
@@ -259,6 +260,26 @@ class _QuizScreenState extends State<QuizScreen> {
                               ),
                             ),
                           ],
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.schedule_outlined,
+                                size: 15,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  formatPostedDateTime(quiz.createdAt),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),

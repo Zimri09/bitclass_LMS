@@ -45,6 +45,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Posted: Aug 28, 2026 at 12:18 PM'), findsOneWidget);
     await tester.tap(find.text('Start Quiz'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Leaked selected option'));
@@ -71,7 +72,10 @@ void main() {
     expect(find.text(_question.questionText), findsNothing);
     expect(find.text('Secret correct option'), findsNothing);
     expect(find.text('Leaked selected option'), findsNothing);
-    expect(find.textContaining('Expected: Secret correct option'), findsNothing);
+    expect(
+      find.textContaining('Expected: Secret correct option'),
+      findsNothing,
+    );
     expect(find.textContaining('Correct answer'), findsNothing);
   });
 }
@@ -93,7 +97,7 @@ final _quiz = QuizModel(
   questionCount: 1,
   showCorrectAnswers: true,
   isPublished: true,
-  createdAt: DateTime.utc(2026, 8, 26),
+  createdAt: DateTime(2026, 8, 28, 12, 18),
 );
 
 const _question = QuestionModel(
@@ -107,10 +111,7 @@ const _question = QuestionModel(
       text: 'Secret correct option',
       isCorrect: true,
     ),
-    AnswerOptionModel(
-      id: 'selected-option',
-      text: 'Leaked selected option',
-    ),
+    AnswerOptionModel(id: 'selected-option', text: 'Leaked selected option'),
   ],
   correctAnswers: ['correct-option'],
   explanation: 'This explanation is part of the private answer key.',
