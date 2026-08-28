@@ -1462,8 +1462,13 @@ create policy "todos update own" on public.todos
   with check (user_id = auth.uid());
 
 
-create policy "profiles read own" on public.profiles
-  for select using (auth.uid() = id or public.current_user_role() in ('instructor', 'admin'));
+create policy "profiles read own or admin" on public.profiles
+  for select
+  to authenticated
+  using (
+    id = (select auth.uid())
+    or (select private.is_admin())
+  );
 create policy "profiles update own" on public.profiles
   for update using (auth.uid() = id);
 
