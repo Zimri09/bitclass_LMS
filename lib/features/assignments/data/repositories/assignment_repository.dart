@@ -607,7 +607,8 @@ class AssignmentRepository {
     final submittedAttachments =
         attachments ?? existing?.attachments ?? const <AssignmentAttachment>[];
     _validateAttachments(submittedAttachments);
-    if (assignment.requiresAttachment && submittedAttachments.isEmpty) {
+    if (assignment.requiresStudentAttachment &&
+        submittedAttachments.isEmpty) {
       throw Exception('Attach at least one file or link before submitting.');
     }
     if (assignment.isCodeActivity && code.trim().isEmpty) {

@@ -529,7 +529,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         assignment.isPastDue && !assignment.allowLateSubmission;
     final canEdit = isDraft && !deadlineClosed;
     final shouldSubmit =
-        assignment.requiresAttachment ||
+        assignment.requiresStudentAttachment ||
         assignment.isCodeActivity ||
         attachments.isNotEmpty;
 
@@ -625,7 +625,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                assignment.requiresAttachment
+                assignment.isCodeActivity
+                    ? 'Your work is in the code editor. A file or link is optional.'
+                    : assignment.requiresStudentAttachment
                     ? 'No work attached yet.'
                     : 'No attachment is required.',
                 style: TextStyle(color: AppColors.textSecondary),
@@ -941,7 +943,14 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
   }
 
   Future<void> _confirmTurnIn(AssignmentDetailLoaded state) async {
-    if (state.assignment.requiresAttachment &&
+    if (state.assignment.isCodeActivity && _currentCode.trim().isEmpty) {
+      _showMessage(
+        'Enter your work in the code editor before turning in.',
+        AppColors.error,
+      );
+      return;
+    }
+    if (state.assignment.requiresStudentAttachment &&
         (state.submission?.attachments.isEmpty ?? true)) {
       _showMessage(
         'Attach at least one file or link before turning in.',
@@ -969,7 +978,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
 
   Future<void> _confirmMarkDone(AssignmentDetailLoaded state) async {
     final requiresWork =
-        state.assignment.requiresAttachment || state.assignment.isCodeActivity;
+        state.assignment.requiresStudentAttachment ||
+        state.assignment.isCodeActivity;
     final confirmed = await _confirmationDialog(
       title: 'Mark this activity as done?',
       message: requiresWork

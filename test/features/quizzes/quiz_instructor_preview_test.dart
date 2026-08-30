@@ -118,6 +118,10 @@ class _FakeQuizRepository extends QuizRepository {
   }) async => const [];
 
   @override
+  Future<QuizAvailability> getQuizAvailability(String quizId) async =>
+      QuizAvailability(serverNow: DateTime.utc(2026, 8, 28), isClosed: false);
+
+  @override
   Future<QuizAttemptModel> startAttempt({
     required String quizId,
     required String userId,

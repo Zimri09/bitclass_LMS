@@ -133,6 +133,11 @@ class TimerTick extends QuizEvent {
   List<Object?> get props => [remainingSeconds];
 }
 
+/// The deadline calculated from database time has been reached.
+class QuizDeadlineReached extends QuizEvent {
+  const QuizDeadlineReached();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // States
 // ═══════════════════════════════════════════════════════════════════════════
@@ -170,6 +175,7 @@ class QuizDetailLoaded extends QuizState {
   final int questionCount;
   final List<QuizAttemptModel> previousAttempts;
   final bool canAttempt;
+  final bool isClosed;
   final int attemptsRemaining;
 
   const QuizDetailLoaded({
@@ -177,6 +183,7 @@ class QuizDetailLoaded extends QuizState {
     required this.questionCount,
     this.previousAttempts = const [],
     this.canAttempt = true,
+    this.isClosed = false,
     required this.attemptsRemaining,
   });
 
@@ -186,8 +193,20 @@ class QuizDetailLoaded extends QuizState {
     questionCount,
     previousAttempts,
     canAttempt,
+    isClosed,
     attemptsRemaining,
   ];
+
+  QuizDetailLoaded copyWith({bool? canAttempt, bool? isClosed}) {
+    return QuizDetailLoaded(
+      quiz: quiz,
+      questionCount: questionCount,
+      previousAttempts: previousAttempts,
+      canAttempt: canAttempt ?? this.canAttempt,
+      isClosed: isClosed ?? this.isClosed,
+      attemptsRemaining: attemptsRemaining,
+    );
+  }
 }
 
 /// Quiz is in progress
@@ -287,6 +306,7 @@ class QuizError extends QuizState {
 class QuizBloc extends Bloc<QuizEvent, QuizState> {
   final QuizRepository quizRepository;
   Timer? _timer;
+  Timer? _deadlineTimer;
 
   QuizBloc({required this.quizRepository}) : super(QuizInitial()) {
     on<LoadQuizzes>(_onLoadQuizzes);
@@ -299,11 +319,13 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     on<SubmitQuiz>(_onSubmitQuiz);
     on<LoadQuizResults>(_onLoadResults);
     on<TimerTick>(_onTimerTick);
+    on<QuizDeadlineReached>(_onQuizDeadlineReached);
   }
 
   @override
   Future<void> close() {
     _timer?.cancel();
+    _deadlineTimer?.cancel();
     return super.close();
   }
 
@@ -348,6 +370,9 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
       }
 
       final questions = await quizRepository.getQuestions(event.quizId);
+      final availability = await quizRepository.getQuizAvailability(
+        event.quizId,
+      );
       final attempts = await quizRepository.getAttempts(
         quizId: event.quizId,
         userId: event.userId,
@@ -362,11 +387,13 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
 
       if (quiz.maxAttempts == 0) {
         attemptsRemaining = -1; // Unlimited
-        canAttempt = true;
+        canAttempt = !availability.isClosed;
       } else {
         attemptsRemaining = quiz.maxAttempts - gradedAttempts.length;
-        canAttempt = attemptsRemaining > 0;
+        canAttempt = attemptsRemaining > 0 && !availability.isClosed;
       }
+
+      _scheduleDeadline(quiz, availability);
 
       emit(
         QuizDetailLoaded(
@@ -374,6 +401,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
           questionCount: questions.length,
           previousAttempts: gradedAttempts,
           canAttempt: canAttempt,
+          isClosed: availability.isClosed,
           attemptsRemaining: attemptsRemaining,
         ),
       );
@@ -401,6 +429,16 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
         return;
       }
 
+      QuizAvailability? availability;
+      if (!event.previewOnly) {
+        availability = await quizRepository.getQuizAvailability(event.quizId);
+        if (availability.isClosed) {
+          emit(const QuizError('This quiz is closed.'));
+          return;
+        }
+      }
+      _deadlineTimer?.cancel();
+
       final attempt = event.previewOnly
           ? QuizAttemptModel(
               id: 'preview-${event.quizId}',
@@ -425,9 +463,28 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
 
       // Start timer if time limit exists
       int remainingSeconds = -1;
-      if (!event.previewOnly && quiz.timeLimitMinutes > 0) {
-        remainingSeconds = quiz.timeLimitMinutes * 60;
-        _startTimer(remainingSeconds);
+      if (!event.previewOnly && availability != null) {
+        final dueDate = quiz.dueDate;
+        if (dueDate == null) {
+          emit(const QuizError('This quiz has no due date configured.'));
+          return;
+        }
+        final deadlineSeconds =
+            ((dueDate.difference(availability.serverNow).inMilliseconds +
+                        999) ~/
+                    1000)
+                .clamp(0, 2147483647);
+        if (deadlineSeconds <= 0) {
+          emit(const QuizError('This quiz is closed.'));
+          return;
+        }
+        final timeLimitSeconds = quiz.timeLimitMinutes * 60;
+        final closesAtDeadline =
+            timeLimitSeconds == 0 || deadlineSeconds <= timeLimitSeconds;
+        remainingSeconds = closesAtDeadline
+            ? deadlineSeconds
+            : timeLimitSeconds;
+        _startTimer(remainingSeconds, closesAtDeadline: closesAtDeadline);
       }
 
       emit(
@@ -445,7 +502,7 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     }
   }
 
-  void _startTimer(int seconds) {
+  void _startTimer(int seconds, {required bool closesAtDeadline}) {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final remaining = seconds - timer.tick;
@@ -454,7 +511,11 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
         // Auto-submit when time runs out
         final currentState = state;
         if (currentState is QuizInProgress) {
-          add(SubmitQuiz(currentState.attempt.id));
+          if (closesAtDeadline) {
+            add(const QuizDeadlineReached());
+          } else {
+            add(SubmitQuiz(currentState.attempt.id));
+          }
         }
       } else {
         add(TimerTick(remaining));
@@ -466,6 +527,32 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
     final currentState = state;
     if (currentState is QuizInProgress) {
       emit(currentState.copyWith(remainingSeconds: event.remainingSeconds));
+    }
+  }
+
+  void _scheduleDeadline(QuizModel quiz, QuizAvailability availability) {
+    _deadlineTimer?.cancel();
+    final dueDate = quiz.dueDate;
+    if (dueDate == null || availability.isClosed) return;
+    final delay = dueDate.difference(availability.serverNow);
+    if (delay <= Duration.zero) {
+      add(const QuizDeadlineReached());
+      return;
+    }
+    _deadlineTimer = Timer(delay, () => add(const QuizDeadlineReached()));
+  }
+
+  void _onQuizDeadlineReached(
+    QuizDeadlineReached event,
+    Emitter<QuizState> emit,
+  ) {
+    _deadlineTimer?.cancel();
+    final currentState = state;
+    if (currentState is QuizDetailLoaded) {
+      emit(currentState.copyWith(canAttempt: false, isClosed: true));
+    } else if (currentState is QuizInProgress && !currentState.isPreview) {
+      _timer?.cancel();
+      emit(const QuizError('The quiz deadline has passed and the quiz is closed.'));
     }
   }
 

@@ -248,6 +248,7 @@ void main() {
     expect(quizRepository.createdQuiz!.timeLimitMinutes, 15);
     expect(quizRepository.createdQuiz!.passingScore, 50);
     expect(quizRepository.createdQuiz!.maxAttempts, 1);
+    expect(quizRepository.createdQuiz!.dueDate, isNotNull);
     expect(quizRepository.savedQuestions, hasLength(1));
     expect(
       quizRepository.savedQuestions.single.quizId,

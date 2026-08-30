@@ -280,6 +280,32 @@ class _QuizScreenState extends State<QuizScreen> {
                               ),
                             ],
                           ),
+                          if (quiz.dueDate != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.event_available_outlined,
+                                  size: 15,
+                                  color: state.isClosed
+                                      ? AppColors.error
+                                      : AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    formatDueDateTime(quiz.dueDate!),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: state.isClosed
+                                          ? AppColors.error
+                                          : AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -314,6 +340,26 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
           ),
           const SizedBox(height: 24),
+
+          if (!isInstructor && state.isClosed) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.lock_clock_outlined, color: AppColors.error),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('This quiz is closed.')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Previous attempts
           if (!isInstructor && state.previousAttempts.isNotEmpty) ...[
@@ -362,7 +408,7 @@ class _QuizScreenState extends State<QuizScreen> {
                 onPressed: state.canAttempt ? _startQuiz : null,
                 icon: Icon(Icons.play_arrow),
                 label: Text(
-                  state.previousAttempts.isEmpty ? 'Start Quiz' : 'Retake Quiz',
+                  state.previousAttempts.isEmpty ? 'Take Quiz' : 'Retake Quiz',
                 ),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -374,7 +420,9 @@ class _QuizScreenState extends State<QuizScreen> {
               const SizedBox(height: 12),
               Center(
                 child: Text(
-                  'No attempts remaining',
+                  state.isClosed
+                      ? 'The due date and time have passed.'
+                      : 'No attempts remaining',
                   style: TextStyle(color: AppColors.error),
                 ),
               ),

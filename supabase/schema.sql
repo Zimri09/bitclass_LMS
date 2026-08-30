@@ -812,6 +812,7 @@ create table if not exists public.quizzes (
   allow_retakes boolean not null default true,
   max_attempts integer not null default 0,
   is_published boolean not null default false,
+  due_date timestamptz not null,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );

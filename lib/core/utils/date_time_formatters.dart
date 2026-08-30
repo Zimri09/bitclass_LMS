@@ -7,3 +7,11 @@ String formatPostedDateTime(DateTime createdAt) {
   ).format(createdAt.toLocal());
   return 'Posted: $formatted';
 }
+
+/// Formats a coursework deadline in the student's local time zone.
+String formatDueDateTime(DateTime dueDate) {
+  final formatted = DateFormat(
+    "MMM d, y 'at' h:mm a",
+  ).format(dueDate.toLocal());
+  return 'Due: $formatted';
+}

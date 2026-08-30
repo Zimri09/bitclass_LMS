@@ -314,7 +314,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
           ? _optionalCode(_solutionCodeController.text)
           : null,
       attachments: attachments,
-      requiresAttachment: _requiresAttachment,
+      requiresAttachment: _isCodeActivity ? false : _requiresAttachment,
       maxPoints: int.tryParse(_pointsController.text.trim()) ?? 100,
       gradingCriteria: _gradingCriteria,
       dueDate: dueDateTime,
@@ -863,8 +863,11 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
                 onChanged: (value) {
                   setState(() {
                     _isCodeActivity = value;
-                    if (value && _language == ProgrammingLanguage.plaintext) {
-                      _language = ProgrammingLanguage.python;
+                    if (value) {
+                      _requiresAttachment = false;
+                      if (_language == ProgrammingLanguage.plaintext) {
+                        _language = ProgrammingLanguage.python;
+                      }
                     }
                     _hasChanges = true;
                   });
@@ -1211,14 +1214,20 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Require student work'),
-            subtitle: const Text('Students must attach a file or link'),
-            value: _requiresAttachment,
-            onChanged: (value) {
-              setState(() {
-                _requiresAttachment = value;
-                _hasChanges = true;
-              });
-            },
+            subtitle: Text(
+              _isCodeActivity
+                  ? 'Students turn in code from the editor. A file or link is optional.'
+                  : 'Students must attach a file or link',
+            ),
+            value: _isCodeActivity ? false : _requiresAttachment,
+            onChanged: _isCodeActivity
+                ? null
+                : (value) {
+                    setState(() {
+                      _requiresAttachment = value;
+                      _hasChanges = true;
+                    });
+                  },
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,

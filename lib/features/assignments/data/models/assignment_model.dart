@@ -284,6 +284,10 @@ class AssignmentModel extends Equatable {
       (starterCode?.trim().isNotEmpty ?? false) ||
       (solutionCode?.trim().isNotEmpty ?? false);
 
+  /// File/link attachments are only required for non-code activities.
+  bool get requiresStudentAttachment =>
+      requiresAttachment && !isCodeActivity;
+
   /// Get time remaining until due date
   Duration? get timeRemaining {
     if (dueDate == null) return null;

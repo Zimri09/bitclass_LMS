@@ -273,6 +273,25 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                       ],
                     ],
                   ),
+                  if (quiz.dueDate != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.event_available_outlined,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            formatDueDateTime(quiz.dueDate!),
+                            style: AppTextStyles.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Row(
                     children: [

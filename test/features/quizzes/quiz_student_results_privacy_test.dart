@@ -46,7 +46,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Posted: Aug 28, 2026 at 12:18 PM'), findsOneWidget);
-    await tester.tap(find.text('Start Quiz'));
+    await tester.tap(find.text('Take Quiz'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Leaked selected option'));
     await tester.pumpAndSettle();
@@ -166,6 +166,10 @@ class _FakeQuizRepository extends QuizRepository {
     required String quizId,
     required String userId,
   }) async => const [];
+
+  @override
+  Future<QuizAvailability> getQuizAvailability(String quizId) async =>
+      QuizAvailability(serverNow: DateTime.utc(2026, 8, 28), isClosed: false);
 
   @override
   Future<QuizAttemptModel> startAttempt({

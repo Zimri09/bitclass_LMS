@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_time_formatters.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/question_model.dart';
 import '../../data/models/quiz_generation_model.dart';
@@ -92,6 +93,18 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   bool _allowRetakes = true;
   int _maxAttempts = _defaultMaxAttempts;
   bool _isPublished = false;
+  DateTime _dueDate = DateUtils.dateOnly(
+    DateTime.now().add(const Duration(days: 7)),
+  );
+  TimeOfDay _dueTime = const TimeOfDay(hour: 23, minute: 59);
+
+  DateTime get _dueDateTime => DateTime(
+    _dueDate.year,
+    _dueDate.month,
+    _dueDate.day,
+    _dueTime.hour,
+    _dueTime.minute,
+  );
 
   @override
   void initState() {
@@ -130,6 +143,10 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
           _allowRetakes = quiz.allowRetakes;
           _maxAttempts = quiz.maxAttempts;
           _isPublished = quiz.isPublished;
+          if (quiz.dueDate != null) {
+            _dueDate = DateUtils.dateOnly(quiz.dueDate!.toLocal());
+            _dueTime = TimeOfDay.fromDateTime(quiz.dueDate!.toLocal());
+          }
         });
       }
     } catch (e) {
@@ -143,6 +160,10 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     if (_isSaving) return false;
     if (!asDraft) {
       if (!_formKey.currentState!.validate()) return false;
+      if (!_dueDateTime.isAfter(DateTime.now())) {
+        _showError('Choose a future due date and time.');
+        return false;
+      }
       final questionError = _questionValidationError();
       if (questionError != null) {
         _showError(questionError);
@@ -176,6 +197,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         allowRetakes: _allowRetakes,
         maxAttempts: _maxAttempts,
         isPublished: asDraft ? false : _isPublished,
+        dueDate: _dueDateTime,
         createdAt: _quiz?.createdAt ?? now,
         updatedAt: now,
       );
@@ -225,6 +247,30 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) Navigator.of(context).pop();
     });
+  }
+
+  Future<void> _selectDueDate() async {
+    final earliestDate = DateUtils.dateOnly(DateTime.now());
+    final initialDate = _dueDate.isBefore(earliestDate)
+        ? earliestDate
+        : _dueDate;
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: earliestDate,
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _dueDate = selected);
+  }
+
+  Future<void> _selectDueTime() async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _dueTime,
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _dueTime = selected);
   }
 
   Future<void> _handleExitRequest() async {
@@ -662,6 +708,31 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         children: [
           Text('Quiz Settings', style: AppTextStyles.h4),
           const SizedBox(height: 16),
+
+          ListTile(
+            key: const ValueKey('quiz-due-date'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.event_outlined),
+            title: const Text('Due date'),
+            subtitle: Text(formatDueDateTime(_dueDateTime)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _selectDueDate,
+          ),
+          ListTile(
+            key: const ValueKey('quiz-due-time'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.schedule_outlined),
+            title: const Text('Due time'),
+            subtitle: Text(_dueTime.format(context)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _selectDueTime,
+          ),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Text(
+              'A due date and time are required. Students cannot start or submit after this deadline.',
+            ),
+          ),
 
           // Time limit
           Row(

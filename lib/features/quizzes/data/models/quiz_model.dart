@@ -18,6 +18,7 @@ class QuizModel extends Equatable {
   final bool allowRetakes;
   final int maxAttempts; // 0 = unlimited
   final bool isPublished;
+  final DateTime? dueDate;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -37,6 +38,7 @@ class QuizModel extends Equatable {
     this.allowRetakes = true,
     this.maxAttempts = 0,
     this.isPublished = false,
+    this.dueDate,
     required this.createdAt,
     this.updatedAt,
   });
@@ -58,6 +60,7 @@ class QuizModel extends Equatable {
     allowRetakes,
     maxAttempts,
     isPublished,
+    dueDate,
     createdAt,
     updatedAt,
   ];
@@ -79,6 +82,9 @@ class QuizModel extends Equatable {
       allowRetakes: map['allowRetakes'] as bool? ?? true,
       maxAttempts: map['maxAttempts'] as int? ?? 0,
       isPublished: map['isPublished'] as bool? ?? false,
+      dueDate: map['dueDate'] != null
+          ? DateTime.parse(map['dueDate'] as String)
+          : null,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: map['updatedAt'] != null
           ? DateTime.parse(map['updatedAt'] as String)
@@ -103,6 +109,7 @@ class QuizModel extends Equatable {
       'allowRetakes': allowRetakes,
       'maxAttempts': maxAttempts,
       'isPublished': isPublished,
+      'dueDate': dueDate?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
@@ -124,6 +131,7 @@ class QuizModel extends Equatable {
     bool? allowRetakes,
     int? maxAttempts,
     bool? isPublished,
+    DateTime? dueDate,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -143,6 +151,7 @@ class QuizModel extends Equatable {
       allowRetakes: allowRetakes ?? this.allowRetakes,
       maxAttempts: maxAttempts ?? this.maxAttempts,
       isPublished: isPublished ?? this.isPublished,
+      dueDate: dueDate ?? this.dueDate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

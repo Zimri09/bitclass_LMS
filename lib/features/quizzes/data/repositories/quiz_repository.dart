@@ -19,6 +19,13 @@ class QuizGenerationException implements Exception {
   String toString() => message;
 }
 
+class QuizAvailability {
+  final DateTime serverNow;
+  final bool isClosed;
+
+  const QuizAvailability({required this.serverNow, required this.isClosed});
+}
+
 /// Repository for quiz operations.
 class QuizRepository {
   static const String _quizzesTable = 'quizzes';
@@ -58,6 +65,7 @@ class QuizRepository {
       'allowRetakes': row['allow_retakes'],
       'maxAttempts': row['max_attempts'],
       'isPublished': row['is_published'],
+      'dueDate': row['due_date']?.toString(),
       'createdAt': row['created_at']?.toString(),
       'updatedAt': row['updated_at']?.toString(),
     };
@@ -65,6 +73,27 @@ class QuizRepository {
 
   QuizModel _quizFromRow(Map<String, dynamic> row) =>
       QuizModel.fromMap(_rowToQuizMap(row));
+
+  Future<QuizAvailability> getQuizAvailability(String quizId) async {
+    if (EnvironmentConfig.isDemoMode) {
+      final quiz = await getQuiz(quizId);
+      final serverNow = DateTime.now();
+      return QuizAvailability(
+        serverNow: serverNow,
+        isClosed: quiz?.dueDate == null || !quiz!.dueDate!.isAfter(serverNow),
+      );
+    }
+
+    final data = await _supabase!.rpc(
+      'get_quiz_availability',
+      params: {'p_quiz_id': quizId},
+    );
+    final row = _singleRpcRow(data);
+    return QuizAvailability(
+      serverNow: DateTime.parse(row['server_now'].toString()),
+      isClosed: row['is_closed'] as bool? ?? true,
+    );
+  }
 
   Map<String, dynamic> _rowToQuestionMap(Map<String, dynamic> row) {
     return {
@@ -729,6 +758,7 @@ class QuizRepository {
       'allow_retakes': quiz.allowRetakes,
       'max_attempts': quiz.maxAttempts,
       'is_published': quiz.isPublished,
+      'due_date': quiz.dueDate?.toUtc().toIso8601String(),
     });
   }
 
@@ -755,6 +785,7 @@ class QuizRepository {
           'allow_retakes': quiz.allowRetakes,
           'max_attempts': quiz.maxAttempts,
           'is_published': quiz.isPublished,
+          'due_date': quiz.dueDate?.toUtc().toIso8601String(),
           'updated_at':
               quiz.updatedAt?.toIso8601String() ??
               DateTime.now().toIso8601String(),

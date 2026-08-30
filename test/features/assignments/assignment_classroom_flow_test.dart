@@ -347,7 +347,7 @@ void main() {
     final fixture = await _pumpStudentAssignment(
       tester,
       assignment: _publishedAssignment(
-        requiresAttachment: false,
+        requiresAttachment: true,
         language: ProgrammingLanguage.python,
       ),
     );
