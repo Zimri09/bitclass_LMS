@@ -13,6 +13,7 @@ class DiscussionRepository {
   static const String _repliesTable = 'replies';
   static const String _threadReactionsTable = 'thread_reactions';
   static const String _replyReactionsTable = 'reply_reactions';
+  static const String _hiddenMessagesTable = 'hidden_messages';
 
   final SupabaseClient? _supabase;
 
@@ -20,6 +21,7 @@ class DiscussionRepository {
   final Map<String, ChannelModel> _channels = {};
   final Map<String, List<ThreadModel>> _threadsByChannel = {};
   final Map<String, List<ReplyModel>> _repliesByThread = {};
+  final Set<String> _hiddenDemoMessages = {};
 
   DiscussionRepository({SupabaseClient? supabase})
     : _supabase = EnvironmentConfig.isDemoMode
@@ -716,7 +718,14 @@ class DiscussionRepository {
   Future<List<ThreadModel>> getThreadsForChannel(String channelId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
-      final threads = _threadsByChannel[channelId] ?? [];
+      final userId = _supabase?.auth.currentUser?.id;
+      final threads = (_threadsByChannel[channelId] ?? [])
+          .where(
+            (thread) =>
+                userId == null ||
+                !_isHiddenDemoMessage(userId, 'thread', thread.id),
+          )
+          .toList();
       return threads.toList()..sort((a, b) {
         if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
         final aTime = a.lastReplyAt ?? a.createdAt;
@@ -736,7 +745,10 @@ class DiscussionRepository {
           .cast<Map<String, dynamic>>()
           .map(_threadFromRow)
           .toList();
-      return await _hydrateThreadReactions(threads);
+      final hiddenIds = await _getHiddenMessageIds('thread');
+      return await _hydrateThreadReactions(
+        threads.where((thread) => !hiddenIds.contains(thread.id)).toList(),
+      );
     } catch (e) {
       if (kDebugMode) {
         log('Error fetching threads: $e', name: 'DiscussionRepository');
@@ -750,7 +762,10 @@ class DiscussionRepository {
       await Future.delayed(const Duration(milliseconds: 200));
       for (final threads in _threadsByChannel.values) {
         for (final thread in threads) {
-          if (thread.id == threadId) return thread;
+          if (thread.id == threadId &&
+              !_isHiddenDemoMessage('', 'thread', thread.id)) {
+            return thread;
+          }
         }
       }
       return null;
@@ -925,7 +940,14 @@ class DiscussionRepository {
   Future<List<ReplyModel>> getRepliesForThread(String threadId) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
-      final replies = _repliesByThread[threadId] ?? [];
+      final userId = _supabase?.auth.currentUser?.id;
+      final replies = (_repliesByThread[threadId] ?? [])
+          .where(
+            (reply) =>
+                userId == null ||
+                !_isHiddenDemoMessage(userId, 'reply', reply.id),
+          )
+          .toList();
       return replies.toList()..sort((a, b) {
         if (a.isInstructorAnswer != b.isInstructorAnswer) {
           return a.isInstructorAnswer ? -1 : 1;
@@ -944,13 +966,65 @@ class DiscussionRepository {
           .cast<Map<String, dynamic>>()
           .map(_replyFromRow)
           .toList();
-      return await _hydrateReplyReactions(replies);
+      final hiddenIds = await _getHiddenMessageIds('reply');
+      return await _hydrateReplyReactions(
+        replies.where((reply) => !hiddenIds.contains(reply.id)).toList(),
+      );
     } catch (e) {
       if (kDebugMode) {
         log('Error fetching replies: $e', name: 'DiscussionRepository');
       }
       return [];
     }
+  }
+
+  bool _isHiddenDemoMessage(
+    String userId,
+    String messageType,
+    String messageId,
+  ) {
+    return _hiddenDemoMessages.contains('demo:$messageType:$messageId') ||
+        _hiddenDemoMessages.contains('$userId:$messageType:$messageId');
+  }
+
+  Future<Set<String>> _getHiddenMessageIds(String messageType) async {
+    final userId = _supabase?.auth.currentUser?.id;
+    if (userId == null) return <String>{};
+
+    final rows = await _supabase!
+        .from(_hiddenMessagesTable)
+        .select('message_id')
+        .eq('user_id', userId)
+        .eq('message_type', messageType);
+    return {
+      for (final row in (rows as List<dynamic>).cast<Map<String, dynamic>>())
+        row['message_id'] as String,
+    };
+  }
+
+  Future<void> hideMessage({
+    required String messageType,
+    required String messageId,
+    required String userId,
+  }) async {
+    if (messageType != 'thread' && messageType != 'reply') {
+      throw ArgumentError.value(messageType, 'messageType');
+    }
+
+    if (EnvironmentConfig.isDemoMode) {
+      _hiddenDemoMessages.add('demo:$messageType:$messageId');
+      return;
+    }
+
+    if (_supabase!.auth.currentUser?.id != userId) {
+      throw Exception('You can only hide messages for yourself.');
+    }
+
+    await _supabase.from(_hiddenMessagesTable).upsert({
+      'user_id': userId,
+      'message_type': messageType,
+      'message_id': messageId,
+    }, onConflict: 'user_id,message_type,message_id');
   }
 
   Future<ReplyModel> createReply(ReplyModel reply) async {

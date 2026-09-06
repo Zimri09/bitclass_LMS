@@ -214,6 +214,34 @@ class _ThreadListViewState extends State<ThreadListView> {
         authState.user.id == channel.createdBy;
   }
 
+  Future<void> _hideThread(ThreadModel thread) async {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated ||
+        authState.user.id == thread.authorId) {
+      return;
+    }
+
+    try {
+      await _discussionRepository.hideMessage(
+        messageType: 'thread',
+        messageId: thread.id,
+        userId: authState.user.id,
+      );
+      if (!mounted) return;
+      context.read<DiscussionBloc>().add(
+        LoadThreads(channelId: widget.channelId),
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message hidden for you.')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not hide message: $error')));
+    }
+  }
+
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -230,13 +258,21 @@ class _ThreadListViewState extends State<ThreadListView> {
   }
 
   Widget _buildThreadCard(BuildContext context, ThreadModel thread) {
+    final authState = context.read<AuthBloc>().state;
+    final canHide =
+        authState is AuthAuthenticated && authState.user.id != thread.authorId;
     return Card(
       color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: () {
-          context.push(
+        onTap: () async {
+          final hidden = await context.push<bool>(
             '/courses/${widget.courseId}/discussions/${widget.channelId}/threads/${thread.id}',
+          );
+          if (!mounted || hidden != true) return;
+          if (!context.mounted) return;
+          context.read<DiscussionBloc>().add(
+            LoadThreads(channelId: widget.channelId),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -264,6 +300,29 @@ class _ThreadListViewState extends State<ThreadListView> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (canHide)
+                    PopupMenuButton<String>(
+                      tooltip: 'Message options',
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: AppColors.textSecondary,
+                      ),
+                      onSelected: (value) {
+                        if (value == 'hide') _hideThread(thread);
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem<String>(
+                          value: 'hide',
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility_off_outlined),
+                              SizedBox(width: 12),
+                              Text('Hide Message'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
 

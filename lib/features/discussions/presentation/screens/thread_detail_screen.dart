@@ -260,6 +260,54 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
     }
   }
 
+  Future<void> _hideThread(ThreadModel thread, String userId) async {
+    if (thread.authorId == userId || userId.isEmpty) return;
+
+    try {
+      await _discussionRepository.hideMessage(
+        messageType: 'thread',
+        messageId: thread.id,
+        userId: userId,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(userFriendlyErrorMessage(error)),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _hideReply(ReplyModel reply, String userId) async {
+    if (reply.authorId == userId || userId.isEmpty) return;
+
+    setState(() => _hiddenReplyIds.add(reply.id));
+    try {
+      await _discussionRepository.hideMessage(
+        messageType: 'reply',
+        messageId: reply.id,
+        userId: userId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message hidden for you.')));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _hiddenReplyIds.remove(reply.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(userFriendlyErrorMessage(error)),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<DiscussionBloc, DiscussionState>(
@@ -456,26 +504,43 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                     ],
                   ),
                 ),
-                if (thread.authorId == userId)
+                if (thread.authorId == userId || userId.isNotEmpty)
                   PopupMenuButton<String>(
                     tooltip: 'Thread options',
                     icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
                     onSelected: (value) {
-                      if (value == 'delete') {
+                      if (value == 'hide') {
+                        _hideThread(thread, userId);
+                      } else if (value == 'delete') {
                         _deleteThread(thread, userId);
                       }
                     },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline, color: AppColors.error),
-                            SizedBox(width: 12),
-                            Text('Delete thread'),
-                          ],
+                    itemBuilder: (context) => [
+                      if (thread.authorId != userId)
+                        const PopupMenuItem<String>(
+                          value: 'hide',
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility_off_outlined),
+                              SizedBox(width: 12),
+                              Text('Hide Message'),
+                            ],
+                          ),
                         ),
-                      ),
+                      if (thread.authorId == userId)
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.delete_outline,
+                                color: AppColors.error,
+                              ),
+                              SizedBox(width: 12),
+                              Text('Delete thread'),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
               ],
@@ -697,38 +762,53 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                     ],
                   ),
                 ),
-                if (reply.authorId == userId)
+                if (reply.authorId == userId || userId.isNotEmpty)
                   PopupMenuButton<String>(
                     tooltip: 'Reply options',
                     icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
                     onSelected: (value) {
-                      if (value == 'edit') {
+                      if (value == 'hide') {
+                        _hideReply(reply, userId);
+                      } else if (value == 'edit') {
                         _startEditingReply(reply);
                       } else if (value == 'delete') {
                         _deleteReply(reply, userId);
                       }
                     },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit_outlined),
-                            SizedBox(width: 12),
-                            Text('Edit Reply'),
-                          ],
+                    itemBuilder: (context) => [
+                      if (reply.authorId != userId)
+                        const PopupMenuItem<String>(
+                          value: 'hide',
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility_off_outlined),
+                              SizedBox(width: 12),
+                              Text('Hide Message'),
+                            ],
+                          ),
                         ),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.undo, color: AppColors.error),
-                            SizedBox(width: 12),
-                            Text('Unsend reply'),
-                          ],
+                      if (reply.authorId == userId) ...[
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined),
+                              SizedBox(width: 12),
+                              Text('Edit Reply'),
+                            ],
+                          ),
                         ),
-                      ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.undo, color: AppColors.error),
+                              SizedBox(width: 12),
+                              Text('Unsend reply'),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
               ],
