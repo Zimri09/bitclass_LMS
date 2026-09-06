@@ -43,6 +43,7 @@ class AuthRepository {
   static const String googleStudentEmailDomain = 'bisu.edu.ph';
   static const String _profilesTable = 'profiles';
   static const String _avatarsBucket = 'avatars';
+  static const String _signaturesBucket = 'instructor-signatures';
   static const String _authFlowBox = 'auth_flow';
   static const String _pendingRecoveryUserKey = 'pending_recovery_user_id';
   static const String _sessionProfileBox = 'auth_session_profile_v1';
@@ -56,6 +57,7 @@ class AuthRepository {
   // Demo mode state
   UserModel? _demoUser;
   UserModel? _demoPendingUser;
+  Uint8List? _demoSignatureBytes;
   final _demoAuthController = StreamController<User?>.broadcast();
 
   AuthRepository({SupabaseClient? supabase})
@@ -477,6 +479,8 @@ class AuthRepository {
     bool clearAge = false,
     String? bio,
     String? avatarUrl,
+    String? signaturePath,
+    bool clearSignature = false,
   }) async {
     if (EnvironmentConfig.isDemoMode) {
       if (_demoUser == null) {
@@ -489,6 +493,9 @@ class AuthRepository {
         clearAge: clearAge,
         bio: bio ?? _demoUser!.bio,
         avatarUrl: avatarUrl ?? _demoUser!.avatarUrl,
+        signaturePath: clearSignature
+            ? null
+            : signaturePath ?? _demoUser!.signaturePath,
         updatedAt: DateTime.now(),
       );
       return _demoUser!;
@@ -512,6 +519,11 @@ class AuthRepository {
     }
     if (bio != null) updates['bio'] = bio;
     if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
+    if (clearSignature) {
+      updates['signature_path'] = null;
+    } else if (signaturePath != null) {
+      updates['signature_path'] = signaturePath;
+    }
 
     try {
       await _supabase!.from(_profilesTable).update(updates).eq('id', user.id);
@@ -571,6 +583,104 @@ class AuthRepository {
     }
   }
 
+  Future<UserModel> uploadInstructorSignature(Uint8List imageBytes) async {
+    if (imageBytes.isEmpty) {
+      throw const FormatException('Please draw a signature first.');
+    }
+
+    if (EnvironmentConfig.isDemoMode) {
+      if (_demoUser == null) throw Exception('No authenticated user');
+      _demoSignatureBytes = Uint8List.fromList(imageBytes);
+      _demoUser = _demoUser!.copyWith(
+        signaturePath: 'demo-signature',
+        updatedAt: DateTime.now(),
+      );
+      return _demoUser!;
+    }
+
+    final user = currentUser;
+    if (user == null) throw Exception('No authenticated user');
+    final objectPath = '${user.id}/signature.png';
+
+    try {
+      await _supabase!.storage
+          .from(_signaturesBucket)
+          .uploadBinary(
+            objectPath,
+            imageBytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/png',
+              upsert: true,
+            ),
+          );
+      return await _setInstructorSignaturePath(objectPath);
+    } on StorageException catch (e) {
+      throw Exception('Signature upload failed: ${e.message}');
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
+    }
+  }
+
+  Future<UserModel> _setInstructorSignaturePath(String? signaturePath) async {
+    final user = currentUser;
+    if (user == null) throw Exception('No authenticated user');
+
+    try {
+      final result = await _supabase!.rpc(
+        'set_my_signature_path',
+        params: {'new_signature_path': signaturePath},
+      );
+      final row = Map<String, dynamic>.from(result as Map);
+      final profile = UserModel.fromMap(_rowToUserMap(row), user.id);
+      await _cacheProfile(profile);
+      return profile;
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
+    }
+  }
+
+  Future<Uint8List?> downloadInstructorSignature(String? signaturePath) async {
+    if (signaturePath == null || signaturePath.isEmpty) return null;
+    if (EnvironmentConfig.isDemoMode) {
+      return _demoSignatureBytes == null
+          ? null
+          : Uint8List.fromList(_demoSignatureBytes!);
+    }
+    try {
+      return await _supabase!.storage
+          .from(_signaturesBucket)
+          .download(signaturePath);
+    } on StorageException catch (e) {
+      throw Exception('Signature download failed: ${e.message}');
+    }
+  }
+
+  Future<UserModel> clearInstructorSignature() async {
+    if (EnvironmentConfig.isDemoMode) {
+      if (_demoUser == null) throw Exception('No authenticated user');
+      _demoSignatureBytes = null;
+      _demoUser = _demoUser!.copyWith(
+        clearSignature: true,
+        updatedAt: DateTime.now(),
+      );
+      return _demoUser!;
+    }
+
+    final user = currentUser;
+    if (user == null) throw Exception('No authenticated user');
+    final path = (await getCurrentUserProfile())?.signaturePath;
+    try {
+      if (path != null && path.isNotEmpty) {
+        await _supabase!.storage.from(_signaturesBucket).remove([path]);
+      }
+      return await _setInstructorSignaturePath(null);
+    } on StorageException catch (e) {
+      throw Exception('Signature removal failed: ${e.message}');
+    } on PostgrestException catch (e) {
+      throw _handlePostgrestException(e);
+    }
+  }
+
   static bool _isJpg(Uint8List bytes) {
     return bytes.length >= 3 &&
         bytes[0] == 0xff &&
@@ -625,6 +735,7 @@ class AuthRepository {
       'lastName': row['last_name'] as String?,
       'age': row['age'] as int?,
       'avatarUrl': row['avatar_url'] as String?,
+      'signaturePath': row['signature_path'] as String?,
       'bio': row['bio'] as String?,
       'role': row['role'] as String? ?? 'student',
       'createdAt':

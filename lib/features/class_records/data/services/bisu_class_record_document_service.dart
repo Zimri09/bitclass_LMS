@@ -19,6 +19,7 @@ class BisuClassRecordDocumentService {
   Future<Uint8List> generate({
     required CourseModel course,
     required CourseClassRecord record,
+    Uint8List? signatureBytes,
     DateTime? generatedAt,
   }) async {
     final templateData = await rootBundle.load(templateAsset);
@@ -29,6 +30,7 @@ class BisuClassRecordDocumentService {
       ),
       course: course,
       record: record,
+      signatureBytes: signatureBytes,
       generatedAt: generatedAt,
     );
   }
@@ -37,11 +39,15 @@ class BisuClassRecordDocumentService {
     required Uint8List templateBytes,
     required CourseModel course,
     required CourseClassRecord record,
+    Uint8List? signatureBytes,
     DateTime? generatedAt,
   }) {
     final archive = ZipDecoder().decodeBytes(templateBytes, verify: true);
     _validateTemplate(archive);
     _applyClassRecordHeader(archive);
+    final signatureRelId = signatureBytes == null
+        ? null
+        : _addSignatureImage(archive, signatureBytes);
 
     final sortedStudents = [...record.students]
       ..sort(
@@ -52,6 +58,7 @@ class BisuClassRecordDocumentService {
       course: course,
       record: record,
       students: sortedStudents,
+      signatureRelId: signatureRelId,
       generatedAt: (generatedAt ?? DateTime.now()).toLocal(),
     );
 
@@ -110,6 +117,7 @@ class BisuClassRecordDocumentService {
     required CourseModel course,
     required CourseClassRecord record,
     required List<StudentClassRecord> students,
+    required String? signatureRelId,
     required DateTime generatedAt,
   }) {
     final studentPages = students.isEmpty
@@ -134,6 +142,7 @@ class BisuClassRecordDocumentService {
           pageNumber: pageIndex + 1,
           pageCount: studentPages.length,
           generatedAt: generatedAt,
+          signatureRelId: signatureRelId,
           pageBreakBefore: pageIndex > 0,
         ),
       );
@@ -164,6 +173,7 @@ class BisuClassRecordDocumentService {
     required int pageNumber,
     required int pageCount,
     required DateTime generatedAt,
+    required String? signatureRelId,
     required bool pageBreakBefore,
   }) {
     final section = course.description.trim().isEmpty
@@ -216,7 +226,13 @@ class BisuClassRecordDocumentService {
         ),
       )
       ..write(_spacer(120))
-      ..write(_signatureTable(course.instructorName));
+      ..write(
+        _signatureTable(
+          course.instructorName,
+          signatureRelId: signatureRelId,
+          signatureDate: generatedAt,
+        ),
+      );
     return buffer.toString();
   }
 
@@ -338,7 +354,11 @@ class BisuClassRecordDocumentService {
         '</w:tc>';
   }
 
-  String _signatureTable(String instructorName) {
+  String _signatureTable(
+    String instructorName, {
+    required String? signatureRelId,
+    required DateTime signatureDate,
+  }) {
     final safeName = instructorName.trim().isEmpty
         ? '____________________________'
         : instructorName.trim().toUpperCase();
@@ -348,9 +368,11 @@ class BisuClassRecordDocumentService {
         '<w:tr>'
         '<w:tc><w:tcPr><w:tcW w:w="4733" w:type="dxa"/></w:tcPr>'
         '${_paragraph('Prepared by:', sizeHalfPoints: 17)}'
-        '${_spacer(220)}'
+        '${_spacer(80)}'
+        '${signatureRelId == null ? _spacer(260) : _signatureImage(signatureRelId)}'
         '${_paragraph(safeName, sizeHalfPoints: 18, bold: true, centered: true, underline: true)}'
         '${_paragraph('Course Instructor', sizeHalfPoints: 16, centered: true)}'
+        '${_paragraph('Date: ${DateFormat('MMMM d, y').format(signatureDate)}', sizeHalfPoints: 15, centered: true)}'
         '</w:tc>'
         '<w:tc><w:tcPr><w:tcW w:w="4733" w:type="dxa"/></w:tcPr>'
         '${_paragraph('Checked by:', sizeHalfPoints: 17)}'
@@ -359,6 +381,58 @@ class BisuClassRecordDocumentService {
         '${_paragraph('Authorized Personnel', sizeHalfPoints: 16, centered: true)}'
         '</w:tc>'
         '</w:tr></w:tbl>';
+  }
+
+  String _addSignatureImage(Archive archive, Uint8List bytes) {
+    const relId = 'rIdInstructorSignature';
+    archive.add(
+      ArchiveFile('word/media/instructor_signature.png', bytes.length, bytes),
+    );
+
+    final relationships = archive.findFile('word/_rels/document.xml.rels');
+    if (relationships == null) {
+      throw const FormatException(
+        'The class record template is missing document relationships.',
+      );
+    }
+    var relationshipsXml = utf8.decode(relationships.content);
+    if (!relationshipsXml.contains('Id="$relId"')) {
+      relationshipsXml = relationshipsXml.replaceFirst(
+        '</Relationships>',
+        '<Relationship Id="$relId" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+            'Target="media/instructor_signature.png"/></Relationships>',
+      );
+      archive.add(
+        ArchiveFile.string('word/_rels/document.xml.rels', relationshipsXml),
+      );
+    }
+
+    final contentTypes = archive.findFile('[Content_Types].xml');
+    if (contentTypes != null) {
+      var contentTypesXml = utf8.decode(contentTypes.content);
+      if (!contentTypesXml.contains('Extension="png"')) {
+        contentTypesXml = contentTypesXml.replaceFirst(
+          '</Types>',
+          '<Default Extension="png" ContentType="image/png"/></Types>',
+        );
+        archive.add(ArchiveFile.string('[Content_Types].xml', contentTypesXml));
+      }
+    }
+    return relId;
+  }
+
+  String _signatureImage(String relationshipId) {
+    return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>'
+        '<w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+        '<wp:extent cx="1905000" cy="635000"/><wp:docPr id="1" name="Instructor Signature"/>'
+        '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+        '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        '<pic:nvPicPr><pic:cNvPr id="0" name="Instructor Signature"/><pic:cNvPicPr/></pic:nvPicPr>'
+        '<pic:blipFill><a:blip r:embed="$relationshipId" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+        '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1905000" cy="635000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+        '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
   }
 
   String _paragraph(

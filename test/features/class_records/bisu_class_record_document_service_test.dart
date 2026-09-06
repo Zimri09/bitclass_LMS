@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:bitclass/features/class_records/data/models/class_record_model.dart';
@@ -9,6 +10,31 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('embeds a saved instructor signature in the class record', () async {
+    final templateData = await rootBundle.load(
+      BisuClassRecordDocumentService.templateAsset,
+    );
+    final templateBytes = templateData.buffer.asUint8List(
+      templateData.offsetInBytes,
+      templateData.lengthInBytes,
+    );
+    final generated = const BisuClassRecordDocumentService()
+        .generateFromTemplate(
+          templateBytes: templateBytes,
+          course: _course,
+          record: _record,
+          signatureBytes: Uint8List.fromList([137, 80, 78, 71]),
+          generatedAt: DateTime(2026, 8, 28),
+        );
+    final archive = ZipDecoder().decodeBytes(generated, verify: true);
+    final documentXml = utf8.decode(
+      archive.findFile('word/document.xml')!.content,
+    );
+    expect(archive.findFile('word/media/instructor_signature.png'), isNotNull);
+    expect(documentXml, contains('rIdInstructorSignature'));
+    expect(documentXml, contains('Date: August 28, 2026'));
+  });
 
   test('exports quiz and activity grades in a BISU class record', () async {
     final templateData = await rootBundle.load(

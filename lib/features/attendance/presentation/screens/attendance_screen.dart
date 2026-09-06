@@ -11,6 +11,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../courses/data/models/course_model.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../courses/data/repositories/course_repository.dart';
 import '../../data/models/attendance_models.dart';
 import '../../data/repositories/attendance_repository.dart';
@@ -136,11 +137,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (_isExporting) return;
     setState(() => _isExporting = true);
     try {
+      final authRepository = context.read<AuthRepository>();
+      final profile = await authRepository.getCurrentUserProfile();
+      final signatureBytes = await authRepository.downloadInstructorSignature(
+        profile?.signaturePath,
+      );
       final bytes = await const BisuAttendanceDocumentService().generate(
         course: widget.course,
         sessions: _sessions,
         records: _records,
         roster: _roster,
+        signatureBytes: signatureBytes,
       );
       final safeCourseTitle = widget.course.title
           .trim()

@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:signature/signature.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -41,6 +44,11 @@ class _ProfileBodyState extends State<_ProfileBody> {
   late final TextEditingController _lastNameController;
   late final TextEditingController _ageController;
   late final TextEditingController _bioController;
+  late final SignatureController _signatureController;
+  Uint8List? _savedSignatureBytes;
+  bool _signatureLoading = false;
+  bool _signatureBusy = false;
+  String? _loadedSignaturePath;
 
   @override
   void initState() {
@@ -49,6 +57,11 @@ class _ProfileBodyState extends State<_ProfileBody> {
     _lastNameController = TextEditingController();
     _ageController = TextEditingController();
     _bioController = TextEditingController();
+    _signatureController = SignatureController(
+      penStrokeWidth: 2.5,
+      penColor: Colors.black,
+      exportBackgroundColor: Colors.white,
+    );
   }
 
   @override
@@ -57,7 +70,82 @@ class _ProfileBodyState extends State<_ProfileBody> {
     _lastNameController.dispose();
     _ageController.dispose();
     _bioController.dispose();
+    _signatureController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSavedSignature(String? signaturePath) async {
+    if (signaturePath == null || signaturePath.isEmpty) return;
+    setState(() => _signatureLoading = true);
+    try {
+      final bytes = await context
+          .read<AuthRepository>()
+          .downloadInstructorSignature(signaturePath);
+      if (mounted) setState(() => _savedSignatureBytes = bytes);
+    } catch (_) {
+      // The profile remains usable when an old signature object is unavailable.
+    } finally {
+      if (mounted) setState(() => _signatureLoading = false);
+    }
+  }
+
+  Future<void> _saveSignature() async {
+    if (_signatureBusy) return;
+    final authRepository = context.read<AuthRepository>();
+    final authBloc = context.read<AuthBloc>();
+    final bytes = await _signatureController.toPngBytes();
+    if (bytes == null || bytes.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Draw your signature before saving.')),
+      );
+      return;
+    }
+
+    setState(() => _signatureBusy = true);
+    try {
+      final updatedUser = await authRepository.uploadInstructorSignature(bytes);
+      if (!mounted) return;
+      authBloc.add(AuthUserUpdated(updatedUser));
+      setState(() => _savedSignatureBytes = bytes);
+      _signatureController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Instructor signature saved.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to save signature: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _signatureBusy = false);
+    }
+  }
+
+  Future<void> _clearSignature() async {
+    if (_signatureBusy) return;
+    _signatureController.clear();
+    if (_savedSignatureBytes == null) return;
+
+    setState(() => _signatureBusy = true);
+    final authRepository = context.read<AuthRepository>();
+    final authBloc = context.read<AuthBloc>();
+    try {
+      final updatedUser = await authRepository.clearInstructorSignature();
+      if (!mounted) return;
+      authBloc.add(AuthUserUpdated(updatedUser));
+      setState(() => _savedSignatureBytes = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Instructor signature cleared.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to clear signature: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _signatureBusy = false);
+    }
   }
 
   void _startEditing(BuildContext ctx, UserModel user) {
@@ -141,7 +229,9 @@ class _ProfileBodyState extends State<_ProfileBody> {
                 ),
                 const SizedBox(width: 4),
                 FilledButton.icon(
-                  onPressed: profileState.isBusy ? null : () => _saveProfile(context),
+                  onPressed: profileState.isBusy
+                      ? null
+                      : () => _saveProfile(context),
                   icon: profileState.status == ProfileStatus.saving
                       ? SizedBox(
                           width: 14,
@@ -187,6 +277,15 @@ class _ProfileBodyState extends State<_ProfileBody> {
     UserModel user,
     ProfileState profileState,
   ) {
+    if (user.isStaff &&
+        user.signaturePath != null &&
+        user.signaturePath != _loadedSignaturePath &&
+        !_signatureLoading) {
+      _loadedSignaturePath = user.signaturePath;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadSavedSignature(user.signaturePath);
+      });
+    }
     final isMobile = MediaQuery.sizeOf(context).width < 600;
     final pad = isMobile ? 16.0 : 24.0;
 
@@ -200,6 +299,92 @@ class _ProfileBodyState extends State<_ProfileBody> {
             _buildEditCard(context, pad)
           else
             _buildDetailsCard(context, user, pad),
+          if (user.isStaff) ...[
+            const SizedBox(height: 20),
+            _buildSignatureCard(context, pad),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignatureCard(BuildContext context, double pad) {
+    final hasSavedSignature = _savedSignatureBytes != null;
+    return GlowCard(
+      glowColor: AppColors.secondary,
+      glowIntensity: 0.06,
+      isHoverable: false,
+      padding: EdgeInsets.all(pad),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.draw_outlined, color: AppColors.secondary, size: 20),
+              const SizedBox(width: 8),
+              Text('Digital Signature', style: AppTextStyles.h4),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Your saved signature will appear on exported Word forms.',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_signatureLoading)
+            const SizedBox(
+              height: 120,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (hasSavedSignature) ...[
+            Text('Saved signature', style: AppTextStyles.label),
+            const SizedBox(height: 8),
+            Container(
+              height: 120,
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.white,
+              child: Image.memory(_savedSignatureBytes!, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Draw a replacement to update it.',
+              style: AppTextStyles.label,
+            ),
+            const SizedBox(height: 8),
+          ],
+          Container(
+            height: 160,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: AppColors.surfaceLight),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Signature(
+              controller: _signatureController,
+              backgroundColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: _signatureBusy ? null : _saveSignature,
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: Text(hasSavedSignature ? 'Update' : 'Save'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _signatureBusy ? null : _clearSignature,
+                icon: const Icon(Icons.clear, size: 18),
+                label: const Text('Clear'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -288,9 +473,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
           const SizedBox(height: 8),
           Text(
             'JPG images only',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textMuted,
-            ),
+            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: 16),
           Text(
@@ -350,11 +533,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
     );
   }
 
-  Widget _buildDetailsCard(
-    BuildContext context,
-    UserModel user,
-    double pad,
-  ) {
+  Widget _buildDetailsCard(BuildContext context, UserModel user, double pad) {
     return GlowCard(
       glowColor: AppColors.primary,
       glowIntensity: 0.05,
@@ -370,11 +549,12 @@ class _ProfileBodyState extends State<_ProfileBody> {
               Text('Profile Details', style: AppTextStyles.h4),
               TextButton.icon(
                 onPressed: () => _startEditing(context, user),
-                icon: Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
-                label: Text(
-                  'Edit',
-                  style: TextStyle(color: AppColors.primary),
+                icon: Icon(
+                  Icons.edit_outlined,
+                  size: 16,
+                  color: AppColors.primary,
                 ),
+                label: Text('Edit', style: TextStyle(color: AppColors.primary)),
                 style: TextButton.styleFrom(
                   backgroundColor: AppColors.primary.withValues(alpha: 0.08),
                   shape: RoundedRectangleBorder(
@@ -390,11 +570,23 @@ class _ProfileBodyState extends State<_ProfileBody> {
           ),
           const SizedBox(height: 24),
 
-          _detailRow(Icons.person_outlined, 'First Name', user.firstName ?? 'Not set'),
+          _detailRow(
+            Icons.person_outlined,
+            'First Name',
+            user.firstName ?? 'Not set',
+          ),
           _divider(),
-          _detailRow(Icons.person_outlined, 'Last Name', user.lastName ?? 'Not set'),
+          _detailRow(
+            Icons.person_outlined,
+            'Last Name',
+            user.lastName ?? 'Not set',
+          ),
           _divider(),
-          _detailRow(Icons.cake_outlined, 'Age', user.age != null ? '${user.age} years old' : 'Not set'),
+          _detailRow(
+            Icons.cake_outlined,
+            'Age',
+            user.age != null ? '${user.age} years old' : 'Not set',
+          ),
           _divider(),
           _detailRow(Icons.email_outlined, 'Email', user.email),
           _divider(),
@@ -414,10 +606,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
     );
   }
 
-  Widget _divider() => Divider(
-    height: 28,
-    color: AppColors.surfaceLight,
-  );
+  Widget _divider() => Divider(height: 28, color: AppColors.surfaceLight);
 
   Widget _detailRow(IconData icon, String label, String value) {
     return Row(
@@ -487,26 +676,32 @@ class _ProfileBodyState extends State<_ProfileBody> {
                 if (constraints.maxWidth > 480) {
                   return Row(
                     children: [
-                      Expanded(child: _buildField(
-                        controller: _firstNameController,
-                        label: 'First Name',
-                        icon: Icons.person_outlined,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Required';
-                          if (v.length > 50) return 'Too long';
-                          return null;
-                        },
-                      )),
+                      Expanded(
+                        child: _buildField(
+                          controller: _firstNameController,
+                          label: 'First Name',
+                          icon: Icons.person_outlined,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            if (v.length > 50) return 'Too long';
+                            return null;
+                          },
+                        ),
+                      ),
                       const SizedBox(width: 16),
-                      Expanded(child: _buildField(
-                        controller: _lastNameController,
-                        label: 'Last Name',
-                        icon: Icons.person_outlined,
-                        validator: (v) {
-                          if (v != null && v.length > 50) return 'Too long';
-                          return null;
-                        },
-                      )),
+                      Expanded(
+                        child: _buildField(
+                          controller: _lastNameController,
+                          label: 'Last Name',
+                          icon: Icons.person_outlined,
+                          validator: (v) {
+                            if (v != null && v.length > 50) return 'Too long';
+                            return null;
+                          },
+                        ),
+                      ),
                     ],
                   );
                 }
@@ -649,8 +844,18 @@ class _ProfileBodyState extends State<_ProfileBody> {
 
   String _formatDate(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }

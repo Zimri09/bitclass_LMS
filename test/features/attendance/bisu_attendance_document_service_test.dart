@@ -11,6 +11,37 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('embeds a saved instructor signature in the Word form', () async {
+    final templateData = await rootBundle.load(
+      BisuAttendanceDocumentService.templateAsset,
+    );
+    final templateBytes = templateData.buffer.asUint8List(
+      templateData.offsetInBytes,
+      templateData.lengthInBytes,
+    );
+    final generated = const BisuAttendanceDocumentService()
+        .generateFromTemplate(
+          templateBytes: templateBytes,
+          course: _course,
+          sessions: const [],
+          records: const [],
+          roster: const [],
+          signatureBytes: Uint8List.fromList([137, 80, 78, 71]),
+          generatedAt: DateTime(2026, 8, 27),
+        );
+    final archive = ZipDecoder().decodeBytes(generated, verify: true);
+    final documentXml = utf8.decode(
+      archive.findFile('word/document.xml')!.content,
+    );
+    final relationshipsXml = utf8.decode(
+      archive.findFile('word/_rels/document.xml.rels')!.content,
+    );
+
+    expect(archive.findFile('word/media/instructor_signature.png'), isNotNull);
+    expect(documentXml, contains('rIdInstructorSignature'));
+    expect(relationshipsXml, contains('instructor_signature.png'));
+  });
+
   test(
     'generates an editable attendance form and preserves the BISU header',
     () async {

@@ -8,6 +8,7 @@ class UserModel extends Equatable {
   final String? lastName;
   final int? age;
   final String? avatarUrl;
+  final String? signaturePath;
   final String? bio;
   final String role; // 'student', 'instructor', or 'admin'
   final DateTime createdAt;
@@ -20,6 +21,7 @@ class UserModel extends Equatable {
     this.lastName,
     this.age,
     this.avatarUrl,
+    this.signaturePath,
     this.bio,
     required this.role,
     required this.createdAt,
@@ -63,6 +65,7 @@ class UserModel extends Equatable {
       lastName: map['lastName'] as String?,
       age: map['age'] as int?,
       avatarUrl: map['avatarUrl'] as String?,
+      signaturePath: map['signaturePath'] as String?,
       bio: map['bio'] as String?,
       role: map['role'] as String? ?? 'student',
       createdAt: map['createdAt'] != null
@@ -82,6 +85,7 @@ class UserModel extends Equatable {
       'lastName': lastName,
       'age': age,
       'avatarUrl': avatarUrl,
+      'signaturePath': signaturePath,
       'bio': bio,
       'role': role,
       'createdAt': createdAt.toIso8601String(),
@@ -106,6 +110,8 @@ class UserModel extends Equatable {
     int? age,
     bool clearAge = false,
     String? avatarUrl,
+    String? signaturePath,
+    bool clearSignature = false,
     String? bio,
     String? role,
     DateTime? createdAt,
@@ -118,6 +124,9 @@ class UserModel extends Equatable {
       lastName: lastName ?? this.lastName,
       age: clearAge ? null : (age ?? this.age),
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      signaturePath: clearSignature
+          ? null
+          : signaturePath ?? this.signaturePath,
       bio: bio ?? this.bio,
       role: role ?? this.role,
       createdAt: createdAt ?? this.createdAt,
@@ -151,6 +160,7 @@ class UserModel extends Equatable {
     lastName,
     age,
     avatarUrl,
+    signaturePath,
     bio,
     role,
     createdAt,

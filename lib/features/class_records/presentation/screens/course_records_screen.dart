@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../attendance/presentation/screens/attendance_screen.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../courses/data/models/course_model.dart';
 import '../../data/models/class_record_model.dart';
 import '../../data/repositories/class_record_repository.dart';
@@ -145,9 +146,15 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
     if (_isExporting || _record == null) return;
     setState(() => _isExporting = true);
     try {
+      final authRepository = context.read<AuthRepository>();
+      final profile = await authRepository.getCurrentUserProfile();
+      final signatureBytes = await authRepository.downloadInstructorSignature(
+        profile?.signaturePath,
+      );
       final bytes = await const BisuClassRecordDocumentService().generate(
         course: widget.course,
         record: _record!,
+        signatureBytes: signatureBytes,
       );
       final safeCourseTitle = widget.course.title
           .trim()

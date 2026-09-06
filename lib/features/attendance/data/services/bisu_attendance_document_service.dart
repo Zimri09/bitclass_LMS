@@ -20,6 +20,7 @@ class BisuAttendanceDocumentService {
     required List<AttendanceSession> sessions,
     required List<AttendanceRecord> records,
     required List<CourseRosterMember> roster,
+    Uint8List? signatureBytes,
     DateTime? generatedAt,
   }) async {
     final templateData = await rootBundle.load(templateAsset);
@@ -32,6 +33,7 @@ class BisuAttendanceDocumentService {
       sessions: sessions,
       records: records,
       roster: roster,
+      signatureBytes: signatureBytes,
       generatedAt: generatedAt,
     );
   }
@@ -42,11 +44,15 @@ class BisuAttendanceDocumentService {
     required List<AttendanceSession> sessions,
     required List<AttendanceRecord> records,
     required List<CourseRosterMember> roster,
+    Uint8List? signatureBytes,
     DateTime? generatedAt,
   }) {
     final archive = ZipDecoder().decodeBytes(templateBytes, verify: true);
     _validateTemplate(archive);
     _repeatOfficialHeaderOnEveryPage(archive);
+    final signatureRelId = signatureBytes == null
+        ? null
+        : _addSignatureImage(archive, signatureBytes);
 
     final sortedSessions = [...sessions]
       ..sort((a, b) => a.attendanceDate.compareTo(b.attendanceDate));
@@ -61,6 +67,7 @@ class BisuAttendanceDocumentService {
       sessions: sortedSessions,
       records: records,
       roster: sortedRoster,
+      signatureRelId: signatureRelId,
       generatedAt: generated,
     );
 
@@ -116,6 +123,7 @@ class BisuAttendanceDocumentService {
     required List<AttendanceSession> sessions,
     required List<AttendanceRecord> records,
     required List<CourseRosterMember> roster,
+    required String? signatureRelId,
     required DateTime generatedAt,
   }) {
     final pages = <_AttendancePage>[];
@@ -156,6 +164,7 @@ class BisuAttendanceDocumentService {
           course: course,
           records: records,
           generatedAt: generatedAt,
+          signatureRelId: signatureRelId,
           pageBreakBefore: index > 0,
         ),
       );
@@ -181,6 +190,7 @@ class BisuAttendanceDocumentService {
     required CourseModel course,
     required List<AttendanceRecord> records,
     required DateTime generatedAt,
+    required String? signatureRelId,
     required bool pageBreakBefore,
   }) {
     final dateFormat = DateFormat('MMMM d, y');
@@ -265,7 +275,13 @@ class BisuAttendanceDocumentService {
         ),
       )
       ..write(_spacer(120))
-      ..write(_signatureTable(course.instructorName));
+      ..write(
+        _signatureTable(
+          course.instructorName,
+          signatureRelId: signatureRelId,
+          signatureDate: generatedAt,
+        ),
+      );
     return buffer.toString();
   }
 
@@ -381,7 +397,11 @@ class BisuAttendanceDocumentService {
         '</w:tc>';
   }
 
-  String _signatureTable(String instructorName) {
+  String _signatureTable(
+    String instructorName, {
+    required String? signatureRelId,
+    required DateTime signatureDate,
+  }) {
     final safeName = instructorName.trim().isEmpty
         ? '____________________________'
         : instructorName.trim().toUpperCase();
@@ -391,9 +411,11 @@ class BisuAttendanceDocumentService {
         '<w:tr>'
         '<w:tc><w:tcPr><w:tcW w:w="4733" w:type="dxa"/></w:tcPr>'
         '${_paragraph('Prepared by:', sizeHalfPoints: 17)}'
-        '${_spacer(220)}'
+        '${_spacer(80)}'
+        '${signatureRelId == null ? _spacer(260) : _signatureImage(signatureRelId)}'
         '${_paragraph(safeName, sizeHalfPoints: 18, bold: true, centered: true, underline: true)}'
         '${_paragraph('Course Instructor', sizeHalfPoints: 16, centered: true)}'
+        '${_paragraph('Date: ${DateFormat('MMMM d, y').format(signatureDate)}', sizeHalfPoints: 15, centered: true)}'
         '</w:tc>'
         '<w:tc><w:tcPr><w:tcW w:w="4733" w:type="dxa"/></w:tcPr>'
         '${_paragraph('Checked by:', sizeHalfPoints: 17)}'
@@ -402,6 +424,58 @@ class BisuAttendanceDocumentService {
         '${_paragraph('Authorized Personnel', sizeHalfPoints: 16, centered: true)}'
         '</w:tc>'
         '</w:tr></w:tbl>';
+  }
+
+  String _addSignatureImage(Archive archive, Uint8List bytes) {
+    const relId = 'rIdInstructorSignature';
+    archive.add(
+      ArchiveFile('word/media/instructor_signature.png', bytes.length, bytes),
+    );
+
+    final relationships = archive.findFile('word/_rels/document.xml.rels');
+    if (relationships == null) {
+      throw const FormatException(
+        'The attendance template is missing document relationships.',
+      );
+    }
+    var relationshipsXml = utf8.decode(relationships.content);
+    if (!relationshipsXml.contains('Id="$relId"')) {
+      relationshipsXml = relationshipsXml.replaceFirst(
+        '</Relationships>',
+        '<Relationship Id="$relId" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+            'Target="media/instructor_signature.png"/></Relationships>',
+      );
+      archive.add(
+        ArchiveFile.string('word/_rels/document.xml.rels', relationshipsXml),
+      );
+    }
+
+    final contentTypes = archive.findFile('[Content_Types].xml');
+    if (contentTypes != null) {
+      var contentTypesXml = utf8.decode(contentTypes.content);
+      if (!contentTypesXml.contains('Extension="png"')) {
+        contentTypesXml = contentTypesXml.replaceFirst(
+          '</Types>',
+          '<Default Extension="png" ContentType="image/png"/></Types>',
+        );
+        archive.add(ArchiveFile.string('[Content_Types].xml', contentTypesXml));
+      }
+    }
+    return relId;
+  }
+
+  String _signatureImage(String relationshipId) {
+    return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>'
+        '<w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+        '<wp:extent cx="1905000" cy="635000"/><wp:docPr id="1" name="Instructor Signature"/>'
+        '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+        '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        '<pic:nvPicPr><pic:cNvPr id="0" name="Instructor Signature"/><pic:cNvPicPr/></pic:nvPicPr>'
+        '<pic:blipFill><a:blip r:embed="$relationshipId" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+        '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1905000" cy="635000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+        '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
   }
 
   String _paragraph(
