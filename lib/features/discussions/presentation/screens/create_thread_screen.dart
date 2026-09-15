@@ -59,6 +59,11 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
+                action: SnackBarAction(
+                  label: 'Retry',
+                  textColor: Colors.white,
+                  onPressed: () => _submit(context),
+                ),
               ),
             );
           }
