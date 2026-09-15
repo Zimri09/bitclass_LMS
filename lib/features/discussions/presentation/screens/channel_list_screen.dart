@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -155,12 +156,12 @@ class _ChannelListViewState extends State<ChannelListView> {
               children: [
                 if (announcements.isNotEmpty) ...[
                   _buildSectionHeader('Announcements'),
-                  ...announcements.map((c) => _buildChannelCard(context, c)),
+                  ...announcements.map((c) => _buildWebCard(context, c)),
                   const SizedBox(height: 24),
                 ],
                 if (regularChannels.isNotEmpty) ...[
                   _buildSectionHeader('Channels'),
-                  ...regularChannels.map((c) => _buildChannelCard(context, c)),
+                  ...regularChannels.map((c) => _buildWebCard(context, c)),
                 ],
               ],
             ),
@@ -280,6 +281,18 @@ class _ChannelListViewState extends State<ChannelListView> {
         onTap: () {
           context.push('/courses/${widget.courseId}/discussions/${channel.id}');
         },
+      ),
+    );
+  }
+
+  Widget _buildWebCard(BuildContext context, ChannelModel channel) {
+    final card = _buildChannelCard(context, channel);
+    if (!kIsWeb) return card;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 960),
+        child: card,
       ),
     );
   }

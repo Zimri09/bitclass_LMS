@@ -165,11 +165,20 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
           );
         }
 
-        return Column(
+        final cards = Column(
           children: quizzes
               .map((quiz) => _buildQuizCard(context, quiz))
               .toList(),
         );
+
+        return kIsWeb
+            ? Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: cards,
+                ),
+              )
+            : cards;
       },
     );
   }
