@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -226,34 +227,71 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
   Widget _buildAssignmentList(List<AssignmentModel> assignments) {
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        itemCount: assignments.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          final assignment = assignments[index];
-          final submission = _studentSubmissions[assignment.id];
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 900),
-              child: _AssignmentCard(
-                assignment: assignment,
-                submission: submission,
-                showInstructorControls: _canManageAssignments,
-                showStudentStatus: !_hasInstructorRole,
-                onTap: () => context.push(
-                  AppRoutes.assignmentPath(widget.courseId, assignment.id),
-                ),
-                onEdit: () => _editAssignment(assignment.id),
-                onReview: () => context.push(
-                  AppRoutes.gradeAssignmentPath(widget.courseId, assignment.id),
-                ),
-                onDelete: () => _confirmDeleteAssignment(assignment),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (!kIsWeb) {
+            return ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              itemCount: assignments.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemBuilder: (context, index) =>
+                  _buildAssignmentCard(context, assignments[index]),
+            );
+          }
+
+          final columns = constraints.maxWidth >= 920
+              ? 3
+              : constraints.maxWidth >= 620
+              ? 2
+              : 1;
+          return GridView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.45,
+            ),
+            itemCount: assignments.length,
+            itemBuilder: (context, index) => _buildAssignmentCard(
+              context,
+              assignments[index],
+              columns: columns,
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildAssignmentCard(
+    BuildContext context,
+    AssignmentModel assignment, {
+    int? columns,
+  }) {
+    final submission = _studentSubmissions[assignment.id];
+    final card = _AssignmentCard(
+      assignment: assignment,
+      submission: submission,
+      showInstructorControls: _canManageAssignments,
+      showStudentStatus: !_hasInstructorRole,
+      onTap: () => context.push(
+        AppRoutes.assignmentPath(widget.courseId, assignment.id),
+      ),
+      onEdit: () => _editAssignment(assignment.id),
+      onReview: () => context.push(
+        AppRoutes.gradeAssignmentPath(widget.courseId, assignment.id),
+      ),
+      onDelete: () => _confirmDeleteAssignment(assignment),
+    );
+
+    if (columns != null) return card;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: card,
       ),
     );
   }

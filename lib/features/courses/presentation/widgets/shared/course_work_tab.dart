@@ -165,20 +165,42 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
           );
         }
 
-        final cards = Column(
-          children: quizzes
-              .map((quiz) => _buildQuizCard(context, quiz))
-              .toList(),
-        );
+        if (!kIsWeb) {
+          return Column(
+            children: quizzes
+                .map((quiz) => _buildQuizCard(context, quiz))
+                .toList(),
+          );
+        }
 
-        return kIsWeb
-            ? Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 960),
-                  child: cards,
-                ),
-              )
-            : cards;
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 920
+                ? 3
+                : constraints.maxWidth >= 620
+                ? 2
+                : 1;
+            const gap = 12.0;
+            final tileWidth =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: quizzes
+                  .map(
+                    (quiz) => SizedBox(
+                      width: tileWidth,
+                      child: AspectRatio(
+                        aspectRatio: 1.45,
+                        child: _buildQuizCard(context, quiz),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            );
+          },
+        );
       },
     );
   }

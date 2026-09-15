@@ -156,12 +156,12 @@ class _ChannelListViewState extends State<ChannelListView> {
               children: [
                 if (announcements.isNotEmpty) ...[
                   _buildSectionHeader('Announcements'),
-                  ...announcements.map((c) => _buildWebCard(context, c)),
+                  _buildWebChannelGrid(context, announcements),
                   const SizedBox(height: 24),
                 ],
                 if (regularChannels.isNotEmpty) ...[
                   _buildSectionHeader('Channels'),
-                  ...regularChannels.map((c) => _buildWebCard(context, c)),
+                  _buildWebChannelGrid(context, regularChannels),
                 ],
               ],
             ),
@@ -196,6 +196,8 @@ class _ChannelListViewState extends State<ChannelListView> {
   }
 
   Widget _buildChannelCard(BuildContext context, ChannelModel channel) {
+    if (kIsWeb) return _buildWebChannelCard(context, channel);
+
     return Card(
       color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: 8),
@@ -285,14 +287,139 @@ class _ChannelListViewState extends State<ChannelListView> {
     );
   }
 
-  Widget _buildWebCard(BuildContext context, ChannelModel channel) {
-    final card = _buildChannelCard(context, channel);
-    if (!kIsWeb) return card;
+  Widget _buildWebChannelGrid(
+    BuildContext context,
+    List<ChannelModel> channels,
+  ) {
+    if (!kIsWeb) {
+      return Column(
+        children: channels
+            .map((channel) => _buildChannelCard(context, channel))
+            .toList(),
+      );
+    }
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 960),
-        child: card,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 920
+            ? 3
+            : constraints.maxWidth >= 620
+            ? 2
+            : 1;
+        const gap = 12.0;
+        final tileWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: channels
+              .map(
+                (channel) => SizedBox(
+                  width: tileWidth,
+                  child: AspectRatio(
+                    aspectRatio: 1.45,
+                    child: _buildChannelCard(context, channel),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildWebChannelCard(BuildContext context, ChannelModel channel) {
+    final color = channel.isAnnouncement
+        ? AppColors.warning
+        : AppColors.primary;
+
+    return Card(
+      color: AppColors.surface,
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () {
+          context.push('/courses/${widget.courseId}/discussions/${channel.id}');
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      _getChannelIcon(channel.icon ?? 'forum'),
+                      color: color,
+                      size: 20,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (channel.isDefault)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'DEFAULT',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                channel.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                channel.description ?? '',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.forum_outlined, size: 14, color: color),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${channel.threadCount} conversations',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.arrow_forward, size: 16, color: color),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
