@@ -267,13 +267,6 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
       );
     }
 
-    final viewWidth = MediaQuery.sizeOf(context).width;
-    final horizontalPadding = viewWidth < 600
-        ? 16.0
-        : viewWidth < 1024
-        ? 24.0
-        : (viewWidth - 960) / 2;
-
     return CustomScrollView(
       slivers: [
         // Header
@@ -352,99 +345,110 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
         ),
 
         // Content
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            viewWidth < 600 ? 20 : 28,
-            horizontalPadding,
-            32,
-          ),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              // Title
-              Text(course.title, style: AppTextStyles.h1),
-              const SizedBox(height: 16),
+        SliverLayoutBuilder(
+          builder: (context, constraints) {
+            final contentWidth = constraints.crossAxisExtent < 1120
+                ? constraints.crossAxisExtent
+                : 1120.0;
+            final horizontalPadding =
+                (constraints.crossAxisExtent - contentWidth) / 2;
+            final compact = constraints.crossAxisExtent < 600;
 
-              // Stats row
-              Wrap(
-                spacing: 16,
-                runSpacing: 8,
-                children: [
-                  _buildStat(Icons.person_outline, course.instructorName),
-                  _buildStat(
-                    Icons.people_outline,
-                    '${course.enrollmentCount} enrolled',
+            return SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding + (compact ? 16 : 0),
+                compact ? 20 : 28,
+                horizontalPadding + (compact ? 16 : 0),
+                32,
+              ),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  // Title
+                  Text(course.title, style: AppTextStyles.h1),
+                  const SizedBox(height: 16),
+
+                  // Stats row
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildStat(Icons.person_outline, course.instructorName),
+                      _buildStat(
+                        Icons.people_outline,
+                        '${course.enrollmentCount} enrolled',
+                      ),
+                      _buildStat(
+                        Icons.menu_book_outlined,
+                        '${course.lessonCount} lessons',
+                      ),
+                    ],
                   ),
-                  _buildStat(
-                    Icons.menu_book_outlined,
-                    '${course.lessonCount} lessons',
+                  const SizedBox(height: 32),
+
+                  // Action button (students can enroll/continue; instructors see manage button for own courses)
+                  if (!isInstructor || isOwnCourse) _buildActionButton(context),
+                  const SizedBox(height: 32),
+
+                  // Program
+                  Text('Course Program', style: AppTextStyles.h3),
+                  const SizedBox(height: 12),
+                  GlowCard(
+                    glowColor: AppColors.primary,
+                    glowIntensity: 0.05,
+                    isHoverable: false,
+                    child: Text(
+                      course.description,
+                      style: AppTextStyles.bodyMedium.copyWith(height: 1.8),
+                    ),
                   ),
-                ],
+                  const SizedBox(height: 32),
+
+                  // Course content (syllabus)
+                  Text('Course Content', style: AppTextStyles.h3),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Lessons are organized by topic so you can find what you need quickly.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCourseSyllabus(),
+                  const SizedBox(height: 20),
+                  Text('Course resources', style: AppTextStyles.bodyLarge),
+                  const SizedBox(height: 10),
+                  CourseResourceLinks(
+                    courseId: course.id,
+                    onOpenClasswork: () => widget.onTabSelected(1),
+                  ),
+
+                  // Instructor creation tools mirror the same grouped structure.
+                  if (isOwnCourse) ...[
+                    const SizedBox(height: 24),
+                    InstructorContentActions(
+                      courseId: course.id,
+                      onContentChanged: _refreshContent,
+                    ),
+                    const SizedBox(height: 32),
+                    Text('Course settings', style: AppTextStyles.h3),
+                    const SizedBox(height: 12),
+                    _buildPublishToggleCard(context),
+                    const SizedBox(height: 16),
+                    _buildCourseCodeCard(context),
+                    const SizedBox(height: 32),
+                  ],
+
+                  // Progress (if enrolled)
+                  if (isEnrolled && !isInstructor) ...[
+                    const SizedBox(height: 32),
+                    Text('Your Progress', style: AppTextStyles.h3),
+                    const SizedBox(height: 12),
+                    _buildProgressCard(),
+                  ],
+                ]),
               ),
-              const SizedBox(height: 32),
-
-              // Action button (students can enroll/continue; instructors see manage button for own courses)
-              if (!isInstructor || isOwnCourse) _buildActionButton(context),
-              const SizedBox(height: 32),
-
-              // Program
-              Text('Course Program', style: AppTextStyles.h3),
-              const SizedBox(height: 12),
-              GlowCard(
-                glowColor: AppColors.primary,
-                glowIntensity: 0.05,
-                isHoverable: false,
-                child: Text(
-                  course.description,
-                  style: AppTextStyles.bodyMedium.copyWith(height: 1.8),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Course content (syllabus)
-              Text('Course Content', style: AppTextStyles.h3),
-              const SizedBox(height: 6),
-              Text(
-                'Lessons are organized by topic so you can find what you need quickly.',
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildCourseSyllabus(),
-              const SizedBox(height: 20),
-              Text('Course resources', style: AppTextStyles.bodyLarge),
-              const SizedBox(height: 10),
-              CourseResourceLinks(
-                courseId: course.id,
-                onOpenClasswork: () => widget.onTabSelected(1),
-              ),
-
-              // Instructor creation tools mirror the same grouped structure.
-              if (isOwnCourse) ...[
-                const SizedBox(height: 24),
-                InstructorContentActions(
-                  courseId: course.id,
-                  onContentChanged: _refreshContent,
-                ),
-                const SizedBox(height: 32),
-                Text('Course settings', style: AppTextStyles.h3),
-                const SizedBox(height: 12),
-                _buildPublishToggleCard(context),
-                const SizedBox(height: 16),
-                _buildCourseCodeCard(context),
-                const SizedBox(height: 32),
-              ],
-
-              // Progress (if enrolled)
-              if (isEnrolled && !isInstructor) ...[
-                const SizedBox(height: 32),
-                Text('Your Progress', style: AppTextStyles.h3),
-                const SizedBox(height: 12),
-                _buildProgressCard(),
-              ],
-            ]),
-          ),
+            );
+          },
         ),
       ],
     );
