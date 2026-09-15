@@ -18,7 +18,7 @@ class _CourseWorkTab extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
             child: Row(
               children: [
                 Expanded(
@@ -125,7 +125,7 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: Padding(
-              padding: EdgeInsets.all(24),
+              padding: EdgeInsets.all(18),
               child: CircularProgressIndicator(),
             ),
           );
@@ -185,8 +185,8 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: AppColors.secondary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
@@ -194,10 +194,10 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
               child: Icon(
                 Icons.quiz_outlined,
                 color: AppColors.secondary,
-                size: 24,
+                size: 20,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

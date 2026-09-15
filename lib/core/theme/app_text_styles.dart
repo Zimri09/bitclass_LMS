@@ -14,27 +14,27 @@ class AppTextStyles {
 
   // Headings - Monospace
   static TextStyle get h1 => GoogleFonts.jetBrainsMono(
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
     letterSpacing: -0.5,
   );
 
   static TextStyle get h2 => GoogleFonts.jetBrainsMono(
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
     letterSpacing: -0.3,
   );
 
   static TextStyle get h3 => GoogleFonts.jetBrainsMono(
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
   );
 
   static TextStyle get h4 => GoogleFonts.jetBrainsMono(
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
   );
@@ -48,7 +48,7 @@ class AppTextStyles {
   );
 
   static TextStyle get bodyMedium => GoogleFonts.inter(
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: FontWeight.normal,
     color: AppColors.textPrimary,
     height: 1.5,
@@ -92,26 +92,26 @@ class AppTextStyles {
 
   // Button text
   static TextStyle get buttonLarge => GoogleFonts.inter(
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: FontWeight.w600,
     color: AppColors.background,
   );
 
   static TextStyle get buttonMedium => GoogleFonts.inter(
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: FontWeight.w600,
     color: AppColors.background,
   );
 
   // Navigation
   static TextStyle get navItem => GoogleFonts.inter(
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: FontWeight.w500,
     color: AppColors.textSecondary,
   );
 
   static TextStyle get navItemActive => GoogleFonts.inter(
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: FontWeight.w600,
     color: AppColors.primary,
   );

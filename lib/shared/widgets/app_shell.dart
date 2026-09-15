@@ -444,7 +444,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               expanded: false,
             ),
           ),
-          Expanded(child: widget.child),
+          Expanded(child: _buildContentRail(context)),
         ],
       ),
     );
@@ -472,8 +472,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               expanded: _isExpanded,
             ),
           ),
-          Expanded(child: widget.child),
+          Expanded(child: _buildContentRail(context)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildContentRail(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.of(context).background,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1280),
+          child: SizedBox(width: double.infinity, child: widget.child),
+        ),
       ),
     );
   }

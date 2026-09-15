@@ -36,7 +36,7 @@ class _CourseRecordsScreenState extends State<CourseRecordsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -46,7 +46,7 @@ class _CourseRecordsScreenState extends State<CourseRecordsScreen> {
                 'Review computed grades and manage attendance for this class.',
                 style: AppTextStyles.bodySmall,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: SegmentedButton<int>(
@@ -215,7 +215,7 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
       onRefresh: _loadRecord,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
         children: [
           _RecordSummary(record: record),
           const SizedBox(height: 10),

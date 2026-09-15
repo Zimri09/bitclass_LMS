@@ -68,14 +68,14 @@ class ClassroomCourseCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                height: 180,
+                height: 160,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     CourseBannerWidget(
                       thumbnailUrl: currentCourse.thumbnailUrl,
                       width: double.infinity,
-                      height: 180,
+                      height: 160,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(18),
                       ),
@@ -95,7 +95,7 @@ class ClassroomCourseCard extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -227,7 +227,7 @@ class ClassroomCourseCard extends StatelessWidget {
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 8, 10),
+                          padding: const EdgeInsets.fromLTRB(14, 10, 8, 8),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -241,7 +241,7 @@ class ClassroomCourseCard extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                       style: AppTextStyles.h3.copyWith(
                                         color: Colors.white,
-                                        fontSize: 20,
+                                        fontSize: 18,
                                         fontWeight: FontWeight.w600,
                                         height: 1.1,
                                       ),
@@ -280,7 +280,7 @@ class ClassroomCourseCard extends StatelessWidget {
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 38, 16, 12),
+                      padding: const EdgeInsets.fromLTRB(14, 28, 14, 10),
                       child: Align(
                         alignment: Alignment.topLeft,
                         child: status == null
@@ -306,8 +306,8 @@ class ClassroomCourseCard extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    height: 54,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
                       border: Border(top: BorderSide(color: colors.border)),
                     ),
@@ -316,8 +316,8 @@ class ClassroomCourseCard extends StatelessWidget {
                 ],
               ),
               Positioned(
-                top: 84,
-                right: 18,
+                top: 70,
+                right: 14,
                 child: Container(
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
@@ -325,7 +325,7 @@ class ClassroomCourseCard extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: CircleAvatar(
-                    radius: 26,
+                    radius: 22,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.14),
                     backgroundImage: hasAvatar
                         ? NetworkImage(currentCourse.instructorAvatarUrl!)
@@ -334,7 +334,7 @@ class ClassroomCourseCard extends StatelessWidget {
                         ? null
                         : const Icon(
                             Icons.school_outlined,
-                            size: 27,
+                            size: 23,
                             color: AppColors.primary,
                           ),
                   ),
@@ -364,13 +364,13 @@ class SliverClassroomCourseLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     if (kIsWeb) {
       return SliverPadding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         sliver: SliverGrid(
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 360,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1.02,
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 14,
+            childAspectRatio: 1.12,
           ),
           delegate: SliverChildBuilderDelegate(
             itemBuilder,

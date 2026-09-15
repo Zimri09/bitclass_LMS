@@ -12,7 +12,7 @@ class _CourseDiscussionTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
           child: Row(
             children: [
               Expanded(
@@ -23,7 +23,7 @@ class _CourseDiscussionTab extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'Announcements, questions, and class conversations.',
             style: AppTextStyles.bodySmall.copyWith(
