@@ -115,9 +115,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                     ),
                     decoration: InputDecoration(
                       hintText: 'What\'s your question or topic?',
-                      hintStyle: TextStyle(
-                        color: AppColors.textSecondary,
-                      ),
+                      hintStyle: TextStyle(color: AppColors.textSecondary),
                       filled: true,
                       fillColor: AppColors.surface,
                       border: OutlineInputBorder(
@@ -165,7 +163,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                     ),
                     decoration: InputDecoration(
                       hintText:
-                          'Provide details about your question or topic...\n\nTip: Be specific and include any relevant code or error messages.',
+                          'Share details about your question, idea, update, or class concern...\n\nTip: Be specific and include helpful context.',
                       hintStyle: TextStyle(
                         color: AppColors.textSecondary,
                         height: 1.5,
@@ -224,9 +222,15 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
                           ),
                           const SizedBox(height: 12),
                           _buildTipItem('Use a clear, specific title'),
-                          _buildTipItem('Explain what you\'ve already tried'),
-                          _buildTipItem('Include relevant code snippets'),
-                          _buildTipItem('Check if a similar question exists'),
+                          _buildTipItem(
+                            'Explain what you need help or clarification with',
+                          ),
+                          _buildTipItem(
+                            'Share relevant ideas, updates, or information',
+                          ),
+                          _buildTipItem(
+                            'Check if a similar question already exists',
+                          ),
                         ],
                       ),
                     ),
@@ -250,10 +254,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
           ),
         ],
