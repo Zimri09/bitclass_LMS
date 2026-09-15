@@ -181,196 +181,195 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
         glowColor: AppColors.secondary,
         glowIntensity: 0.08,
         onTap: () => _openQuiz(quiz),
-        child: Row(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.secondary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.quiz_outlined,
-                color: AppColors.secondary,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          quiz.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+            Row(
+              children: [
+                _WorkTypeLabel(
+                  label: 'QUIZ',
+                  color: AppColors.secondary,
+                  icon: Icons.quiz_outlined,
+                ),
+                if (!quiz.isPublished) const _WorkStatusLabel(label: 'Draft'),
+                const Spacer(),
+                if (widget.canManage)
+                  IconButtonTheme(
+                    data: IconButtonThemeData(
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size.square(30),
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
                       ),
-                      if (!quiz.isPublished) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.warning.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Draft',
-                            style: AppTextStyles.label.copyWith(
-                              color: AppColors.warning,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (widget.canManage) ...[
-                        const SizedBox(width: 4),
-                        IconButtonTheme(
-                          data: IconButtonThemeData(
-                            style: IconButton.styleFrom(
-                              minimumSize: const Size.square(36),
-                              padding: EdgeInsets.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                key: ValueKey('edit-quiz-${quiz.id}'),
-                                tooltip: quiz.isPublished
-                                    ? 'Edit quiz'
-                                    : 'Continue editing',
-                                onPressed: () => _openQuiz(quiz, edit: true),
-                                color: AppColors.primary,
-                                icon: const Icon(Icons.edit_outlined),
-                              ),
-                              QuizDeleteButton(
-                                quiz: quiz,
-                                onDeleted: _handleDeleted,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.chevron_right,
-                          color: AppColors.textSecondary,
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (quiz.dueDate != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.event_available_outlined,
-                          size: 14,
-                          color: AppColors.textSecondary,
+                        IconButton(
+                          key: ValueKey('edit-quiz-${quiz.id}'),
+                          tooltip: quiz.isPublished
+                              ? 'Edit quiz'
+                              : 'Continue editing',
+                          onPressed: () => _openQuiz(quiz, edit: true),
+                          color: AppColors.primary,
+                          icon: const Icon(Icons.edit_outlined),
                         ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            formatDueDateTime(quiz.dueDate!),
-                            style: AppTextStyles.bodySmall,
-                          ),
-                        ),
+                        QuizDeleteButton(quiz: quiz, onDeleted: _handleDeleted),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.schedule_outlined,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          formatPostedDateTime(quiz.createdAt),
-                          style: AppTextStyles.bodySmall,
-                        ),
-                      ),
-                    ],
+                  )
+                else
+                  Icon(
+                    Icons.chevron_right,
+                    color: AppColors.textSecondary,
+                    size: 20,
                   ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.star_outline,
-                            size: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${quiz.totalPoints} pts',
-                            style: AppTextStyles.bodySmall,
-                          ),
-                        ],
-                      ),
-                      if (quiz.timeLimitMinutes > 0)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.timer_outlined,
-                              size: 14,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${quiz.timeLimitMinutes}m',
-                              style: AppTextStyles.bodySmall,
-                            ),
-                          ],
-                        ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '${quiz.passingScore}% to pass',
-                          style: AppTextStyles.label.copyWith(
-                            color: AppColors.primary,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              quiz.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
               ),
             ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 14,
+              runSpacing: 4,
+              children: [
+                _WorkMeta(
+                  icon: Icons.schedule_outlined,
+                  label: formatPostedDateTime(quiz.createdAt),
+                ),
+                if (quiz.dueDate != null)
+                  _WorkMeta(
+                    icon: Icons.event_available_outlined,
+                    label: formatDueDateTime(quiz.dueDate!),
+                  ),
+                _WorkMeta(
+                  icon: Icons.star_outline,
+                  label: '${quiz.totalPoints} pts',
+                ),
+                if (quiz.timeLimitMinutes > 0)
+                  _WorkMeta(
+                    icon: Icons.timer_outlined,
+                    label: '${quiz.timeLimitMinutes}m',
+                  ),
+                Text(
+                  '${quiz.passingScore}% to pass',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            if (!widget.canManage) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _openQuiz(quiz),
+                  icon: const Icon(Icons.play_arrow_outlined, size: 16),
+                  label: const Text('Take quiz'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _WorkTypeLabel extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  const _WorkTypeLabel({
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkStatusLabel extends StatelessWidget {
+  final String label;
+
+  const _WorkStatusLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.warning,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkMeta extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _WorkMeta({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: AppColors.textSecondary),
+        const SizedBox(width: 4),
+        Text(label, style: AppTextStyles.caption),
+      ],
     );
   }
 }

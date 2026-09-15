@@ -352,136 +352,115 @@ class _AssignmentCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
           ),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.assignment_outlined,
-                  color: Colors.white,
-                  size: 22,
+              Row(
+                children: [
+                  const _CardBadge(label: 'ACTIVITY', color: AppColors.primary),
+                  if (showInstructorControls && !assignment.isPublished)
+                    const _CardBadge(label: 'Draft', color: AppColors.warning),
+                  if (showStudentStatus)
+                    _CardBadge(
+                      label: status.displayName,
+                      color: _statusColor(status),
+                    ),
+                  const Spacer(),
+                  if (showInstructorControls)
+                    SizedBox.square(
+                      dimension: 30,
+                      child: PopupMenuButton<String>(
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Activity actions',
+                        onSelected: (action) {
+                          if (action == 'edit') onEdit();
+                          if (action == 'review') onReview();
+                          if (action == 'delete') onDelete();
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit activity'),
+                          ),
+                          PopupMenuItem(
+                            value: 'review',
+                            child: Text('Review submissions'),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text(
+                              'Delete activity',
+                              style: TextStyle(color: AppColors.error),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                assignment.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            assignment.title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        if (showInstructorControls && !assignment.isPublished)
-                          const _CardBadge(
-                            label: 'Draft',
-                            color: AppColors.warning,
-                          ),
-                        if (showStudentStatus)
-                          _CardBadge(
-                            label: status.displayName,
-                            color: _statusColor(status),
-                          ),
-                        if (showInstructorControls) ...[
-                          const SizedBox(width: 4),
-                          SizedBox.square(
-                            dimension: 40,
-                            child: PopupMenuButton<String>(
-                              padding: EdgeInsets.zero,
-                              tooltip: 'Activity actions',
-                              onSelected: (action) {
-                                if (action == 'edit') onEdit();
-                                if (action == 'review') onReview();
-                                if (action == 'delete') onDelete();
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: Text('Edit activity'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'review',
-                                  child: Text('Review submissions'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text(
-                                    'Delete activity',
-                                    style: TextStyle(color: AppColors.error),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.chevron_right),
-                        ],
-                      ],
-                    ),
-                    if (assignment.description.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        assignment.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 14,
+                runSpacing: 4,
+                children: [
+                  _CardMeta(
+                    icon: Icons.schedule_outlined,
+                    label: formatPostedDateTime(assignment.createdAt),
+                  ),
+                  _CardMeta(
+                    icon: Icons.event_outlined,
+                    label: assignment.dueDate == null
+                        ? 'No due date'
+                        : 'Due ${DateFormat('MMM d, h:mm a').format(assignment.dueDate!.toLocal())}',
+                  ),
+                  _CardMeta(
+                    icon: Icons.star_outline,
+                    label: '${assignment.maxPoints} points',
+                  ),
+                  if (assignment.attachments.isNotEmpty)
                     _CardMeta(
-                      icon: Icons.schedule_outlined,
-                      label: formatPostedDateTime(assignment.createdAt),
+                      icon: Icons.attach_file,
+                      label:
+                          '${assignment.attachments.length} material${assignment.attachments.length == 1 ? '' : 's'}',
                     ),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 14,
-                      runSpacing: 7,
-                      children: [
-                        _CardMeta(
-                          icon: Icons.event_outlined,
-                          label: assignment.dueDate == null
-                              ? 'No due date'
-                              : 'Due ${DateFormat('MMM d, h:mm a').format(assignment.dueDate!.toLocal())}',
-                        ),
-                        _CardMeta(
-                          icon: Icons.star_outline,
-                          label: '${assignment.maxPoints} points',
-                        ),
-                        if (assignment.attachments.isNotEmpty)
-                          _CardMeta(
-                            icon: Icons.attach_file,
-                            label:
-                                '${assignment.attachments.length} material${assignment.attachments.length == 1 ? '' : 's'}',
-                          ),
-                        if (assignment.isCodeActivity)
-                          _CardMeta(
-                            icon: Icons.code,
-                            label: assignment.language.displayName,
-                          ),
-                      ],
+                  if (assignment.isCodeActivity)
+                    _CardMeta(
+                      icon: Icons.code,
+                      label: assignment.language.displayName,
                     ),
-                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: showInstructorControls ? onReview : onTap,
+                  icon: Icon(
+                    showInstructorControls
+                        ? Icons.rate_review_outlined
+                        : Icons.arrow_forward,
+                    size: 16,
+                  ),
+                  label: Text(showInstructorControls ? 'Review' : 'Open'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ),
             ],
