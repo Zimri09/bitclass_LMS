@@ -606,6 +606,37 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                                   return null;
                                 },
                               ),
+                              const SizedBox(height: 20),
+
+                              // Category
+                              DropdownButtonFormField<String>(
+                                initialValue: _selectedCategory,
+                                decoration: const InputDecoration(
+                                  labelText: 'Course Category',
+                                  prefixIcon: Icon(Icons.category_outlined),
+                                ),
+                                items:
+                                    [
+                                          ...AppConstants.courseCategories,
+                                          if (!AppConstants.courseCategories
+                                              .contains(_selectedCategory))
+                                            _selectedCategory,
+                                        ]
+                                        .map(
+                                          (category) => DropdownMenuItem(
+                                            value: category,
+                                            child: Text(category),
+                                          ),
+                                        )
+                                        .toList(),
+                                onChanged: (category) {
+                                  if (category != null) {
+                                    setState(
+                                      () => _selectedCategory = category,
+                                    );
+                                  }
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -649,10 +680,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                           children: [
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: () =>
-                                    context.canPop()
-                                        ? context.pop()
-                                        : context.go(AppRoutes.myCourses),
+                                onPressed: () => context.canPop()
+                                    ? context.pop()
+                                    : context.go(AppRoutes.myCourses),
                                 child: const Text('Cancel'),
                               ),
                             ),

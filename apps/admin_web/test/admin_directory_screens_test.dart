@@ -47,6 +47,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Algorithms'), findsOneWidget);
+      expect(find.text('BSCS 3A'), findsOneWidget);
       expect(find.text('Published'), findsWidgets);
       expect(find.text('12 students'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -74,6 +75,7 @@ class _DirectoryRepository implements AdminRepository {
     AdminCourse(
       id: 'course-1',
       title: 'Algorithms',
+      program: 'BSCS 3A',
       instructorName: 'Grace Instructor',
       enrollmentCount: 12,
       lessonCount: 8,

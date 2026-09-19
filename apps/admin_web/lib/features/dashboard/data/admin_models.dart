@@ -96,6 +96,7 @@ class AdminAuditLog {
 class AdminCourse {
   final String id;
   final String title;
+  final String? program;
   final String instructorName;
   final String? category;
   final int enrollmentCount;
@@ -106,6 +107,7 @@ class AdminCourse {
   const AdminCourse({
     required this.id,
     required this.title,
+    this.program,
     required this.instructorName,
     required this.enrollmentCount,
     required this.lessonCount,
@@ -118,6 +120,7 @@ class AdminCourse {
     return AdminCourse(
       id: map['id'] as String,
       title: map['title'] as String? ?? 'Untitled course',
+      program: map['description'] as String?,
       instructorName: map['instructor_name'] as String? ?? 'Unknown instructor',
       category: map['category'] as String?,
       enrollmentCount: (map['enrollment_count'] as num?)?.toInt() ?? 0,

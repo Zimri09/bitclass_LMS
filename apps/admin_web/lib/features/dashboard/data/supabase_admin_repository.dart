@@ -13,7 +13,7 @@ class SupabaseAdminRepository implements AdminRepository {
       'id,email,display_name,first_name,last_name,avatar_url,role,'
       'is_suspended,created_at';
   static const _courseColumns =
-      'id,title,category,instructor_name,enrollment_count,lesson_count,'
+      'id,title,description,category,instructor_name,enrollment_count,lesson_count,'
       'is_published,created_at';
 
   @override

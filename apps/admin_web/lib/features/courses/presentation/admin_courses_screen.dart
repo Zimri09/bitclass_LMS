@@ -249,9 +249,9 @@ class _CourseCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              course.category?.isNotEmpty == true
-                  ? course.category!
-                  : 'Uncategorized',
+              course.program?.trim().isNotEmpty == true
+                  ? course.program!.trim()
+                  : 'No program specified',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12),
