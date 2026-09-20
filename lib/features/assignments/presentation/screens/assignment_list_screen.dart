@@ -240,25 +240,46 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
             );
           }
 
-          final columns = constraints.maxWidth >= 920
-              ? 3
-              : constraints.maxWidth >= 620
-              ? 2
-              : 1;
-          return GridView.builder(
+          const gap = 14.0;
+          const maxCardWidth = 370.0;
+          const minCardWidth = 280.0;
+
+          final availableWidth = constraints.maxWidth - 32; // 16px padding on each side
+          final count = (availableWidth / (maxCardWidth + gap)).floor();
+          final columns = count < 1 ? 1 : count;
+
+          final double tileWidth;
+          if (columns == 1) {
+            tileWidth = availableWidth > maxCardWidth
+                ? maxCardWidth
+                : availableWidth;
+          } else {
+            final computed =
+                (availableWidth - gap * (columns - 1)) / columns;
+            tileWidth = computed.clamp(minCardWidth, maxCardWidth);
+          }
+
+          return SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.45,
-            ),
-            itemCount: assignments.length,
-            itemBuilder: (context, index) => _buildAssignmentCard(
-              context,
-              assignments[index],
-              columns: columns,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: assignments
+                    .map(
+                      (assignment) => SizedBox(
+                        width: tileWidth,
+                        child: _buildAssignmentCard(
+                          context,
+                          assignment,
+                          columns: columns,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
             ),
           );
         },
@@ -384,23 +405,28 @@ class _AssignmentCard extends StatelessWidget {
             : ClassroomSubmissionStatus.assigned);
 
     return Material(
-      color: AppColors.backgroundSecondary,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
-                  const _CardBadge(label: 'ACTIVITY', color: AppColors.primary),
+                  const _CardBadge(
+                    label: 'ACTIVITY',
+                    color: AppColors.primary,
+                    isFirst: true,
+                  ),
                   if (showInstructorControls && !assignment.isPublished)
                     const _CardBadge(label: 'Draft', color: AppColors.warning),
                   if (showStudentStatus)
@@ -411,7 +437,7 @@ class _AssignmentCard extends StatelessWidget {
                   const Spacer(),
                   if (showInstructorControls)
                     SizedBox.square(
-                      dimension: 30,
+                      dimension: 28,
                       child: PopupMenuButton<String>(
                         padding: EdgeInsets.zero,
                         tooltip: 'Activity actions',
@@ -446,15 +472,18 @@ class _AssignmentCard extends StatelessWidget {
                 assignment.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 16,
+                style: TextStyle(
+                  fontSize: 16.5,
                   fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.2,
                 ),
               ),
               const SizedBox(height: 8),
               Wrap(
-                spacing: 14,
+                spacing: 12,
                 runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   _CardMeta(
                     icon: Icons.schedule_outlined,
@@ -483,7 +512,7 @@ class _AssignmentCard extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
@@ -496,8 +525,12 @@ class _AssignmentCard extends StatelessWidget {
                   ),
                   label: Text(showInstructorControls ? 'Review' : 'Open'),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     visualDensity: VisualDensity.compact,
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -536,7 +569,11 @@ class _CardMeta extends StatelessWidget {
           child: Text(
             label,
             softWrap: true,
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       ],
@@ -547,24 +584,30 @@ class _CardMeta extends StatelessWidget {
 class _CardBadge extends StatelessWidget {
   final String label;
   final Color color;
+  final bool isFirst;
 
-  const _CardBadge({required this.label, required this.color});
+  const _CardBadge({
+    required this.label,
+    required this.color,
+    this.isFirst = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(left: 8),
+      margin: EdgeInsets.only(left: isFirst ? 0 : 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: 11.5,
           fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
         ),
       ),
     );

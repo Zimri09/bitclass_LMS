@@ -301,29 +301,39 @@ class _ChannelListViewState extends State<ChannelListView> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 920
-            ? 3
-            : constraints.maxWidth >= 620
-            ? 2
-            : 1;
-        const gap = 12.0;
-        final tileWidth =
-            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        const gap = 14.0;
+        const maxCardWidth = 370.0;
+        const minCardWidth = 280.0;
 
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: channels
-              .map(
-                (channel) => SizedBox(
-                  width: tileWidth,
-                  child: AspectRatio(
-                    aspectRatio: 1.45,
-                    child: _buildChannelCard(context, channel),
+        final availableWidth = constraints.maxWidth;
+        final count = (availableWidth / (maxCardWidth + gap)).floor();
+        final columns = count < 1 ? 1 : count;
+
+        final double tileWidth;
+        if (columns == 1) {
+          tileWidth = availableWidth > maxCardWidth
+              ? maxCardWidth
+              : availableWidth;
+        } else {
+          final computed =
+              (availableWidth - gap * (columns - 1)) / columns;
+          tileWidth = computed.clamp(minCardWidth, maxCardWidth);
+        }
+
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: channels
+                .map(
+                  (channel) => SizedBox(
+                    width: tileWidth,
+                    child: _buildWebChannelCard(context, channel),
                   ),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+          ),
         );
       },
     );
@@ -337,24 +347,29 @@ class _ChannelListViewState extends State<ChannelListView> {
     return Card(
       color: AppColors.surface,
       margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppColors.border),
+      ),
       child: InkWell(
         onTap: () {
           context.push('/courses/${widget.courseId}/discussions/${channel.id}');
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       _getChannelIcon(channel.icon ?? 'forum'),
@@ -366,32 +381,35 @@ class _ChannelListViewState extends State<ChannelListView> {
                   if (channel.isDefault)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
+                        horizontal: 7,
+                        vertical: 3,
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.success.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
                         'DEFAULT',
                         style: TextStyle(
                           color: AppColors.success,
-                          fontSize: 10,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
                 ],
               ),
-              const Spacer(),
+              const SizedBox(height: 10),
               Text(
                 channel.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
                 ),
               ),
               const SizedBox(height: 4),
@@ -399,18 +417,19 @@ class _ChannelListViewState extends State<ChannelListView> {
                 channel.description ?? '',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.forum_outlined, size: 14, color: color),
+                  Icon(Icons.forum_outlined, size: 15, color: color),
                   const SizedBox(width: 4),
                   Text(
                     '${channel.threadCount} conversations',
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 11,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const Spacer(),

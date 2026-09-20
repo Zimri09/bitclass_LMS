@@ -78,3 +78,62 @@ revoke all on function public.unsend_private_message(uuid) from public, anon;
 grant execute on function public.can_modify_private_message(uuid) to authenticated;
 grant execute on function public.edit_private_message(uuid, text) to authenticated;
 grant execute on function public.unsend_private_message(uuid) to authenticated;
+
+create table if not exists public.hidden_private_conversations (
+	user_id uuid not null references public.profiles(id) on delete cascade,
+	course_id uuid not null references public.courses(id) on delete cascade,
+	participant_id uuid not null references public.profiles(id) on delete cascade,
+	hidden_at timestamptz not null default timezone('utc', now()),
+	primary key (user_id, course_id, participant_id),
+	constraint hidden_private_conversations_distinct_users
+		check (user_id <> participant_id)
+);
+
+alter table public.hidden_private_conversations enable row level security;
+
+create policy "hidden private conversations: own rows"
+	on public.hidden_private_conversations for select to authenticated
+	using (user_id = (select auth.uid()));
+
+create policy "hidden private conversations: hide own"
+	on public.hidden_private_conversations for insert to authenticated
+	with check (user_id = (select auth.uid()));
+
+create policy "hidden private conversations: update own"
+	on public.hidden_private_conversations for update to authenticated
+	using (user_id = (select auth.uid()))
+	with check (user_id = (select auth.uid()));
+
+create or replace function public.hide_private_conversation(
+	target_course_id uuid,
+	target_participant_id uuid
+)
+returns timestamptz
+language plpgsql
+security invoker
+set search_path = pg_catalog, public, private
+as $$
+declare
+	server_hidden_at timestamptz := timezone('utc', now());
+begin
+	if not private.is_course_member(target_course_id, (select auth.uid()))
+		 or not private.is_course_member(target_course_id, target_participant_id) then
+		raise exception 'Conversation participants must belong to the same course.';
+	end if;
+
+	insert into public.hidden_private_conversations (
+		user_id, course_id, participant_id, hidden_at
+	) values (
+		(select auth.uid()), target_course_id, target_participant_id, server_hidden_at
+	)
+	on conflict (user_id, course_id, participant_id)
+	do update set hidden_at = excluded.hidden_at;
+
+	return server_hidden_at;
+end;
+$$;
+
+revoke all on function public.hide_private_conversation(uuid, uuid)
+	from public, anon;
+grant execute on function public.hide_private_conversation(uuid, uuid)
+	to authenticated;

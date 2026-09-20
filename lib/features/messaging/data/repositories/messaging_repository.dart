@@ -10,6 +10,7 @@ class MessagingRepository {
   static const _messagesTable = 'private_messages';
   final SupabaseClient? _supabase;
   final List<MessageModel> _demoMessages = [];
+  final Map<String, DateTime> _demoHiddenConversations = {};
 
   MessagingRepository({SupabaseClient? supabase})
     : _supabase = EnvironmentConfig.isDemoMode
@@ -39,24 +40,63 @@ class MessagingRepository {
     });
   }
 
+  String _conversationKey(String courseId, String participantId) =>
+      '$courseId:$participantId';
+
+  Future<DateTime?> _getHiddenAt({
+    required String courseId,
+    required String participantId,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+    if (EnvironmentConfig.isDemoMode) {
+      return _demoHiddenConversations[_conversationKey(
+        courseId,
+        participantId,
+      )];
+    }
+    Map<String, dynamic>? row;
+    try {
+      row = await _supabase!
+          .from('hidden_private_conversations')
+          .select('hidden_at')
+          .eq('user_id', userId)
+          .eq('course_id', courseId)
+          .eq('participant_id', participantId)
+          .maybeSingle();
+    } on PostgrestException catch (error) {
+      if (error.code != 'PGRST205') rethrow;
+      row = null;
+    }
+    return row == null ? null : DateTime.parse(row['hidden_at'] as String);
+  }
+
   Future<List<MessageModel>> getConversation({
     required String courseId,
     required String participantId,
   }) async {
     final userId = currentUserId;
     if (userId == null) return const [];
+    final hiddenAt = await _getHiddenAt(
+      courseId: courseId,
+      participantId: participantId,
+    );
+
     if (EnvironmentConfig.isDemoMode) {
       return _sortChronologically(
-        _demoMessages
-            .where(
-              (message) =>
-                  message.courseId == courseId &&
-                  ((message.senderId == userId &&
-                          message.recipientId == participantId) ||
-                      (message.senderId == participantId &&
-                          message.recipientId == userId)),
-            )
-            .toList(),
+        _demoMessages.where((message) {
+          final isParticipant =
+              (message.senderId == userId &&
+                  message.recipientId == participantId) ||
+              (message.senderId == participantId &&
+                  message.recipientId == userId);
+          final isAfterHiddenAt =
+              hiddenAt == null ||
+              message.createdAt.toUtc().isAfter(hiddenAt.toUtc());
+          return message.courseId == courseId &&
+              isParticipant &&
+              isAfterHiddenAt;
+        }).toList(),
       );
     }
 
@@ -67,6 +107,10 @@ class MessagingRepository {
         .or(
           'and(sender_id.eq.$userId,recipient_id.eq.$participantId),'
           'and(sender_id.eq.$participantId,recipient_id.eq.$userId)',
+        )
+        .gt(
+          'created_at',
+          hiddenAt?.toUtc().toIso8601String() ?? '0001-01-01T00:00:00Z',
         )
         .order('created_at', ascending: true);
     return _sortChronologically(
@@ -195,13 +239,18 @@ class MessagingRepository {
   }) async {
     final userId = currentUserId;
     if (userId == null) return;
+    final hiddenAt = await _getHiddenAt(
+      courseId: courseId,
+      participantId: participantId,
+    );
     if (EnvironmentConfig.isDemoMode) {
       for (var index = 0; index < _demoMessages.length; index++) {
         final message = _demoMessages[index];
         if (message.courseId == courseId &&
             message.senderId == participantId &&
             message.recipientId == userId &&
-            message.readAt == null) {
+            message.readAt == null &&
+            (hiddenAt == null || message.createdAt.isAfter(hiddenAt))) {
           _demoMessages[index] = MessageModel(
             id: message.id,
             courseId: message.courseId,
@@ -221,6 +270,10 @@ class MessagingRepository {
         .eq('course_id', courseId)
         .eq('sender_id', participantId)
         .eq('recipient_id', userId)
+        .gt(
+          'created_at',
+          hiddenAt?.toUtc().toIso8601String() ?? '0001-01-01T00:00:00Z',
+        )
         .isFilter('read_at', null);
   }
 
@@ -230,6 +283,10 @@ class MessagingRepository {
   }) async {
     final userId = currentUserId;
     if (userId == null) return 0;
+    final hiddenAt = await _getHiddenAt(
+      courseId: courseId,
+      participantId: participantId,
+    );
     if (EnvironmentConfig.isDemoMode) {
       return _demoMessages
           .where(
@@ -237,7 +294,8 @@ class MessagingRepository {
                 message.courseId == courseId &&
                 message.senderId == participantId &&
                 message.recipientId == userId &&
-                message.readAt == null,
+                message.readAt == null &&
+                (hiddenAt == null || message.createdAt.isAfter(hiddenAt)),
           )
           .length;
     }
@@ -247,8 +305,32 @@ class MessagingRepository {
         .eq('course_id', courseId)
         .eq('sender_id', participantId)
         .eq('recipient_id', userId)
+        .gt(
+          'created_at',
+          hiddenAt?.toUtc().toIso8601String() ?? '0001-01-01T00:00:00Z',
+        )
         .isFilter('read_at', null);
     return (rows as List<dynamic>).length;
+  }
+
+  Future<void> deleteConversation({
+    required String courseId,
+    required String participantId,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    if (EnvironmentConfig.isDemoMode) {
+      _demoHiddenConversations[_conversationKey(courseId, participantId)] =
+          DateTime.now().toUtc();
+      return;
+    }
+    await _supabase!.rpc(
+      'hide_private_conversation',
+      params: {
+        'target_course_id': courseId,
+        'target_participant_id': participantId,
+      },
+    );
   }
 
   RealtimeChannel? subscribeToConversation({

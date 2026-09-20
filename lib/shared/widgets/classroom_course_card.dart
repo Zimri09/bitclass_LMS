@@ -55,29 +55,29 @@ class ClassroomCourseCard extends StatelessWidget {
 
     return Material(
       color: colors.backgroundSecondary,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: colors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                height: 160,
+                height: 120,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     CourseBannerWidget(
                       thumbnailUrl: currentCourse.thumbnailUrl,
                       width: double.infinity,
-                      height: 160,
+                      height: 120,
                       borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(18),
+                        top: Radius.circular(14),
                       ),
                       darkenOpacity: 0.28,
                     ),
@@ -95,7 +95,7 @@ class ClassroomCourseCard extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -109,20 +109,21 @@ class ClassroomCourseCard extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: AppTextStyles.h3.copyWith(
                                     color: Colors.white,
+                                    fontSize: 16,
                                     fontWeight: FontWeight.w600,
-                                    height: 1.05,
+                                    height: 1.15,
                                   ),
                                 ),
                               ),
                               ?trailing,
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             currentCourse.description,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.bodyMedium.copyWith(
+                            style: AppTextStyles.caption.copyWith(
                               color: Colors.white.withValues(alpha: 0.92),
                             ),
                           ),
@@ -136,11 +137,11 @@ class ClassroomCourseCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 18,
+                      radius: 14,
                       backgroundColor: AppColors.primary.withValues(
                         alpha: 0.14,
                       ),
@@ -151,17 +152,17 @@ class ClassroomCourseCard extends StatelessWidget {
                           ? null
                           : Icon(
                               Icons.school_outlined,
-                              size: 20,
+                              size: 16,
                               color: AppColors.primary,
                             ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         currentCourse.instructorName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.bodyMedium.copyWith(
+                        style: AppTextStyles.bodySmall.copyWith(
                           color: colors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),

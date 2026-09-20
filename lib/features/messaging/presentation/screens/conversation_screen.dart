@@ -40,6 +40,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Timer? _editWindowTimer;
   bool _isLoading = true;
   bool _isSending = false;
+  Object? _loadError;
   int _loadGeneration = 0;
 
   MessagingRepository get _repository => _messagingRepository;
@@ -69,7 +70,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Future<void> _loadMessages({bool silent = false}) async {
     final loadGeneration = ++_loadGeneration;
-    if (!silent && mounted) setState(() => _isLoading = true);
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
     try {
       final messages = await _repository.getConversation(
         courseId: widget.courseId,
@@ -83,6 +89,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       setState(() {
         _messages = messages;
         _isLoading = false;
+        _loadError = null;
       });
       await _refreshModificationEligibility();
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -94,8 +101,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
           );
         }
       });
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (error) {
+      _repository.logError(error);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadError = error;
+        });
+      }
     }
   }
 
@@ -133,8 +146,49 @@ class _ConversationScreenState extends State<ConversationScreen> {
       );
       _messageController.clear();
       await _loadMessages(silent: true);
+    } catch (error) {
+      _repository.logError(error);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to send message: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _deleteConversation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this conversation?'),
+        content: const Text('This will clear all messages from your view.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _repository.deleteConversation(
+        courseId: widget.courseId,
+        participantId: widget.participantId,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to delete conversation: $error')),
+        );
+      }
     }
   }
 
@@ -151,6 +205,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Delete conversation',
+            onPressed: _deleteConversation,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
         title: Row(
           children: [
             CircleAvatar(
@@ -177,6 +238,36 @@ class _ConversationScreenState extends State<ConversationScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
+                : _loadError != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Unable to load this conversation.',
+                            style: AppTextStyles.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$_loadError',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                            onPressed: _loadMessages,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
                 : _messages.isEmpty
                 ? Center(
                     child: Text(
@@ -206,7 +297,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -214,12 +305,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     child: TextField(
                       controller: _messageController,
                       minLines: 1,
-                      maxLines: 4,
+                      maxLines: 3,
                       textInputAction: TextInputAction.newline,
                       decoration: const InputDecoration(
                         hintText: 'Write a message...',
                         border: OutlineInputBorder(),
                         isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
                       ),
                     ),
                   ),
@@ -334,18 +429,20 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxBubbleWidth = MediaQuery.sizeOf(context).width * 0.75;
     final bubble = Container(
-      constraints: const BoxConstraints(maxWidth: 360),
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(13, 9, 7, 7),
+      constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 4),
       decoration: BoxDecoration(
         color: isSent ? AppColors.primary : AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
         crossAxisAlignment: isSent
             ? CrossAxisAlignment.end
             : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -361,39 +458,33 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
               if (isSent && !message.isUnsent && canModify)
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  iconSize: 18,
-                  icon: const Icon(Icons.more_vert, color: Colors.white70),
-                  onSelected: (value) {
-                    if (value == 'edit') _edit(context);
-                    if (value == 'unsend') _unsend(context);
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'unsend', child: Text('Unsend')),
-                  ],
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    iconSize: 14,
+                    splashRadius: 14,
+                    icon: const Icon(Icons.more_vert, color: Colors.white70, size: 14),
+                    onSelected: (value) {
+                      if (value == 'edit') _edit(context);
+                      if (value == 'unsend') _unsend(context);
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(value: 'unsend', child: Text('Unsend')),
+                    ],
+                  ),
                 ),
             ],
           ),
-          const SizedBox(height: 3),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (message.editedAt != null && !message.isUnsent)
-                Text(
-                  'Edited  ',
-                  style: AppTextStyles.caption.copyWith(
-                    color: isSent ? Colors.white70 : AppColors.textMuted,
-                  ),
-                ),
-              Text(
-                DateFormat('h:mm a').format(message.createdAt),
-                style: AppTextStyles.caption.copyWith(
-                  color: isSent ? Colors.white70 : AppColors.textMuted,
-                ),
-              ),
-            ],
+          const SizedBox(height: 2),
+          Text(
+            '${message.editedAt != null && !message.isUnsent ? 'Edited · ' : ''}${DateFormat('h:mm a').format(message.createdAt)}',
+            style: AppTextStyles.caption.copyWith(
+              fontSize: 10,
+              color: isSent ? Colors.white70 : AppColors.textMuted,
+            ),
           ),
         ],
       ),

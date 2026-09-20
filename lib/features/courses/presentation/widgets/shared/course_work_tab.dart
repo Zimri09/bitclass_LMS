@@ -175,29 +175,39 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 920
-                ? 3
-                : constraints.maxWidth >= 620
-                ? 2
-                : 1;
-            const gap = 12.0;
-            final tileWidth =
-                (constraints.maxWidth - gap * (columns - 1)) / columns;
+            const gap = 14.0;
+            const maxCardWidth = 370.0;
+            const minCardWidth = 280.0;
 
-            return Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: quizzes
-                  .map(
-                    (quiz) => SizedBox(
-                      width: tileWidth,
-                      child: AspectRatio(
-                        aspectRatio: 1.45,
+            final availableWidth = constraints.maxWidth;
+            final count = (availableWidth / (maxCardWidth + gap)).floor();
+            final columns = count < 1 ? 1 : count;
+
+            final double tileWidth;
+            if (columns == 1) {
+              tileWidth = availableWidth > maxCardWidth
+                  ? maxCardWidth
+                  : availableWidth;
+            } else {
+              final computed =
+                  (availableWidth - gap * (columns - 1)) / columns;
+              tileWidth = computed.clamp(minCardWidth, maxCardWidth);
+            }
+
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: quizzes
+                    .map(
+                      (quiz) => SizedBox(
+                        width: tileWidth,
                         child: _buildQuizCard(context, quiz),
                       ),
-                    ),
-                  )
-                  .toList(),
+                    )
+                    .toList(),
+              ),
             );
           },
         );
@@ -207,14 +217,16 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
 
   Widget _buildQuizCard(BuildContext context, QuizModel quiz) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 4),
       child: GlowCard(
         glowColor: AppColors.secondary,
         glowIntensity: 0.08,
         onTap: () => _openQuiz(quiz),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        borderRadius: 14,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -223,13 +235,16 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                   color: AppColors.secondary,
                   icon: Icons.quiz_outlined,
                 ),
-                if (!quiz.isPublished) const _WorkStatusLabel(label: 'Draft'),
+                if (!quiz.isPublished) ...[
+                  const SizedBox(width: 6),
+                  const _WorkStatusLabel(label: 'Draft'),
+                ],
                 const Spacer(),
                 if (widget.canManage)
                   IconButtonTheme(
                     data: IconButtonThemeData(
                       style: IconButton.styleFrom(
-                        minimumSize: const Size.square(30),
+                        minimumSize: const Size.square(28),
                         padding: EdgeInsets.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
@@ -245,7 +260,7 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                               : 'Continue editing',
                           onPressed: () => _openQuiz(quiz, edit: true),
                           color: AppColors.primary,
-                          icon: const Icon(Icons.edit_outlined),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
                         ),
                         QuizDeleteButton(quiz: quiz, onDeleted: _handleDeleted),
                       ],
@@ -264,15 +279,18 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
               quiz.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.bodyMedium.copyWith(
+              style: TextStyle(
+                fontSize: 16.5,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
+                letterSpacing: -0.2,
               ),
             ),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 14,
+              spacing: 12,
               runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 _WorkMeta(
                   icon: Icons.schedule_outlined,
@@ -294,9 +312,10 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                   ),
                 Text(
                   '${quiz.passingScore}% to pass',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.primary,
+                  style: TextStyle(
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
                   ),
                 ),
               ],
@@ -310,8 +329,12 @@ class _CourseQuizzesSectionState extends State<_CourseQuizzesSection> {
                   icon: const Icon(Icons.play_arrow_outlined, size: 16),
                   label: const Text('Take quiz'),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     visualDensity: VisualDensity.compact,
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -337,19 +360,20 @@ class _WorkTypeLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
+          Icon(icon, size: 14, color: color),
           const SizedBox(width: 4),
           Text(
             label,
-            style: AppTextStyles.caption.copyWith(
+            style: TextStyle(
+              fontSize: 11.5,
               color: color,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
@@ -369,15 +393,15 @@ class _WorkStatusLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.warning.withValues(alpha: 0.13),
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: AppTextStyles.caption.copyWith(
+        style: const TextStyle(
+          fontSize: 11.5,
           color: AppColors.warning,
           fontWeight: FontWeight.w600,
         ),
@@ -397,9 +421,16 @@ class _WorkMeta extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: AppColors.textSecondary),
+        Icon(icon, size: 15, color: AppColors.textSecondary),
         const SizedBox(width: 4),
-        Text(label, style: AppTextStyles.caption),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textSecondary,
+          ),
+        ),
       ],
     );
   }
