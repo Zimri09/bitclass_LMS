@@ -12,11 +12,30 @@ class _CoursePeopleTab extends StatefulWidget {
 
 class _CoursePeopleTabState extends State<_CoursePeopleTab> {
   late Future<List<CourseRosterMember>> _students;
+  RealtimeChannel? _messageChannel;
 
   @override
   void initState() {
     super.initState();
     _students = _loadStudents();
+    _messageChannel = context
+        .read<MessagingRepository>()
+        .subscribeToConversation(
+          courseId: widget.course.id,
+          onChanged: () {
+            if (mounted) setState(() {});
+          },
+        );
+  }
+
+  @override
+  void dispose() {
+    unawaited(
+      context.read<MessagingRepository>().removeRealtimeChannel(
+        _messageChannel,
+      ),
+    );
+    super.dispose();
   }
 
   Future<List<CourseRosterMember>> _loadStudents() {
@@ -30,6 +49,10 @@ class _CoursePeopleTabState extends State<_CoursePeopleTab> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    final currentUserId = authState is AuthAuthenticated
+        ? authState.user.id
+        : null;
     return FutureBuilder<List<CourseRosterMember>>(
       future: _students,
       builder: (context, snapshot) {
@@ -63,6 +86,9 @@ class _CoursePeopleTabState extends State<_CoursePeopleTab> {
                 name: widget.course.instructorName,
                 avatarUrl: widget.course.instructorAvatarUrl,
                 role: 'Instructor',
+                courseId: widget.course.id,
+                participantId: widget.course.instructorId,
+                currentUserId: currentUserId,
               ),
               const SizedBox(height: 28),
               Row(
@@ -103,6 +129,9 @@ class _CoursePeopleTabState extends State<_CoursePeopleTab> {
                   (student) => _PersonTile(
                     name: student.displayName,
                     avatarUrl: student.avatarUrl,
+                    courseId: widget.course.id,
+                    participantId: student.userId,
+                    currentUserId: currentUserId,
                   ),
                 ),
             ],
@@ -125,8 +154,18 @@ class _PersonTile extends StatelessWidget {
   final String name;
   final String? avatarUrl;
   final String? role;
+  final String courseId;
+  final String participantId;
+  final String? currentUserId;
 
-  const _PersonTile({required this.name, this.avatarUrl, this.role});
+  const _PersonTile({
+    required this.name,
+    this.avatarUrl,
+    this.role,
+    required this.courseId,
+    required this.participantId,
+    required this.currentUserId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +178,7 @@ class _PersonTile extends StatelessWidget {
         .join()
         .toUpperCase();
 
+    final canMessage = currentUserId != null && currentUserId != participantId;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
@@ -157,6 +197,57 @@ class _PersonTile extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
+      trailing: canMessage
+          ? FutureBuilder<int>(
+              future: context.read<MessagingRepository>().getUnreadCount(
+                courseId: courseId,
+                participantId: participantId,
+              ),
+              builder: (context, snapshot) {
+                final unread = snapshot.data ?? 0;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (unread > 0)
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 22),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          unread > 99 ? '99+' : '$unread',
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.caption.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    if (unread > 0) const SizedBox(width: 6),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ConversationScreen(
+                            courseId: courseId,
+                            currentUserId: currentUserId!,
+                            participantId: participantId,
+                            participantName: name,
+                            participantAvatarUrl: avatarUrl,
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                      label: const Text('Message'),
+                    ),
+                  ],
+                );
+              },
+            )
+          : null,
     );
   }
 }

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/errors/app_error.dart';
@@ -19,6 +22,8 @@ import '../../../class_records/presentation/screens/course_records_screen.dart';
 import '../../../discussions/presentation/screens/channel_list_screen.dart';
 import '../../../lessons/data/repositories/lesson_repository.dart';
 import '../../../lessons/presentation/widgets/course_syllabus_widget.dart';
+import '../../../messaging/presentation/screens/conversation_screen.dart';
+import '../../../messaging/data/repositories/messaging_repository.dart';
 import '../../../quizzes/data/models/models.dart';
 import '../../../quizzes/data/repositories/quiz_repository.dart';
 import '../../../quizzes/presentation/widgets/quiz_delete_button.dart';

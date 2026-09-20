@@ -26,6 +26,7 @@ import 'features/files/data/repositories/file_repository.dart';
 import 'features/grades/data/repositories/grade_repository.dart';
 import 'features/grades/presentation/bloc/grades_bloc.dart';
 import 'features/lessons/data/repositories/lesson_repository.dart';
+import 'features/messaging/data/repositories/messaging_repository.dart';
 import 'features/notifications/data/repositories/notification_repository.dart';
 import 'features/notifications/data/services/push_notification_service.dart';
 import 'features/quizzes/data/repositories/quiz_repository.dart';
@@ -209,8 +210,9 @@ class _BitClassAppState extends State<BitClassApp> {
         RepositoryProvider<SettingsRepository>.value(
           value: _settingsRepository,
         ),
-        RepositoryProvider<SupportRepository>.value(
-          value: _supportRepository,
+        RepositoryProvider<SupportRepository>.value(value: _supportRepository),
+        RepositoryProvider<MessagingRepository>(
+          create: (_) => MessagingRepository(),
         ),
       ],
       child: MultiBlocProvider(
