@@ -33,18 +33,21 @@ class ConversationScreen extends StatefulWidget {
 class _ConversationScreenState extends State<ConversationScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  late final MessagingRepository _messagingRepository;
   List<MessageModel> _messages = const [];
   final Set<String> _modifiableMessageIds = {};
   RealtimeChannel? _realtimeChannel;
   Timer? _editWindowTimer;
   bool _isLoading = true;
   bool _isSending = false;
+  int _loadGeneration = 0;
 
-  MessagingRepository get _repository => context.read<MessagingRepository>();
+  MessagingRepository get _repository => _messagingRepository;
 
   @override
   void initState() {
     super.initState();
+    _messagingRepository = context.read<MessagingRepository>();
     _loadMessages();
     _realtimeChannel = _repository.subscribeToConversation(
       courseId: widget.courseId,
@@ -65,6 +68,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Future<void> _loadMessages({bool silent = false}) async {
+    final loadGeneration = ++_loadGeneration;
     if (!silent && mounted) setState(() => _isLoading = true);
     try {
       final messages = await _repository.getConversation(
@@ -75,7 +79,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         courseId: widget.courseId,
         participantId: widget.participantId,
       );
-      if (!mounted) return;
+      if (!mounted || loadGeneration != _loadGeneration) return;
       setState(() {
         _messages = messages;
         _isLoading = false;
@@ -285,7 +289,7 @@ class _MessageBubble extends StatelessWidget {
     if (body == null || body.trim().isEmpty || !context.mounted) return;
     try {
       await repository.editMessage(messageId: message.id, body: body);
-      onChanged();
+      // Realtime subscription will bring the updated message.
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -318,7 +322,7 @@ class _MessageBubble extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
     try {
       await repository.unsendMessage(message.id);
-      onChanged();
+      // Realtime subscription will bring the updated message.
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

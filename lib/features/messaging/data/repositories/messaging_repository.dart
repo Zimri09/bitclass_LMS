@@ -32,6 +32,13 @@ class MessagingRepository {
     throw StateError('The messaging server returned no updated message.');
   }
 
+  List<MessageModel> _sortChronologically(Iterable<MessageModel> messages) {
+    return messages.toList()..sort((a, b) {
+      final timestampOrder = a.createdAt.toUtc().compareTo(b.createdAt.toUtc());
+      return timestampOrder != 0 ? timestampOrder : a.id.compareTo(b.id);
+    });
+  }
+
   Future<List<MessageModel>> getConversation({
     required String courseId,
     required String participantId,
@@ -39,17 +46,18 @@ class MessagingRepository {
     final userId = currentUserId;
     if (userId == null) return const [];
     if (EnvironmentConfig.isDemoMode) {
-      return _demoMessages
-          .where(
-            (message) =>
-                message.courseId == courseId &&
-                ((message.senderId == userId &&
-                        message.recipientId == participantId) ||
-                    (message.senderId == participantId &&
-                        message.recipientId == userId)),
-          )
-          .toList()
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return _sortChronologically(
+        _demoMessages
+            .where(
+              (message) =>
+                  message.courseId == courseId &&
+                  ((message.senderId == userId &&
+                          message.recipientId == participantId) ||
+                      (message.senderId == participantId &&
+                          message.recipientId == userId)),
+            )
+            .toList(),
+      );
     }
 
     final rows = await _supabase!
@@ -60,11 +68,12 @@ class MessagingRepository {
           'and(sender_id.eq.$userId,recipient_id.eq.$participantId),'
           'and(sender_id.eq.$participantId,recipient_id.eq.$userId)',
         )
-        .order('created_at');
-    return (rows as List<dynamic>)
-        .cast<Map<String, dynamic>>()
-        .map(MessageModel.fromMap)
-        .toList();
+        .order('created_at', ascending: true);
+    return _sortChronologically(
+      (rows as List<dynamic>).cast<Map<String, dynamic>>().map(
+        MessageModel.fromMap,
+      ),
+    );
   }
 
   Future<MessageModel> sendMessage({

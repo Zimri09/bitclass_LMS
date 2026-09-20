@@ -12,29 +12,25 @@ class _CoursePeopleTab extends StatefulWidget {
 
 class _CoursePeopleTabState extends State<_CoursePeopleTab> {
   late Future<List<CourseRosterMember>> _students;
+  late final MessagingRepository _messagingRepository;
   RealtimeChannel? _messageChannel;
 
   @override
   void initState() {
     super.initState();
+    _messagingRepository = context.read<MessagingRepository>();
     _students = _loadStudents();
-    _messageChannel = context
-        .read<MessagingRepository>()
-        .subscribeToConversation(
-          courseId: widget.course.id,
-          onChanged: () {
-            if (mounted) setState(() {});
-          },
-        );
+    _messageChannel = _messagingRepository.subscribeToConversation(
+      courseId: widget.course.id,
+      onChanged: () {
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   @override
   void dispose() {
-    unawaited(
-      context.read<MessagingRepository>().removeRealtimeChannel(
-        _messageChannel,
-      ),
-    );
+    unawaited(_messagingRepository.removeRealtimeChannel(_messageChannel));
     super.dispose();
   }
 
