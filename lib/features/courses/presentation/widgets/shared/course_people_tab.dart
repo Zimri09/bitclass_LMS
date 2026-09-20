@@ -39,7 +39,9 @@ class _CoursePeopleTabState extends State<_CoursePeopleTab> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _students = _loadStudents());
+    setState(() {
+      _students = _loadStudents();
+    });
     await _students;
   }
 
