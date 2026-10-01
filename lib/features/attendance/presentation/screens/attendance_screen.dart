@@ -387,6 +387,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ..._sessions.map(_buildInstructorSession)
           else
             ResponsiveCardWrap(
+              equalRowHeights: true,
               children: _sessions.map(_buildStudentSession).toList(),
             ),
         ],
@@ -493,40 +494,46 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         padding: EdgeInsets.all(kIsWeb ? 14 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    DateFormat.yMMMMd().format(
-                      session.attendanceDate.toLocal(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        DateFormat.yMMMMd().format(
+                          session.attendanceDate.toLocal(),
+                        ),
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                    style: AppTextStyles.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w700,
+                    _StudentRecordChip(record: record, window: window),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _SessionTimeline(session: session, serverNow: _secureNow),
+                if (record?.checkInAt != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Checked in ${DateFormat.yMMMd().add_jm().format(record!.checkInAt!.toLocal())}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
                     ),
                   ),
-                ),
-                _StudentRecordChip(record: record, window: window),
+                ],
+                if (record?.note?.isNotEmpty == true) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Instructor note: ${record!.note}',
+                    style: AppTextStyles.bodySmall,
+                  ),
+                ],
               ],
             ),
-            const SizedBox(height: 8),
-            _SessionTimeline(session: session, serverNow: _secureNow),
-            if (record?.checkInAt != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Checked in ${DateFormat.yMMMd().add_jm().format(record!.checkInAt!.toLocal())}',
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-            if (record?.note?.isNotEmpty == true) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Instructor note: ${record!.note}',
-                style: AppTextStyles.bodySmall,
-              ),
-            ],
             const SizedBox(height: 10),
             SizedBox(
               width: kIsWeb ? null : double.infinity,

@@ -9,6 +9,7 @@ class ResponsiveCardWrap extends StatelessWidget {
   final double gap;
   final double maxCardWidth;
   final double minTwoColumnWidth;
+  final bool equalRowHeights;
 
   const ResponsiveCardWrap({
     super.key,
@@ -16,6 +17,7 @@ class ResponsiveCardWrap extends StatelessWidget {
     this.gap = 12,
     this.maxCardWidth = 600,
     this.minTwoColumnWidth = 820,
+    this.equalRowHeights = false,
   });
 
   @override
@@ -30,6 +32,32 @@ class ResponsiveCardWrap extends StatelessWidget {
                 twoColumns ? (availableWidth - gap) / 2 : availableWidth,
               )
             : availableWidth;
+
+        if (twoColumns && equalRowHeights) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var index = 0; index < children.length; index += 2) ...[
+                if (index > 0) SizedBox(height: gap),
+                SizedBox(
+                  width: math.min(availableWidth, maxCardWidth * 2 + gap),
+                  child: index + 1 < children.length
+                      ? IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: children[index]),
+                              SizedBox(width: gap),
+                              Expanded(child: children[index + 1]),
+                            ],
+                          ),
+                        )
+                      : SizedBox(width: cardWidth, child: children[index]),
+                ),
+              ],
+            ],
+          );
+        }
 
         return Wrap(
           spacing: gap,
