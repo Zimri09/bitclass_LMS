@@ -144,28 +144,38 @@ class _ChannelListViewState extends State<ChannelListView> {
               .where((c) => !c.isAnnouncement)
               .toList();
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              context.read<DiscussionBloc>().add(
-                LoadChannels(courseId: widget.courseId),
-              );
-            },
-            color: AppColors.primary,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (announcements.isNotEmpty) ...[
-                  _buildSectionHeader('Announcements'),
-                  _buildWebChannelGrid(context, announcements),
-                  const SizedBox(height: 24),
-                ],
-                if (regularChannels.isNotEmpty) ...[
-                  _buildSectionHeader('Channels'),
-                  _buildWebChannelGrid(context, regularChannels),
-                ],
-              ],
+          final content = Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  context.read<DiscussionBloc>().add(
+                    LoadChannels(courseId: widget.courseId),
+                  );
+                },
+                color: AppColors.primary,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  children: [
+                    if (announcements.isNotEmpty) ...[
+                      _buildSectionHeader('Announcements'),
+                      _buildWebChannelGrid(context, announcements),
+                      const SizedBox(height: 24),
+                    ],
+                    if (regularChannels.isNotEmpty) ...[
+                      _buildSectionHeader('Channels'),
+                      _buildWebChannelGrid(context, regularChannels),
+                    ],
+                  ],
+                ),
+              ),
             ),
           );
+
+          return content;
         }
 
         return const SizedBox.shrink();
@@ -302,23 +312,10 @@ class _ChannelListViewState extends State<ChannelListView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         const gap = 14.0;
-        const maxCardWidth = 370.0;
-        const minCardWidth = 280.0;
-
         final availableWidth = constraints.maxWidth;
-        final count = (availableWidth / (maxCardWidth + gap)).floor();
-        final columns = count < 1 ? 1 : count;
-
-        final double tileWidth;
-        if (columns == 1) {
-          tileWidth = availableWidth > maxCardWidth
-              ? maxCardWidth
-              : availableWidth;
-        } else {
-          final computed =
-              (availableWidth - gap * (columns - 1)) / columns;
-          tileWidth = computed.clamp(minCardWidth, maxCardWidth);
-        }
+        final int columns = availableWidth >= 540 ? 2 : 1;
+        final double tileWidth =
+            (availableWidth - gap * (columns - 1)) / columns;
 
         return Align(
           alignment: Alignment.topLeft,

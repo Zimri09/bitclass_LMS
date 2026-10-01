@@ -183,20 +183,28 @@ class _ThreadListViewState extends State<ThreadListView> {
                 );
               },
               color: AppColors.primary,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (pinnedThreads.isNotEmpty) ...[
-                    _buildSectionHeader('Pinned'),
-                    ...pinnedThreads.map((t) => _buildThreadCard(context, t)),
-                    const SizedBox(height: 16),
-                  ],
-                  if (regularThreads.isNotEmpty) ...[
-                    if (pinnedThreads.isNotEmpty)
-                      _buildSectionHeader('Discussions'),
-                    ...regularThreads.map((t) => _buildThreadCard(context, t)),
-                  ],
-                ],
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 860),
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    children: [
+                      if (pinnedThreads.isNotEmpty) ...[
+                        _buildSectionHeader('Pinned'),
+                        ...pinnedThreads.map((t) => _buildThreadCard(context, t)),
+                        const SizedBox(height: 16),
+                      ],
+                      if (regularThreads.isNotEmpty) ...[
+                        if (pinnedThreads.isNotEmpty)
+                          _buildSectionHeader('Discussions'),
+                        ...regularThreads.map((t) => _buildThreadCard(context, t)),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             );
           }
@@ -264,6 +272,11 @@ class _ThreadListViewState extends State<ThreadListView> {
     return Card(
       color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppColors.border),
+      ),
       child: InkWell(
         onTap: () async {
           final hidden = await context.push<bool>(
@@ -275,9 +288,9 @@ class _ThreadListViewState extends State<ThreadListView> {
             LoadThreads(channelId: widget.channelId),
           );
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -293,8 +306,9 @@ class _ThreadListViewState extends State<ThreadListView> {
                       thread.title,
                       style: TextStyle(
                         color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16.5,
+                        letterSpacing: -0.2,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

@@ -8,32 +8,37 @@ class _CourseDiscussionTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text('Course Discussion', style: AppTextStyles.h3),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 860),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Course Discussion', style: AppTextStyles.h3),
+                  ),
+                  ?courseMenu,
+                ],
               ),
-              ?courseMenu,
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Announcements, questions, and class conversations.',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Announcements, questions, and class conversations.',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(child: ChannelListScreen(courseId: courseId, embedded: true)),
+          ],
         ),
-        const SizedBox(height: 8),
-        Expanded(child: ChannelListScreen(courseId: courseId, embedded: true)),
-      ],
+      ),
     );
   }
 }
