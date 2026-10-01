@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/theme/app_colors.dart';
 
 /// A card widget with a subtle glow effect
@@ -109,7 +110,7 @@ class _GlowCardContentState extends State<_GlowCardContent> {
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(widget.borderRadius),
             child: Padding(
-              padding: widget.padding ?? const EdgeInsets.all(16),
+              padding: widget.padding ?? EdgeInsets.all(kIsWeb ? 14 : 16),
               child: widget.child,
             ),
           ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart' as fp;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../../shared/widgets/responsive_card_wrap.dart';
 import '../../../courses/data/models/course_model.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../courses/data/repositories/course_repository.dart';
@@ -384,7 +386,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           else if (widget.isCourseOwner)
             ..._sessions.map(_buildInstructorSession)
           else
-            ..._sessions.map(_buildStudentSession),
+            ResponsiveCardWrap(
+              children: _sessions.map(_buildStudentSession).toList(),
+            ),
         ],
       ),
     );
@@ -402,57 +406,70 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         status: records.where((record) => record.status == status).length,
     };
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        initiallyExpanded: session == _sessions.first,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-        title: Text(
-          DateFormat.yMMMMd().format(session.attendanceDate.toLocal()),
-          style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: _SessionTimeline(session: session, serverNow: _secureNow),
-        ),
-        trailing: _WindowChip(window: session.windowAt(_secureNow)),
-        children: [
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: AttendanceStatus.values
-                  .map(
-                    (status) =>
-                        _CountChip(status: status, count: counts[status] ?? 0),
-                  )
-                  .toList(),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          clipBehavior: Clip.antiAlias,
+          child: ExpansionTile(
+            initiallyExpanded: session == _sessions.first,
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 6,
             ),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+            title: Text(
+              DateFormat.yMMMMd().format(session.attendanceDate.toLocal()),
+              style: AppTextStyles.bodyLarge.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: _SessionTimeline(session: session, serverNow: _secureNow),
+            ),
+            trailing: _WindowChip(window: session.windowAt(_secureNow)),
+            children: [
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: AttendanceStatus.values
+                      .map(
+                        (status) => _CountChip(
+                          status: status,
+                          count: counts[status] ?? 0,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              if (_roster.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text('No students are enrolled in this course.'),
+                )
+              else
+                ..._roster.map((student) {
+                  final record = recordsByStudent[student.userId];
+                  return _InstructorAttendanceTile(
+                    student: student,
+                    record: record,
+                    session: session,
+                    serverNow: _secureNow,
+                    onEdit: record == null ? null : () => _editRecord(record),
+                    onHistory: record == null
+                        ? null
+                        : () => _showHistory(record, student.displayName),
+                  );
+                }),
+            ],
           ),
-          if (_roster.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(18),
-              child: Text('No students are enrolled in this course.'),
-            )
-          else
-            ..._roster.map((student) {
-              final record = recordsByStudent[student.userId];
-              return _InstructorAttendanceTile(
-                student: student,
-                record: record,
-                session: session,
-                serverNow: _secureNow,
-                onEdit: record == null ? null : () => _editRecord(record),
-                onHistory: record == null
-                    ? null
-                    : () => _showHistory(record, student.displayName),
-              );
-            }),
-        ],
+        ),
       ),
     );
   }
@@ -471,9 +488,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final canCheckIn = !checkedIn && session.isCheckInOpenAt(_secureNow);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(kIsWeb ? 14 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -492,10 +509,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 _StudentRecordChip(record: record, window: window),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _SessionTimeline(session: session, serverNow: _secureNow),
             if (record?.checkInAt != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
                 'Checked in ${DateFormat.yMMMd().add_jm().format(record!.checkInAt!.toLocal())}',
                 style: AppTextStyles.bodySmall.copyWith(
@@ -510,9 +527,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 style: AppTextStyles.bodySmall,
               ),
             ],
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             SizedBox(
-              width: double.infinity,
+              width: kIsWeb ? null : double.infinity,
               child: FilledButton.icon(
                 onPressed: canCheckIn && !_checkingIn.contains(session.id)
                     ? () => _checkIn(session)

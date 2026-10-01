@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_time_formatters.dart';
+import '../../../../shared/widgets/responsive_card_wrap.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/quiz_repository.dart';
 
@@ -64,13 +66,16 @@ class QuizListScreen extends StatelessWidget {
             );
           }
 
-          return ListView.builder(
+          return ListView(
             padding: const EdgeInsets.all(16),
-            itemCount: quizzes.length,
-            itemBuilder: (context, index) {
-              final quiz = quizzes[index];
-              return _QuizCard(quiz: quiz, courseId: courseId);
-            },
+            children: [
+              ResponsiveCardWrap(
+                children: [
+                  for (final quiz in quizzes)
+                    _QuizCard(quiz: quiz, courseId: courseId),
+                ],
+              ),
+            ],
           );
         },
       ),
@@ -88,19 +93,19 @@ class _QuizCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       color: AppColors.surface,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.zero,
       child: InkWell(
         onTap: () {
           context.push('/courses/$courseId/quizzes/${quiz.id}');
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(kIsWeb ? 12 : 16),
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: kIsWeb ? 40 : 48,
+                height: kIsWeb ? 40 : 48,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
@@ -108,10 +113,10 @@ class _QuizCard extends StatelessWidget {
                 child: Icon(
                   Icons.quiz_outlined,
                   color: AppColors.primary,
-                  size: 24,
+                  size: kIsWeb ? 21 : 24,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: kIsWeb ? 12 : 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

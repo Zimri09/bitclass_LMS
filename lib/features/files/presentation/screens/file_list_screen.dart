@@ -8,6 +8,7 @@ import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/url_utils.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../../shared/widgets/responsive_card_wrap.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/file_repository.dart';
@@ -117,12 +118,16 @@ class _FileListScreenState extends State<FileListScreen> {
                           );
                         },
                         color: AppColors.primary,
-                        child: ListView.builder(
+                        child: ListView(
                           padding: const EdgeInsets.all(16),
-                          itemCount: state.files.length,
-                          itemBuilder: (context, index) {
-                            return _buildFileCard(context, state.files[index]);
-                          },
+                          children: [
+                            ResponsiveCardWrap(
+                              children: [
+                                for (final file in state.files)
+                                  _buildFileCard(context, file),
+                              ],
+                            ),
+                          ],
                         ),
                       );
                     }
@@ -312,18 +317,18 @@ class _FileListScreenState extends State<FileListScreen> {
 
     return Card(
       color: AppColors.surface,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.zero,
       child: InkWell(
         onTap: () => _showFileOptions(context, file),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(kIsWeb ? 12 : 16),
           child: Row(
             children: [
               // File type icon
               Container(
-                width: 48,
-                height: 48,
+                width: kIsWeb ? 40 : 48,
+                height: kIsWeb ? 40 : 48,
                 decoration: BoxDecoration(
                   color: _getTypeColor(file.type).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -331,7 +336,7 @@ class _FileListScreenState extends State<FileListScreen> {
                 child: Icon(
                   file.isExternalLink ? Icons.link : _getTypeIcon(file.type),
                   color: _getTypeColor(file.type),
-                  size: 24,
+                  size: kIsWeb ? 21 : 24,
                 ),
               ),
               const SizedBox(width: 12),
