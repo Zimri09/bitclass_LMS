@@ -81,6 +81,7 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          timeout: 120000
           local-dir: ./build/web/
           server-dir: ./  # Change this if your server needs files in a subfolder like public_html/
           timeout: 600000
