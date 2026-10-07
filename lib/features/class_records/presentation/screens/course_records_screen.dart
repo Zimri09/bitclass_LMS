@@ -33,58 +33,64 @@ class _CourseRecordsScreenState extends State<CourseRecordsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Course Records', style: AppTextStyles.h3),
-              const SizedBox(height: 4),
-              Text(
-                'Review computed grades and manage attendance for this class.',
-                style: AppTextStyles.bodySmall,
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(
-                      value: 0,
-                      icon: Icon(Icons.table_chart_outlined),
-                      label: Text('Class record'),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1080),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Course Records', style: AppTextStyles.h3),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Review computed grades and manage attendance for this class.',
+                    style: AppTextStyles.bodySmall,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 0,
+                          icon: Icon(Icons.table_chart_outlined),
+                          label: Text('Class record'),
+                        ),
+                        ButtonSegment(
+                          value: 1,
+                          icon: Icon(Icons.fact_check_outlined),
+                          label: Text('Attendance'),
+                        ),
+                      ],
+                      selected: {_selectedSection},
+                      onSelectionChanged: (selection) {
+                        setState(() => _selectedSection = selection.single);
+                      },
                     ),
-                    ButtonSegment(
-                      value: 1,
-                      icon: Icon(Icons.fact_check_outlined),
-                      label: Text('Attendance'),
-                    ),
-                  ],
-                  selected: {_selectedSection},
-                  onSelectionChanged: (selection) {
-                    setState(() => _selectedSection = selection.single);
-                  },
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: IndexedStack(
-            index: _selectedSection,
-            children: [
-              _ClassRecordView(course: widget.course),
-              AttendanceScreen(
-                course: widget.course,
-                isCourseOwner: true,
-                currentUserId: widget.currentUserId,
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _selectedSection,
+                children: [
+                  _ClassRecordView(course: widget.course),
+                  AttendanceScreen(
+                    course: widget.course,
+                    isCourseOwner: true,
+                    currentUserId: widget.currentUserId,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -211,6 +217,37 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
               )
               .toList();
 
+    final exportButton = OutlinedButton.icon(
+      onPressed: _isExporting ? null : _exportClassRecord,
+      icon: _isExporting
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.description_outlined),
+      label: Text(
+        _isExporting ? 'Preparing BISU Word form...' : 'Export BISU Word form',
+      ),
+    );
+    final searchField = TextField(
+      controller: _searchController,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        hintText: 'Search students',
+        prefixIcon: const Icon(Icons.search),
+        suffixIcon: query.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Clear search',
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {});
+                },
+                icon: const Icon(Icons.close),
+              ),
+      ),
+    );
+
     return RefreshIndicator(
       onRefresh: _loadRecord,
       child: ListView(
@@ -218,41 +255,26 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
         children: [
           _RecordSummary(record: record),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _isExporting ? null : _exportClassRecord,
-            icon: _isExporting
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) => constraints.maxWidth >= 760
+                ? Row(
+                    children: [
+                      SizedBox(width: 420, child: searchField),
+                      const Spacer(),
+                      exportButton,
+                    ],
                   )
-                : const Icon(Icons.description_outlined),
-            label: Text(
-              _isExporting
-                  ? 'Preparing BISU Word form...'
-                  : 'Export BISU Word form',
-            ),
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      exportButton,
+                      const SizedBox(height: 10),
+                      searchField,
+                    ],
+                  ),
           ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: 'Search students',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: query.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           if (record.students.isEmpty)
             const _EmptyRecord(
               icon: Icons.group_add_outlined,
@@ -266,14 +288,43 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
               message: 'Try a different student name.',
             )
           else
-            ...students.map(
-              (student) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _StudentRecordCard(student: student),
-              ),
-            ),
+            _StudentRecordGrid(students: students),
         ],
       ),
+    );
+  }
+}
+
+class _StudentRecordGrid extends StatelessWidget {
+  final List<StudentClassRecord> students;
+
+  const _StudentRecordGrid({required this.students});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width >= 1020
+            ? 3
+            : width >= 720
+            ? 2
+            : 1;
+        final cardWidth = columns == 1 && width > 560
+            ? 560.0
+            : (width - (columns - 1) * 12) / columns;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final student in students)
+              SizedBox(
+                width: cardWidth,
+                child: _StudentRecordCard(student: student),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -285,36 +336,31 @@ class _RecordSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: AppColors.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+    final overview = _SummaryPanel(
+      child: Row(
+        children: [
+          Expanded(
+            child: _SummaryValue(
+              label: 'Students',
+              value: '${record.students.length}',
+            ),
+          ),
+          Expanded(
+            child: _SummaryValue(
+              label: 'Class average',
+              value: _formatGrade(record.classAverage),
+              color: _gradeColor(record.classAverage),
+            ),
+          ),
+        ],
       ),
+    );
+    final weights = _SummaryPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _SummaryValue(
-                  label: 'Students',
-                  value: '${record.students.length}',
-                ),
-              ),
-              Expanded(
-                child: _SummaryValue(
-                  label: 'Class average',
-                  value: _formatGrade(record.classAverage),
-                  color: _gradeColor(record.classAverage),
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 28),
           Text('Current grading weights', style: AppTextStyles.label),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -330,7 +376,7 @@ class _RecordSummary extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             '${record.quizCount} quizzes  |  '
             '${record.assignmentCount} activities  |  '
@@ -339,6 +385,39 @@ class _RecordSummary extends StatelessWidget {
           ),
         ],
       ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth >= 800
+          ? IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: overview),
+                  const SizedBox(width: 12),
+                  Expanded(child: weights),
+                ],
+              ),
+            )
+          : Column(children: [overview, const SizedBox(height: 12), weights]),
+    );
+  }
+}
+
+class _SummaryPanel extends StatelessWidget {
+  final Widget child;
+
+  const _SummaryPanel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardGradient,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: child,
     );
   }
 }
@@ -372,7 +451,7 @@ class _WeightChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
@@ -394,7 +473,7 @@ class _StudentRecordCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final avatarUrl = student.avatarUrl;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.backgroundSecondary,
         borderRadius: BorderRadius.circular(16),
@@ -405,7 +484,7 @@ class _StudentRecordCard extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                radius: 22,
+                radius: 20,
                 backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                 backgroundImage: avatarUrl == null || avatarUrl.isEmpty
                     ? null
@@ -419,7 +498,7 @@ class _StudentRecordCard extends StatelessWidget {
                       )
                     : null,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   student.displayName,
@@ -430,7 +509,7 @@ class _StudentRecordCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -445,7 +524,7 @@ class _StudentRecordCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -482,7 +561,7 @@ class _GradeMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),

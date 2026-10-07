@@ -349,42 +349,63 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ),
           ),
           if (widget.isCourseOwner) ...[
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _isCreatingSession ? null : _createSession,
-              icon: _isCreatingSession
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add_alarm),
-              label: Text(
-                _isCreatingSession
-                    ? 'Creating attendance session...'
-                    : 'Create attendance session',
-              ),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _isExporting ? null : _exportAttendanceForm,
-              icon: _isExporting
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.description_outlined),
-              label: Text(
-                _isExporting
-                    ? 'Preparing BISU Word form...'
-                    : 'Export BISU Word form',
-              ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final createButton = FilledButton.icon(
+                  onPressed: _isCreatingSession ? null : _createSession,
+                  icon: _isCreatingSession
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_alarm),
+                  label: Text(
+                    _isCreatingSession
+                        ? 'Creating attendance session...'
+                        : 'Create attendance session',
+                  ),
+                );
+                final exportButton = OutlinedButton.icon(
+                  onPressed: _isExporting ? null : _exportAttendanceForm,
+                  icon: _isExporting
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.description_outlined),
+                  label: Text(
+                    _isExporting
+                        ? 'Preparing BISU Word form...'
+                        : 'Export BISU Word form',
+                  ),
+                );
+                return constraints.maxWidth >= 640
+                    ? Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [createButton, exportButton],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          createButton,
+                          const SizedBox(height: 10),
+                          exportButton,
+                        ],
+                      );
+              },
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           if (_sessions.isEmpty)
             _EmptyAttendance(isInstructor: widget.isCourseOwner)
           else if (widget.isCourseOwner)
-            ..._sessions.map(_buildInstructorSession)
+            ResponsiveCardWrap(
+              maxCardWidth: 500,
+              minTwoColumnWidth: 800,
+              children: _sessions.map(_buildInstructorSession).toList(),
+            )
           else
             ResponsiveCardWrap(
               equalRowHeights: true,
@@ -407,70 +428,57 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         status: records.where((record) => record.status == status).length,
     };
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 900),
-        child: Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          clipBehavior: Clip.antiAlias,
-          child: ExpansionTile(
-            initiallyExpanded: session == _sessions.first,
-            tilePadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 6,
-            ),
-            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-            title: Text(
-              DateFormat.yMMMMd().format(session.attendanceDate.toLocal()),
-              style: AppTextStyles.bodyLarge.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: _SessionTimeline(session: session, serverNow: _secureNow),
-            ),
-            trailing: _WindowChip(window: session.windowAt(_secureNow)),
-            children: [
-              const Divider(),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: AttendanceStatus.values
-                      .map(
-                        (status) => _CountChip(
-                          status: status,
-                          count: counts[status] ?? 0,
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-              if (_roster.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Text('No students are enrolled in this course.'),
-                )
-              else
-                ..._roster.map((student) {
-                  final record = recordsByStudent[student.userId];
-                  return _InstructorAttendanceTile(
-                    student: student,
-                    record: record,
-                    session: session,
-                    serverNow: _secureNow,
-                    onEdit: record == null ? null : () => _editRecord(record),
-                    onHistory: record == null
-                        ? null
-                        : () => _showHistory(record, student.displayName),
-                  );
-                }),
-            ],
-          ),
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        initiallyExpanded: session == _sessions.first,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        title: Text(
+          DateFormat.yMMMMd().format(session.attendanceDate.toLocal()),
+          style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
         ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: _SessionTimeline(session: session, serverNow: _secureNow),
+        ),
+        trailing: _WindowChip(window: session.windowAt(_secureNow)),
+        children: [
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: AttendanceStatus.values
+                  .map(
+                    (status) =>
+                        _CountChip(status: status, count: counts[status] ?? 0),
+                  )
+                  .toList(),
+            ),
+          ),
+          if (_roster.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(18),
+              child: Text('No students are enrolled in this course.'),
+            )
+          else
+            ..._roster.map((student) {
+              final record = recordsByStudent[student.userId];
+              return _InstructorAttendanceTile(
+                student: student,
+                record: record,
+                session: session,
+                serverNow: _secureNow,
+                onEdit: record == null ? null : () => _editRecord(record),
+                onHistory: record == null
+                    ? null
+                    : () => _showHistory(record, student.displayName),
+              );
+            }),
+        ],
       ),
     );
   }

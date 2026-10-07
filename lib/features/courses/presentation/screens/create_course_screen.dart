@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -29,7 +28,6 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String _selectedCategory = AppConstants.courseCategories.first;
   XFile? _selectedThumbnail;
   Uint8List? _thumbnailBytes;
   String? _selectedPresetId; // preset banner ID (e.g. 'blue-teal')
@@ -57,7 +55,6 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
         setState(() {
           _titleController.text = course.title;
           _descriptionController.text = course.description;
-          _selectedCategory = course.category;
           _existingThumbnailUrl = course.thumbnailUrl;
           // Pre-select preset if editing a course with a preset banner
           if (CourseBannerPresets.isPreset(course.thumbnailUrl)) {
@@ -164,7 +161,6 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
         final updates = <String, dynamic>{
           'title': _titleController.text.trim(),
           'description': _descriptionController.text.trim(),
-          'category': _selectedCategory,
         };
         if (thumbnailUrl != null) {
           updates['thumbnailUrl'] = thumbnailUrl;
@@ -180,7 +176,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
             CreateCourse(
               title: _titleController.text.trim(),
               description: _descriptionController.text.trim(),
-              category: _selectedCategory,
+              category: 'Other',
               instructorId: authState.user.id,
               instructorName: authState.user.displayNameOrEmail,
               thumbnailUrl: _thumbnailBytes == null
@@ -604,37 +600,6 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                                     return 'Program must be at least 2 characters';
                                   }
                                   return null;
-                                },
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Category
-                              DropdownButtonFormField<String>(
-                                initialValue: _selectedCategory,
-                                decoration: const InputDecoration(
-                                  labelText: 'Course Category',
-                                  prefixIcon: Icon(Icons.category_outlined),
-                                ),
-                                items:
-                                    [
-                                          ...AppConstants.courseCategories,
-                                          if (!AppConstants.courseCategories
-                                              .contains(_selectedCategory))
-                                            _selectedCategory,
-                                        ]
-                                        .map(
-                                          (category) => DropdownMenuItem(
-                                            value: category,
-                                            child: Text(category),
-                                          ),
-                                        )
-                                        .toList(),
-                                onChanged: (category) {
-                                  if (category != null) {
-                                    setState(
-                                      () => _selectedCategory = category,
-                                    );
-                                  }
                                 },
                               ),
                             ],
