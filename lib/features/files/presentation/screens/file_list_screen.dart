@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -298,7 +299,7 @@ class _FileListScreenState extends State<FileListScreen> {
 
   Future<void> _openUpload() async {
     if (!_canUpload) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Only instructors can upload files.')),
       );
       return;
@@ -642,7 +643,7 @@ class _FileListScreenState extends State<FileListScreen> {
 
       if (!mounted) return;
       setState(() => _offlineFiles[file.id] = offline);
-      messenger.showSnackBar(
+      messenger.showAppSnackBar(
         SnackBar(
           content: Text('${file.name} is available offline.'),
           backgroundColor: AppColors.success,
@@ -650,7 +651,7 @@ class _FileListScreenState extends State<FileListScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      messenger.showSnackBar(
+      messenger.showAppSnackBar(
         SnackBar(
           content: Text(
             userFriendlyErrorMessage(
@@ -676,7 +677,7 @@ class _FileListScreenState extends State<FileListScreen> {
       await context.read<FileRepository>().openOfflineFile(offline);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -693,7 +694,7 @@ class _FileListScreenState extends State<FileListScreen> {
       if (!opened) throw StateError('No application accepted this URL.');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: const Text(
             'This link cannot be opened. Check the URL and try again.',
@@ -735,9 +736,9 @@ class _FileListScreenState extends State<FileListScreen> {
     );
     if (!mounted) return;
     setState(() => _offlineFiles.remove(offline.file.id));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Offline download removed.')));
+    ScaffoldMessenger.of(context).showAppSnackBar(
+      const SnackBar(content: Text('Offline download removed.')),
+    );
   }
 
   Future<void> _confirmDeleteMaterial(

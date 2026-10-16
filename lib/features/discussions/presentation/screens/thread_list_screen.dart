@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -194,13 +195,17 @@ class _ThreadListViewState extends State<ThreadListView> {
                     children: [
                       if (pinnedThreads.isNotEmpty) ...[
                         _buildSectionHeader('Pinned'),
-                        ...pinnedThreads.map((t) => _buildThreadCard(context, t)),
+                        ...pinnedThreads.map(
+                          (t) => _buildThreadCard(context, t),
+                        ),
                         const SizedBox(height: 16),
                       ],
                       if (regularThreads.isNotEmpty) ...[
                         if (pinnedThreads.isNotEmpty)
                           _buildSectionHeader('Discussions'),
-                        ...regularThreads.map((t) => _buildThreadCard(context, t)),
+                        ...regularThreads.map(
+                          (t) => _buildThreadCard(context, t),
+                        ),
                       ],
                     ],
                   ),
@@ -239,14 +244,14 @@ class _ThreadListViewState extends State<ThreadListView> {
       context.read<DiscussionBloc>().add(
         LoadThreads(channelId: widget.channelId),
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Message hidden for you.')));
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        const SnackBar(content: Text('Message hidden for you.')),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not hide message: $error')));
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        SnackBar(content: Text('Could not hide message: $error')),
+      );
     }
   }
 

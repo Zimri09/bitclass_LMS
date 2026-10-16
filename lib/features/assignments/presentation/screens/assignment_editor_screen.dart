@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
@@ -386,7 +387,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
         _removedStoredMaterials.clear();
         _hasChanges = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(
             forceDraft || !saved.isPublished
@@ -623,7 +624,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showAppSnackBar(
       SnackBar(
         content: Text(userFriendlyErrorMessage(message)),
         backgroundColor: AppColors.error,

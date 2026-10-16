@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -407,7 +408,7 @@ class _CodeEditorState extends State<CodeEditor> {
             tooltip: 'Copy all',
             onPressed: () {
               Clipboard.setData(ClipboardData(text: _controller.text));
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context).showAppSnackBar(
                 const SnackBar(
                   content: Text('Code copied to clipboard'),
                   duration: Duration(seconds: 2),

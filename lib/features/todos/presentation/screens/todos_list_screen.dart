@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -340,7 +341,7 @@ class _TodoRow extends StatelessWidget {
       }
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('This task could not be opened.')),
       );
     }

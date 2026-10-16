@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -173,7 +174,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
           return;
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(
             content: Text(
               widget.lessonId == null
@@ -193,7 +194,7 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showAppSnackBar(
       SnackBar(
         content: Text(userFriendlyErrorMessage(message)),
         backgroundColor: AppColors.error,

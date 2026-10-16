@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -125,7 +126,7 @@ class _NotificationListViewState extends State<NotificationListView> {
             context.read<NotificationBloc>().add(
               LoadNotifications(userId: userId),
             );
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text('All notifications marked as read'),
                 backgroundColor: AppColors.success,
@@ -375,7 +376,7 @@ class _NotificationListViewState extends State<NotificationListView> {
     }
     if (destination == null) {
       setState(() => _isOpeningNotification = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text(
             'This notification destination is no longer available.',
@@ -389,7 +390,7 @@ class _NotificationListViewState extends State<NotificationListView> {
       await context.push(destination);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('This notification could not be opened.')),
       );
     } finally {

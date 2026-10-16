@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/admin_theme.dart';
@@ -100,7 +101,7 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
             )
             .toList(growable: false);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text('Request marked ${status.label.toLowerCase()}.'),
         ),
@@ -108,7 +109,7 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
       return true;
     } catch (_) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Request status could not be updated.')),
       );
       return false;

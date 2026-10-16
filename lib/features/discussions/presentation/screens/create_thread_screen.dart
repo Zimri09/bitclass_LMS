@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -46,7 +47,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
       child: BlocConsumer<DiscussionBloc, DiscussionState>(
         listener: (context, state) {
           if (state is ThreadCreated) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text('Thread created successfully!'),
                 backgroundColor: AppColors.success,
@@ -55,7 +56,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
             context.pop();
           } else if (state is DiscussionError) {
             setState(() => _isSubmitting = false);
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
@@ -273,7 +274,7 @@ class _CreateThreadScreenState extends State<CreateThreadScreen> {
     // Get the actual authenticated user
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: const Text('You must be logged in to post'),
           backgroundColor: AppColors.error,

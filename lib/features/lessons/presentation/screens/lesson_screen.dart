@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -122,7 +123,7 @@ class _LessonScreenState extends State<LessonScreen> {
       child: BlocConsumer<LessonBloc, LessonState>(
         listener: (context, state) {
           if (state is LessonCompletionUpdated) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(
                   state.progress.isCompleted
@@ -136,7 +137,7 @@ class _LessonScreenState extends State<LessonScreen> {
             _loadLesson();
           } else if (state is LessonDeleted) {
             _removePendingOfflineCopies();
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: const Text('Lesson and attached files deleted.'),
                 backgroundColor: AppColors.success,
@@ -144,7 +145,7 @@ class _LessonScreenState extends State<LessonScreen> {
             );
             _handleBack();
           } else if (state is LessonError) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
@@ -631,7 +632,7 @@ class _LessonScreenState extends State<LessonScreen> {
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text(
             'This resource cannot be opened. Check the link and try again.',
@@ -650,7 +651,7 @@ class _LessonScreenState extends State<LessonScreen> {
       if (!opened) throw StateError('No application can open this video.');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text(
             'This video link cannot be opened. Check the URL and try again.',
@@ -951,7 +952,7 @@ class _LessonScreenState extends State<LessonScreen> {
       if (!mounted) return;
 
       if (enrollment == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(
             content: const Text(
               'Enroll in this course before updating lesson completion.',
@@ -983,7 +984,7 @@ class _LessonScreenState extends State<LessonScreen> {
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: const Text(
             'Unable to update lesson completion. Please try again.',

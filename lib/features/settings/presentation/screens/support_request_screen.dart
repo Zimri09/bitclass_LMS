@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -113,9 +114,9 @@ class _SupportRequestScreenState extends State<SupportRequestScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showAppSnackBar(SnackBar(content: Text(message)));
   }
 
   String? _validateRequired(
@@ -151,9 +152,7 @@ class _SupportRequestScreenState extends State<SupportRequestScreen> {
               padding: const EdgeInsets.all(20),
               children: [
                 Text(
-                  _isBug
-                      ? 'Tell us what went wrong'
-                      : 'Share your experience',
+                  _isBug ? 'Tell us what went wrong' : 'Share your experience',
                   style: AppTextStyles.h2.copyWith(color: colors.onSurface),
                 ),
                 const SizedBox(height: 8),
@@ -171,9 +170,7 @@ class _SupportRequestScreenState extends State<SupportRequestScreen> {
                   decoration: InputDecoration(
                     labelText: _isBug ? 'Severity' : 'Category',
                     prefixIcon: Icon(
-                      _isBug
-                          ? Icons.priority_high
-                          : Icons.category_outlined,
+                      _isBug ? Icons.priority_high : Icons.category_outlined,
                     ),
                   ),
                   items: _categories

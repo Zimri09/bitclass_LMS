@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -56,7 +57,7 @@ class _QuizDeleteButtonState extends State<QuizDeleteButton> {
     try {
       await context.read<QuizRepository>().deleteQuiz(widget.quiz.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('Quiz deleted successfully.'),
           backgroundColor: AppColors.success,
@@ -65,7 +66,7 @@ class _QuizDeleteButtonState extends State<QuizDeleteButton> {
       widget.onDeleted();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(
             userFriendlyErrorMessage('Failed to delete quiz: $error'),

@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -96,7 +97,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
     final bytes = await _signatureController.toPngBytes();
     if (bytes == null || bytes.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Draw your signature before saving.')),
       );
       return;
@@ -109,12 +110,12 @@ class _ProfileBodyState extends State<_ProfileBody> {
       authBloc.add(AuthUserUpdated(updatedUser));
       setState(() => _savedSignatureBytes = bytes);
       _signatureController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Instructor signature saved.')),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(content: Text('Unable to save signature: $error')),
       );
     } finally {
@@ -135,12 +136,12 @@ class _ProfileBodyState extends State<_ProfileBody> {
       if (!mounted) return;
       authBloc.add(AuthUserUpdated(updatedUser));
       setState(() => _savedSignatureBytes = null);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Instructor signature cleared.')),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(content: Text('Unable to clear signature: $error')),
       );
     } finally {
@@ -173,7 +174,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
     return BlocConsumer<ProfileCubit, ProfileState>(
       listener: (context, state) {
         if (state.successMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showAppSnackBar(
             SnackBar(
               content: Row(
                 children: [
@@ -192,7 +193,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
           context.read<ProfileCubit>().clearMessages();
         }
         if (state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showAppSnackBar(
             SnackBar(
               content: Row(
                 children: [

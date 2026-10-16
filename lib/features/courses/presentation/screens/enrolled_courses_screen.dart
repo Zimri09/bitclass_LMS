@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -205,7 +206,7 @@ class _EnrolledCourseCard extends StatelessWidget {
     try {
       await context.read<CourseRepository>().unenrollFromCourse(course.id);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text('Unenrolled from ${course.title}'),
           backgroundColor: AppColors.success,
@@ -214,7 +215,7 @@ class _EnrolledCourseCard extends StatelessWidget {
       await onUnenrolled();
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,

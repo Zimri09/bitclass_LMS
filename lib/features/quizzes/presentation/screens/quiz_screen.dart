@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -66,7 +67,7 @@ class _QuizScreenState extends State<QuizScreen> {
       child: BlocConsumer<QuizBloc, QuizState>(
         listener: (context, state) {
           if (state is QuizError) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
@@ -348,7 +349,9 @@ class _QuizScreenState extends State<QuizScreen> {
               decoration: BoxDecoration(
                 color: AppColors.error.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.35),
+                ),
               ),
               child: const Row(
                 children: [

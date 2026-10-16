@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -150,7 +151,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     } catch (error) {
       _repository.logError(error);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(content: Text('Unable to send message: $error')),
         );
       }
@@ -186,7 +187,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(content: Text('Unable to delete conversation: $error')),
         );
       }
@@ -246,12 +247,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.7),
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock_outline, size: 15, color: AppColors.textSecondary),
+                  Icon(
+                    Icons.lock_outline,
+                    size: 15,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'Direct conversation · Private and encrypted',
@@ -383,7 +390,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         boxShadow: canSend
                             ? [
                                 BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.3),
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.3,
+                                  ),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -516,7 +525,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
                           final message = _messages[index];
                           final isSent =
                               message.senderId == widget.currentUserId;
-                          final showDateDivider = index == 0 ||
+                          final showDateDivider =
+                              index == 0 ||
                               !_isSameDay(
                                 message.createdAt,
                                 _messages[index - 1].createdAt,
@@ -530,8 +540,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                               _MessageBubble(
                                 message: message,
                                 isSent: isSent,
-                                canModify: _modifiableMessageIds
-                                    .contains(message.id),
+                                canModify: _modifiableMessageIds.contains(
+                                  message.id,
+                                ),
                                 repository: _repository,
                                 onChanged: () => _loadMessages(silent: true),
                               ),
@@ -558,18 +569,20 @@ class _DateDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final localDate = date.toLocal();
     final now = DateTime.now();
-    final isToday = localDate.year == now.year &&
+    final isToday =
+        localDate.year == now.year &&
         localDate.month == now.month &&
         localDate.day == now.day;
-    final isYesterday = localDate.year == now.year &&
+    final isYesterday =
+        localDate.year == now.year &&
         localDate.month == now.month &&
         localDate.day == now.day - 1;
 
     final String label = isToday
         ? 'Today'
         : isYesterday
-            ? 'Yesterday'
-            : DateFormat('MMMM d, y').format(localDate);
+        ? 'Yesterday'
+        : DateFormat('MMMM d, y').format(localDate);
 
     return Center(
       child: Container(
@@ -708,7 +721,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
       widget.onChanged();
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(content: Text('Unable to edit message: $error')),
         );
       }
@@ -741,7 +754,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
       widget.onChanged();
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(content: Text('Unable to unsend message: $error')),
         );
       }
@@ -750,8 +763,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final maxBubbleWidth =
-        (MediaQuery.sizeOf(context).width * 0.72).clamp(240.0, 560.0);
+    final maxBubbleWidth = (MediaQuery.sizeOf(context).width * 0.72).clamp(
+      240.0,
+      560.0,
+    );
     final isSent = widget.isSent;
     final message = widget.message;
 
@@ -782,8 +797,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isSent
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
@@ -831,8 +847,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
         child: Row(
-          mainAxisAlignment:
-              isSent ? MainAxisAlignment.end : MainAxisAlignment.start,
+          mainAxisAlignment: isSent
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (isSent && widget.canModify && !message.isUnsent) ...[
@@ -845,8 +862,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
                   tooltip: 'Message options',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints.tightFor(width: 28, height: 28),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 28,
+                  ),
                   onPressed: () => _showMenu(context, null),
                 ),
               ),

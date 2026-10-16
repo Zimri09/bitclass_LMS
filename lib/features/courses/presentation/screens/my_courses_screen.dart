@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -262,7 +263,7 @@ class _InstructorCourseCard extends StatelessWidget {
         isNowPublished,
       );
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(
             isNowPublished ? 'Class published' : 'Class unpublished',
@@ -273,7 +274,7 @@ class _InstructorCourseCard extends StatelessWidget {
       onRefresh();
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -301,7 +302,7 @@ class _InstructorCourseCard extends StatelessWidget {
               try {
                 await context.read<CourseRepository>().deleteCourse(course.id);
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showAppSnackBar(
                   SnackBar(
                     content: const Text('Class deleted'),
                     backgroundColor: AppColors.success,
@@ -310,7 +311,7 @@ class _InstructorCourseCard extends StatelessWidget {
                 onRefresh();
               } catch (error) {
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showAppSnackBar(
                   SnackBar(
                     content: Text(userFriendlyErrorMessage(error)),
                     backgroundColor: AppColors.error,

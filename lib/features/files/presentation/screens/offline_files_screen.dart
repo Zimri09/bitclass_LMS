@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -346,7 +347,7 @@ class _OfflineFilesScreenState extends State<OfflineFilesScreen> {
       await context.read<FileRepository>().openOfflineFile(offline);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -388,9 +389,9 @@ class _OfflineFilesScreenState extends State<OfflineFilesScreen> {
     setState(
       () => _files.removeWhere((item) => item.file.id == offline.file.id),
     );
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Offline download removed.')));
+    ScaffoldMessenger.of(context).showAppSnackBar(
+      const SnackBar(content: Text('Offline download removed.')),
+    );
   }
 
   IconData _typeIcon(FileType type) {

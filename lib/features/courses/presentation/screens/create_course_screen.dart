@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -70,7 +71,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingCourse = false);
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(
             content: Text(userFriendlyErrorMessage(e)),
             backgroundColor: AppColors.error,
@@ -136,7 +137,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                 );
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context).showAppSnackBar(
                 SnackBar(
                   content: Text(userFriendlyErrorMessage(e)),
                   backgroundColor: AppColors.error,
@@ -211,7 +212,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(
             content: Text(userFriendlyErrorMessage(e)),
             backgroundColor: AppColors.error,
@@ -465,7 +466,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
           : BlocListener<CourseBloc, CourseState>(
               listener: (context, state) {
                 if (state is CourseCreated) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showAppSnackBar(
                     SnackBar(
                       content: Text('Course created successfully!'),
                       backgroundColor: AppColors.success,
@@ -477,7 +478,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                     AppRoutes.courseDetailPath(state.course.id),
                   );
                 } else if (state is CourseUpdated) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showAppSnackBar(
                     SnackBar(
                       content: Text('Course updated successfully!'),
                       backgroundColor: AppColors.success,
@@ -487,7 +488,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                     AppRoutes.courseDetailPath(state.course.id),
                   );
                 } else if (state is CourseError) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showAppSnackBar(
                     SnackBar(
                       content: Text(state.message),
                       backgroundColor: AppColors.error,

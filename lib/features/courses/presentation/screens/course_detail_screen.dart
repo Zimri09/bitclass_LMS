@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -80,7 +81,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
             // the state stays on CourseUpdated forever and the builder below
             // falls through to its default loading indicator.
             final isPublished = state.course.isPublished;
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(
                   isPublished
@@ -92,7 +93,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
             );
             _loadCourse();
           } else if (state is CourseError) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
@@ -678,7 +679,7 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                   tooltip: 'Copy code',
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: code));
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(context).showAppSnackBar(
                       SnackBar(
                         content: const Row(
                           children: [
@@ -764,13 +765,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                       AppRoutes.lessonPath(course.id, lessons.first.id),
                     );
                   } else if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(context).showAppSnackBar(
                       const SnackBar(content: Text('No lessons available yet')),
                     );
                   }
                 } catch (_) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(context).showAppSnackBar(
                       const SnackBar(content: Text('Failed to load lessons')),
                     );
                   }
@@ -798,13 +799,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
             if (lessons.isNotEmpty && context.mounted) {
               context.push(AppRoutes.lessonPath(course.id, lessons.first.id));
             } else if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context).showAppSnackBar(
                 const SnackBar(content: Text('No lessons available yet')),
               );
             }
           } catch (_) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context).showAppSnackBar(
                 const SnackBar(content: Text('Failed to load lessons')),
               );
             }
@@ -921,28 +922,24 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
       }
 
       context.go(AppRoutes.dashboard);
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('You have successfully unenrolled from the course.'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+      messenger.showAppSnackBar(
+        const SnackBar(
+          content: Text('You have successfully unenrolled from the course.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
 
       setState(() => _isUnenrolling = false);
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(userFriendlyErrorMessage(error)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+      messenger.showAppSnackBar(
+        SnackBar(
+          content: Text(userFriendlyErrorMessage(error)),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 

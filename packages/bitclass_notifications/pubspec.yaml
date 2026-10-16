@@ -1,0 +1,13 @@
+name: bitclass_notifications
+description: Shared snackbar behavior for BitClass applications.
+publish_to: none
+version: 1.0.0
+environment:
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
+dependencies:
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

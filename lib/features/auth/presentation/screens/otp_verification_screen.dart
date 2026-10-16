@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -47,7 +48,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (_otpController.text.length != authEmailOtpLength) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(authEmailOtpInputMessage)));
+      ).showAppSnackBar(SnackBar(content: Text(authEmailOtpInputMessage)));
       return;
     }
     if (!challenge.canAttempt) return;
@@ -73,7 +74,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           } else if (state is AuthPasswordResetRequired) {
             context.go(AppRoutes.resetPassword);
           } else if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,

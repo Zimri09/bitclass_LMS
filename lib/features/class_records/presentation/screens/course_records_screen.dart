@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart' as fp;
@@ -182,7 +183,7 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
         dialogTitle: 'Save BISU class record',
       );
       if (!mounted || savedUri == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('BISU class record Word form saved.'),
           backgroundColor: AppColors.success,
@@ -190,7 +191,7 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(
             'Unable to export class record: ${userFriendlyErrorMessage(error)}',

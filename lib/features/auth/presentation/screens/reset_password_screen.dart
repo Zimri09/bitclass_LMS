@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -52,7 +53,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthPasswordResetComplete) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               const SnackBar(
                 content: Text(
                   'Password updated successfully. Sign in with your new password.',
@@ -62,7 +63,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             );
             context.go(AppRoutes.login);
           } else if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,

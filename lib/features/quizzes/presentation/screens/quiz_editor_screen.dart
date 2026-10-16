@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' as fp;
@@ -214,7 +215,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showAppSnackBar(
           SnackBar(
             content: Text(
               asDraft
@@ -330,7 +331,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showAppSnackBar(
       SnackBar(
         content: Text(userFriendlyErrorMessage(message)),
         backgroundColor: AppColors.error,
@@ -494,7 +495,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         _hasGeneratedQuestions = true;
         _isPublished = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(
             '${generated.length} draft questions generated. Review them before publishing.',
@@ -518,7 +519,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     _generationRequestId++;
     setState(() => _isGenerating = false);
     if (showMessage) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Question generation cancelled.')),
       );
     }
@@ -776,8 +777,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   onChanged: (value) {
-                    _passingScore =
-                        int.tryParse(value) ?? _defaultPassingScore;
+                    _passingScore = int.tryParse(value) ?? _defaultPassingScore;
                   },
                 ),
               ),
@@ -799,8 +799,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                   textAlign: TextAlign.center,
                   decoration: const InputDecoration(hintText: '0 = Unlimited'),
                   onChanged: (value) {
-                    _maxAttempts =
-                        int.tryParse(value) ?? _defaultMaxAttempts;
+                    _maxAttempts = int.tryParse(value) ?? _defaultMaxAttempts;
                   },
                 ),
               ),
@@ -1499,7 +1498,7 @@ class _QuestionEditorState extends State<_QuestionEditor> {
 
   void _removeOption(int index) {
     if (widget.question.options.length <= 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Minimum 2 options required')),
       );
       return;

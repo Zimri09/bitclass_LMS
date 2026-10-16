@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -244,7 +245,8 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
           const maxCardWidth = 370.0;
           const minCardWidth = 280.0;
 
-          final availableWidth = constraints.maxWidth - 32; // 16px padding on each side
+          final availableWidth =
+              constraints.maxWidth - 32; // 16px padding on each side
           final count = (availableWidth / (maxCardWidth + gap)).floor();
           final columns = count < 1 ? 1 : count;
 
@@ -254,8 +256,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                 ? maxCardWidth
                 : availableWidth;
           } else {
-            final computed =
-                (availableWidth - gap * (columns - 1)) / columns;
+            final computed = (availableWidth - gap * (columns - 1)) / columns;
             tileWidth = computed.clamp(minCardWidth, maxCardWidth);
           }
 
@@ -361,11 +362,11 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Activity deleted.')));
+      ).showAppSnackBar(const SnackBar(content: Text('Activity deleted.')));
       _loadAssignments();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('Unable to delete this activity.'),
           backgroundColor: AppColors.error,
@@ -525,7 +526,10 @@ class _AssignmentCard extends StatelessWidget {
                   ),
                   label: Text(showInstructorControls ? 'Review' : 'Open'),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     visualDensity: VisualDensity.compact,
                     textStyle: const TextStyle(
                       fontSize: 13,

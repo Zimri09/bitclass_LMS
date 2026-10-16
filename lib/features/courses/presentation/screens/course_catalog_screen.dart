@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -55,7 +56,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
       body: BlocListener<CourseBloc, CourseState>(
         listener: (context, state) async {
           if (state is CourseJoinedByCode) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Row(
                   children: [
@@ -78,7 +79,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
               _loadCourses();
             }
           } else if (state is CourseError) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
@@ -515,7 +516,7 @@ class _CourseCard extends StatelessWidget {
     try {
       await context.read<CourseRepository>().unenrollFromCourse(course.id);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text('Unenrolled from ${course.title}'),
           backgroundColor: AppColors.success,
@@ -524,7 +525,7 @@ class _CourseCard extends StatelessWidget {
       await onUnenrolled();
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,

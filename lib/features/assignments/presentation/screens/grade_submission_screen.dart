@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
@@ -115,7 +116,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
 
   void _gradeSubmission(AssignmentModel assignment) {
     if (_selectedSubmission?.isCompleted != true) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('This work has not been turned in yet.')),
       );
       return;
@@ -153,7 +154,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
         bloc: _assignmentBloc,
         listener: (context, state) {
           if (state is SubmissionGraded) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text('Submission graded successfully!'),
                 backgroundColor: AppColors.success,
@@ -166,7 +167,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
               LoadSubmissions(assignmentId: widget.assignmentId),
             );
           } else if (state is AssignmentError) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,
@@ -486,8 +487,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
             CodeViewer(
               key: ValueKey('submitted-code-${submission.id}'),
               code: submission.code,
-              language:
-                  submission.language == ProgrammingLanguage.plaintext
+              language: submission.language == ProgrammingLanguage.plaintext
                   ? assignment.language
                   : submission.language,
               height: 300,
@@ -773,7 +773,7 @@ class _GradeSubmissionScreenState extends State<GradeSubmissionScreen> {
       if (!opened) throw Exception('No app can open this attachment.');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('This attachment could not be opened.'),
           backgroundColor: AppColors.error,

@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -242,14 +243,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       case RootBackAction.navigateHome:
         context.go(AppRoutes.dashboard);
       case RootBackAction.promptExit:
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text('Press back again to exit BitClass.'),
-              duration: Duration(seconds: 2),
-            ),
-          );
+        ScaffoldMessenger.of(context).showAppSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit BitClass.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       case RootBackAction.exitApp:
         SystemNavigator.pop();
     }
@@ -264,15 +263,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         destination == AppRoutes.courses ||
         destination == AppRoutes.offlineFiles;
     if (isOffline && !isOfflineDestination) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              'This feature needs an internet connection. Offline Files are still available.',
-            ),
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        const SnackBar(
+          content: Text(
+            'This feature needs an internet connection. Offline Files are still available.',
           ),
-        );
+        ),
+      );
       return;
     }
     _backNavigation.reset();

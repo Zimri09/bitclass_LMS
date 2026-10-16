@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' as fp;
@@ -157,7 +158,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showAppSnackBar(
       SnackBar(
         content: Text(userFriendlyErrorMessage(msg)),
         backgroundColor: AppColors.error,
@@ -247,7 +248,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         uploaderName: uploaderName,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: const Text('Web link saved successfully.'),
           backgroundColor: AppColors.success,
@@ -294,7 +295,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
           if (state is FileUploading) {
             setState(() => _isUploading = true);
             if (state.progress.status == UploadStatus.completed) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context).showAppSnackBar(
                 SnackBar(
                   content: const Text('File uploaded successfully!'),
                   backgroundColor: AppColors.success,
@@ -303,7 +304,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
               context.pop();
             } else if (state.progress.status == UploadStatus.failed) {
               setState(() => _isUploading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context).showAppSnackBar(
                 SnackBar(
                   content: Text(
                     userFriendlyErrorMessage(
@@ -322,7 +323,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
             }
           } else if (state is FileError) {
             setState(() => _isUploading = false);
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: AppColors.error,

@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -117,7 +118,7 @@ class _AdminSupportInboxScreenState extends State<AdminSupportInboxScreen> {
             .toList();
         _updatingRequestId = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text('Request marked ${status.label.toLowerCase()}.'),
         ),
@@ -125,7 +126,7 @@ class _AdminSupportInboxScreenState extends State<AdminSupportInboxScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _updatingRequestId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(content: Text('Could not update the request status.')),
       );
     }

@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/admin_theme.dart';
@@ -213,10 +214,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         ];
       });
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(successMessage)));
+          .showAppSnackBar(SnackBar(content: Text(successMessage)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('The secure admin action could not be completed.'),
         ),

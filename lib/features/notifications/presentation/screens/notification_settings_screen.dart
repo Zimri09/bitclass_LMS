@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -71,9 +72,7 @@ class _NotificationSettingsViewState extends State<NotificationSettingsView> {
               _lastSettings = state.settings;
             } else if (state is NotificationError && _lastSettings != null) {
               final messenger = ScaffoldMessenger.of(context);
-              messenger
-                ..clearSnackBars()
-                ..showSnackBar(SnackBar(content: Text(state.message)));
+              messenger.showAppSnackBar(SnackBar(content: Text(state.message)));
             }
           },
           builder: (context, state) {

@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -95,9 +96,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSectionHeader('Appearance'),
               _buildThemeToggleCard(
                 isDark: appSettings.darkMode,
-                onToggle: () => context
-                    .read<SettingsCubit>()
-                    .setDarkMode(!appSettings.darkMode),
+                onToggle: () => context.read<SettingsCubit>().setDarkMode(
+                  !appSettings.darkMode,
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -403,9 +404,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   Text(
-                    isDark
-                        ? 'Switch to light theme'
-                        : 'Switch to dark theme',
+                    isDark ? 'Switch to light theme' : 'Switch to dark theme',
                     style: AppTextStyles.caption.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -459,10 +458,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title,
         style: AppTextStyles.bodyMedium.copyWith(color: colorScheme.onSurface),
       ),
-      trailing: Icon(
-        Icons.chevron_right,
-        color: colorScheme.onSurfaceVariant,
-      ),
+      trailing: Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
       onTap: onTap,
     );
   }
@@ -540,7 +536,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context).showAppSnackBar(
                 SnackBar(
                   content: Text('Password change coming soon!'),
                   backgroundColor: AppColors.primary,

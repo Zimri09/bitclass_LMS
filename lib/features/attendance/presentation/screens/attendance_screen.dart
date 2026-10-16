@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart' as fp;
@@ -166,7 +167,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         dialogTitle: 'Save BISU attendance form',
       );
       if (!mounted || savedUri == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('BISU attendance Word form saved.'),
           backgroundColor: AppColors.success,
@@ -174,7 +175,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(
             'Unable to export attendance form: ${userFriendlyErrorMessage(error)}',
@@ -214,7 +215,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
       await _loadAttendance(silent: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('Attendance session created.'),
           backgroundColor: AppColors.success,
@@ -222,7 +223,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -247,7 +248,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       _serverTime = result.serverTime;
       await _loadAttendance(silent: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text('Checked in as ${result.status.label}.'),
           backgroundColor: _statusColor(result.status),
@@ -255,7 +256,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -282,7 +283,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
       await _loadAttendance(silent: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         const SnackBar(
           content: Text('Attendance record updated.'),
           backgroundColor: AppColors.success,
@@ -290,7 +291,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,

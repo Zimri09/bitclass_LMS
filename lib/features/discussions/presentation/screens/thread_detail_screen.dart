@@ -1,3 +1,4 @@
+import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -192,7 +193,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
 
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
-      messenger.showSnackBar(
+      messenger.showAppSnackBar(
         SnackBar(
           content: const Text('Thread deleted.'),
           backgroundColor: AppColors.success,
@@ -200,7 +201,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -241,7 +242,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
       await _discussionRepository.deleteReply(reply.id, reply.threadId, userId);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: const Text('Reply unsent.'),
           backgroundColor: AppColors.success,
@@ -251,7 +252,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _hiddenReplyIds.remove(reply.id));
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -273,7 +274,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -293,13 +294,13 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
         userId: userId,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Message hidden for you.')));
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        const SnackBar(content: Text('Message hidden for you.')),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _hiddenReplyIds.remove(reply.id));
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(userFriendlyErrorMessage(error)),
           backgroundColor: AppColors.error,
@@ -317,21 +318,21 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
             state.createdReplyId != _handledCreatedReplyId) {
           _handledCreatedReplyId = state.createdReplyId;
           _replyController.clear();
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showAppSnackBar(
             SnackBar(
               content: Text('Reply posted!'),
               backgroundColor: AppColors.success,
             ),
           );
         } else if (state is ThreadDetailLoaded && state.actionError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showAppSnackBar(
             SnackBar(
               content: Text(state.actionError!),
               backgroundColor: AppColors.error,
             ),
           );
         } else if (state is DiscussionError) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showAppSnackBar(
             SnackBar(
               content: Text(state.message),
               backgroundColor: AppColors.error,
@@ -955,7 +956,7 @@ class _ThreadDetailPageState extends State<_ThreadDetailPage> {
                         if (_replyController.text.trim().isEmpty) return;
 
                         if (user == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(context).showAppSnackBar(
                             SnackBar(
                               content: const Text(
                                 'You must be logged in to reply',
