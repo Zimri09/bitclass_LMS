@@ -44,16 +44,26 @@ class AttendanceRepository {
         .toList();
   }
 
-  Future<List<AttendanceRecord>> getCourseRecords(String courseId) async {
+  Future<List<AttendanceRecord>> getCourseRecords(
+    String courseId, {
+    String? studentId,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
-      return _demoRecords.where((item) => item.courseId == courseId).toList();
+      return _demoRecords
+          .where(
+            (item) =>
+                item.courseId == courseId &&
+                (studentId == null || item.studentId == studentId),
+          )
+          .toList();
     }
 
-    final rows = await _supabase!
+    var query = _supabase!
         .from(_recordsTable)
         .select()
-        .eq('course_id', courseId)
-        .order('attendance_date', ascending: false);
+        .eq('course_id', courseId);
+    if (studentId != null) query = query.eq('student_id', studentId);
+    final rows = await query.order('attendance_date', ascending: false);
     return (rows as List<dynamic>)
         .cast<Map<String, dynamic>>()
         .map(AttendanceRecord.fromMap)

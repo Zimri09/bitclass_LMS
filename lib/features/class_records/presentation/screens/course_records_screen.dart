@@ -13,6 +13,7 @@ import '../../../courses/data/models/course_model.dart';
 import '../../data/models/class_record_model.dart';
 import '../../data/repositories/class_record_repository.dart';
 import '../../data/services/bisu_class_record_document_service.dart';
+import '../widgets/student_performance_dialog.dart';
 
 class CourseRecordsScreen extends StatefulWidget {
   final CourseModel course;
@@ -79,7 +80,10 @@ class _CourseRecordsScreenState extends State<CourseRecordsScreen> {
               child: IndexedStack(
                 index: _selectedSection,
                 children: [
-                  _ClassRecordView(course: widget.course),
+                  _ClassRecordView(
+                    course: widget.course,
+                    instructorId: widget.currentUserId,
+                  ),
                   AttendanceScreen(
                     course: widget.course,
                     isCourseOwner: true,
@@ -98,7 +102,8 @@ class _CourseRecordsScreenState extends State<CourseRecordsScreen> {
 class _ClassRecordView extends StatefulWidget {
   final CourseModel course;
 
-  const _ClassRecordView({required this.course});
+  final String instructorId;
+  const _ClassRecordView({required this.course, required this.instructorId});
 
   @override
   State<_ClassRecordView> createState() => _ClassRecordViewState();
@@ -288,7 +293,21 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
               message: 'Try a different student name.',
             )
           else
-            _StudentRecordGrid(students: students),
+            _StudentRecordGrid(
+              students: students,
+              onPreview: (student) {
+                final repository = context.read<ClassRecordRepository>();
+                showStudentPerformanceDialog(
+                  context,
+                  course: widget.course,
+                  load: () => repository.getStudentPerformance(
+                    courseId: widget.course.id,
+                    studentId: student.userId,
+                    instructorId: widget.instructorId,
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -298,7 +317,8 @@ class _ClassRecordViewState extends State<_ClassRecordView> {
 class _StudentRecordGrid extends StatelessWidget {
   final List<StudentClassRecord> students;
 
-  const _StudentRecordGrid({required this.students});
+  final ValueChanged<StudentClassRecord> onPreview;
+  const _StudentRecordGrid({required this.students, required this.onPreview});
 
   @override
   Widget build(BuildContext context) {
@@ -320,7 +340,10 @@ class _StudentRecordGrid extends StatelessWidget {
             for (final student in students)
               SizedBox(
                 width: cardWidth,
-                child: _StudentRecordCard(student: student),
+                child: _StudentRecordCard(
+                  student: student,
+                  onPreview: () => onPreview(student),
+                ),
               ),
           ],
         );
@@ -467,7 +490,8 @@ class _WeightChip extends StatelessWidget {
 class _StudentRecordCard extends StatelessWidget {
   final StudentClassRecord student;
 
-  const _StudentRecordCard({required this.student});
+  final VoidCallback onPreview;
+  const _StudentRecordCard({required this.student, required this.onPreview});
 
   @override
   Widget build(BuildContext context) {
@@ -498,7 +522,12 @@ class _StudentRecordCard extends StatelessWidget {
                       )
                     : null,
               ),
-              const SizedBox(width: 10),
+              IconButton(
+                tooltip: 'Preview performance for ${student.displayName}',
+                onPressed: onPreview,
+                icon: const Icon(Icons.more_vert),
+                visualDensity: VisualDensity.compact,
+              ),
               Expanded(
                 child: Text(
                   student.displayName,

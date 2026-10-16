@@ -443,6 +443,22 @@ class CourseRepository {
   }
 
   /// Get a single course by ID
+  Future<void> requireCourseInstructor(
+    String courseId,
+    String instructorId,
+  ) async {
+    if (!EnvironmentConfig.isDemoMode &&
+        _supabase!.auth.currentUser?.id != instructorId) {
+      throw StateError('Please sign in with the course instructor account.');
+    }
+    final course = await getCourse(courseId);
+    if (course == null || course.instructorId != instructorId) {
+      throw StateError(
+        'Only the instructor of this course can preview records.',
+      );
+    }
+  }
+
   Future<CourseModel?> getCourse(String courseId) async {
     if (EnvironmentConfig.isDemoMode) {
       try {

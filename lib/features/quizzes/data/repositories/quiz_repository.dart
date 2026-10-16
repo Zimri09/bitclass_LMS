@@ -228,6 +228,7 @@ class QuizRepository {
   Future<List<QuizModel>> getQuizzesByCourse(
     String courseId, {
     bool includeUnpublished = false,
+    bool throwOnError = false,
   }) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -259,6 +260,7 @@ class QuizRepository {
       if (kDebugMode) {
         log('Error fetching quizzes: $e', name: 'QuizRepository');
       }
+      if (throwOnError) rethrow;
       return [];
     }
   }
@@ -503,20 +505,29 @@ class QuizRepository {
   }
 
   /// Get every attempt for a quiz. Course RLS limits this to the owner.
-  Future<List<QuizAttemptModel>> getQuizAttempts(String quizId) async {
+  Future<List<QuizAttemptModel>> getQuizAttempts(
+    String quizId, {
+    String? studentId,
+    bool throwOnError = false,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
       return _attemptsByUser.values
           .expand((attempts) => attempts)
-          .where((attempt) => attempt.quizId == quizId)
+          .where(
+            (attempt) =>
+                attempt.quizId == quizId &&
+                (studentId == null || attempt.userId == studentId),
+          )
           .toList();
     }
 
     try {
-      final rows = await _supabase!
+      var query = _supabase!
           .from(_attemptsTable)
           .select()
-          .eq('quiz_id', quizId)
-          .order('attempt_number', ascending: true);
+          .eq('quiz_id', quizId);
+      if (studentId != null) query = query.eq('user_id', studentId);
+      final rows = await query.order('attempt_number', ascending: true);
       return (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()
           .map(_attemptFromRow)
@@ -525,6 +536,7 @@ class QuizRepository {
       if (kDebugMode) {
         log('Error fetching quiz attempts: $error', name: 'QuizRepository');
       }
+      if (throwOnError) rethrow;
       return [];
     }
   }

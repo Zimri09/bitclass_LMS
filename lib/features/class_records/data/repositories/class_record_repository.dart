@@ -3,6 +3,7 @@ import '../../../attendance/data/repositories/attendance_repository.dart';
 import '../../../courses/data/repositories/course_repository.dart';
 import '../../../quizzes/data/repositories/quiz_repository.dart';
 import '../models/class_record_model.dart';
+import '../models/student_performance.dart';
 import '../services/class_record_calculator.dart';
 
 class ClassRecordRepository {
@@ -59,6 +60,66 @@ class ClassRecordRepository {
           .toList(),
       attendanceSessions: sessions,
       attendanceRecords: attendance,
+    );
+  }
+
+  Future<StudentPerformance> getStudentPerformance({
+    required String courseId,
+    required String studentId,
+    required String instructorId,
+  }) async {
+    await _courseRepository.requireCourseInstructor(courseId, instructorId);
+    final enrollment = await _courseRepository.getEnrollment(
+      courseId,
+      studentId,
+    );
+    if (enrollment == null) {
+      throw StateError('This student is no longer enrolled in this course.');
+    }
+    final roster = await _courseRepository.getCourseRoster(courseId);
+    final member = roster.where((m) => m.userId == studentId).firstOrNull;
+    if (member == null) throw StateError('The student profile is unavailable.');
+    final quizzes = await _quizRepository.getQuizzesByCourse(
+      courseId,
+      throwOnError: true,
+    );
+    final assignments = await _assignmentRepository.getAssignmentsForCourse(
+      courseId,
+      throwOnError: true,
+    );
+    final sessions = await _attendanceRepository.getSessions(courseId);
+    final attendance = await _attendanceRepository.getCourseRecords(
+      courseId,
+      studentId: studentId,
+    );
+    final attempts = await Future.wait(
+      quizzes.map(
+        (q) => _quizRepository.getQuizAttempts(
+          q.id,
+          studentId: studentId,
+          throwOnError: true,
+        ),
+      ),
+    );
+    final submissions = await Future.wait(
+      assignments.map(
+        (a) => _assignmentRepository.getAssignmentSubmissions(
+          a.id,
+          studentId: studentId,
+          throwOnError: true,
+        ),
+      ),
+    );
+    return StudentPerformance.calculate(
+      courseId: courseId,
+      enrollment: enrollment,
+      member: member,
+      quizzes: quizzes,
+      attempts: attempts.expand((a) => a).toList(),
+      assignments: assignments,
+      submissions: submissions.expand((s) => s).toList(),
+      sessions: sessions,
+      attendance: attendance,
     );
   }
 }

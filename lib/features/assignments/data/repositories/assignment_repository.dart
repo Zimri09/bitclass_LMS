@@ -197,6 +197,7 @@ class AssignmentRepository {
   Future<List<AssignmentModel>> getAssignmentsForCourse(
     String courseId, {
     bool includeDrafts = false,
+    bool throwOnError = false,
   }) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -236,6 +237,7 @@ class AssignmentRepository {
       if (kDebugMode) {
         log('Error fetching assignments: $e', name: 'AssignmentRepository');
       }
+      if (throwOnError) rethrow;
       return [];
     }
   }
@@ -495,19 +497,24 @@ class AssignmentRepository {
 
   /// Get all submissions for an assignment (instructor only)
   Future<List<SubmissionModel>> getAssignmentSubmissions(
-    String assignmentId,
-  ) async {
+    String assignmentId, {
+    String? studentId,
+    bool throwOnError = false,
+  }) async {
     if (EnvironmentConfig.isDemoMode) {
       await Future.delayed(const Duration(milliseconds: 300));
-      return _submissionsByAssignment[assignmentId] ?? [];
+      return (_submissionsByAssignment[assignmentId] ?? [])
+          .where((s) => studentId == null || s.userId == studentId)
+          .toList();
     }
 
     try {
-      final rows = await _supabase!
+      var query = _supabase!
           .from(_submissionsTable)
           .select()
-          .eq('assignment_id', assignmentId)
-          .order('created_at', ascending: false);
+          .eq('assignment_id', assignmentId);
+      if (studentId != null) query = query.eq('user_id', studentId);
+      final rows = await query.order('created_at', ascending: false);
 
       return (rows as List<dynamic>)
           .cast<Map<String, dynamic>>()
@@ -520,6 +527,7 @@ class AssignmentRepository {
           name: 'AssignmentRepository',
         );
       }
+      if (throwOnError) rethrow;
       return [];
     }
   }

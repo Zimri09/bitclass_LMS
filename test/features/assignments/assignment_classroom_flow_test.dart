@@ -795,12 +795,15 @@ class _FakeAssignmentRepository extends AssignmentRepository {
   Future<List<AssignmentModel>> getAssignmentsForCourse(
     String courseId, {
     bool includeDrafts = false,
+    bool throwOnError = false,
   }) async => assignment == null ? const [] : [assignment!];
 
   @override
   Future<List<SubmissionModel>> getAssignmentSubmissions(
-    String assignmentId,
-  ) async => submission == null ? const [] : [submission!];
+    String assignmentId, {
+    String? studentId,
+    bool throwOnError = false,
+  }) async => submission == null ? const [] : [submission!];
 
   @override
   Future<SubmissionModel?> getUserSubmission(
