@@ -425,6 +425,47 @@ class AuthRepository {
     }
   }
 
+  /// Verifies the current password and updates it for the signed-in user.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (currentPassword.isEmpty) {
+      throw const FormatException('Please enter your current password.');
+    }
+    if (newPassword.length < 8) {
+      throw const FormatException(
+        'Password must contain at least 8 characters.',
+      );
+    }
+    if (currentPassword == newPassword) {
+      throw const FormatException(
+        'Your new password must be different from your current password.',
+      );
+    }
+
+    if (EnvironmentConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      return;
+    }
+
+    final user = currentUser;
+    final email = user?.email;
+    if (email == null || email.isEmpty) {
+      throw Exception('No signed-in account was found.');
+    }
+
+    try {
+      await _supabase!.auth.signInWithPassword(
+        email: email,
+        password: currentPassword,
+      );
+      await _supabase.auth.updateUser(UserAttributes(password: newPassword));
+    } on AuthException catch (e) {
+      throw _handleAuthException(e.message);
+    }
+  }
+
   /// Restores a verified user's trigger-created profile after app restart.
   Future<UserModel?> restoreCurrentUserProfile() async {
     if (EnvironmentConfig.isDemoMode) return _demoUser;
