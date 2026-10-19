@@ -1,10 +1,15 @@
 import { decodeSourceText, hasReadableSource } from './source_text.ts';
+import { decodeOfficeDocument } from './document_text.ts';
 import "jsr:@supabase/functions-js@2.112.2/edge-runtime.d.ts";
 
 type GenerateRequest = {
   courseId: string;
   fileName: string;
-  mimeType: "application/pdf" | "text/plain";
+  mimeType:
+    | "application/pdf"
+    | "text/plain"
+    | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    | "application/vnd.openxmlformats-officedocument.presentationml.presentation";
   fileData: string;
   questionCount: number;
   questionType: "multipleChoice" | "trueFalse" | "shortAnswer" | "mixed";
@@ -23,6 +28,7 @@ type GeneratedQuestion = {
 
 const maxPdfBytes = 8 * 1024 * 1024;
 const maxTextBytes = 1024 * 1024;
+const maxOfficeBytes = 8 * 1024 * 1024;
 const requestWindowMs = 5 * 60 * 1000;
 const maxRequestsPerWindow = 5;
 const recentRequests = new Map<string, number[]>();
@@ -267,27 +273,43 @@ function validateRequest(value: unknown): GenerateRequest {
   );
   const instructions = optionalString(body.instructions, 1000);
 
-  if (mimeType !== "application/pdf" && mimeType !== "text/plain") {
-    throw new HttpError(400, "Only PDF and TXT files are supported.");
+  const supportedMimeTypes = [
+    "application/pdf",
+    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ] as const;
+  if (!supportedMimeTypes.includes(mimeType as typeof supportedMimeTypes[number])) {
+    throw new HttpError(400, "Only PDF, TXT, DOCX, and PPTX files are supported.");
   }
   const extension = fileName.split(".").pop()?.toLowerCase();
-  if (
-    (mimeType === "application/pdf" && extension !== "pdf") ||
-    (mimeType === "text/plain" && extension !== "txt")
-  ) {
+  const expectedExtension = mimeType === "application/pdf"
+    ? "pdf"
+    : mimeType === "text/plain"
+    ? "txt"
+    : mimeType.endsWith(".wordprocessingml.document")
+    ? "docx"
+    : "pptx";
+  if (extension !== expectedExtension) {
     throw new HttpError(400, "The file extension does not match its type.");
   }
   if (fileData.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(fileData)) {
     throw new HttpError(400, "The uploaded file is invalid.");
   }
   const byteLength = base64ByteLength(fileData);
-  const limit = mimeType === "application/pdf" ? maxPdfBytes : maxTextBytes;
+  const limit = mimeType === "application/pdf"
+    ? maxPdfBytes
+    : mimeType === "text/plain"
+    ? maxTextBytes
+    : maxOfficeBytes;
   if (byteLength === 0 || byteLength > limit) {
     throw new HttpError(
       400,
       mimeType === "application/pdf"
         ? "PDF files must be no larger than 8 MB."
-        : "TXT files must be no larger than 1 MB.",
+        : mimeType === "text/plain"
+        ? "TXT files must be no larger than 1 MB."
+        : "DOCX and PPTX files must be no larger than 8 MB.",
     );
   }
 
@@ -296,12 +318,26 @@ function validateRequest(value: unknown): GenerateRequest {
     if (!header.startsWith("%PDF-")) {
       throw new HttpError(400, "The selected file is not a valid PDF.");
     }
-  } else {
+  } else if (mimeType === "text/plain") {
     const text = decodeBase64Text(fileData);
     if (!hasReadableSource(text)) {
       throw new HttpError(
         400,
         "The document is empty or contains only whitespace. Add readable lesson content and try again.",
+      );
+    }
+  } else {
+    try {
+      await decodeOfficeDocument(
+        Uint8Array.from(atob(fileData), (character) => character.charCodeAt(0)),
+        mimeType,
+      );
+    } catch (error) {
+      throw new HttpError(
+        400,
+        error instanceof Error
+          ? error.message
+          : "The office document could not be read.",
       );
     }
   }
@@ -402,7 +438,17 @@ async function generateQuestions(
         data: request.fileData,
       },
     }
-    : { text: `SOURCE DOCUMENT:\n${decodeBase64Text(request.fileData)}` };
+    : {
+      text: `SOURCE DOCUMENT:\n${
+        request.mimeType === "text/plain"
+          ? decodeBase64Text(request.fileData)
+          : await decodeOfficeDocument(
+            Uint8Array.from(atob(request.fileData), (character) =>
+              character.charCodeAt(0)),
+            request.mimeType,
+          )
+      }`,
+    };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90_000);

@@ -59,6 +59,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
 
   static const int _maxPdfBytes = 8 * 1024 * 1024;
   static const int _maxTextBytes = 1024 * 1024;
+  static const int _maxOfficeBytes = 8 * 1024 * 1024;
 
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
@@ -400,13 +401,15 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
       if (widget.sourcePicker != null) {
         source = await widget.sourcePicker!();
       } else {
-        final file = await pickUploadFile(extensions: const ['pdf', 'txt']);
+        final file = await pickUploadFile(
+          extensions: const ['pdf', 'txt', 'docx', 'pptx'],
+        );
         if (file == null) return;
 
         final extension = _fileExtension(file.name);
-        final maxBytes = extension == 'pdf' ? _maxPdfBytes : _maxTextBytes;
-        if (extension != 'pdf' && extension != 'txt') {
-          _showError('Only PDF and TXT files are supported right now.');
+        final maxBytes = _maxBytesForGenerationExtension(extension);
+        if (maxBytes == null) {
+          _showError('Only PDF, TXT, DOCX, and PPTX files are supported.');
           return;
         }
         source = QuizSourceDocument(
@@ -417,9 +420,9 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
       if (source == null) return;
 
       final extension = _fileExtension(source.name);
-      final maxBytes = extension == 'pdf' ? _maxPdfBytes : _maxTextBytes;
-      if (extension != 'pdf' && extension != 'txt') {
-        _showError('Only PDF and TXT files are supported right now.');
+      final maxBytes = _maxBytesForGenerationExtension(extension);
+      if (maxBytes == null) {
+        _showError('Only PDF, TXT, DOCX, and PPTX files are supported.');
         return;
       }
       validateUploadBytes(source.bytes, maxBytes: maxBytes);
@@ -435,6 +438,13 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     }
   }
 
+  int? _maxBytesForGenerationExtension(String extension) => switch (extension) {
+    'pdf' => _maxPdfBytes,
+    'txt' => _maxTextBytes,
+    'docx' || 'pptx' => _maxOfficeBytes,
+    _ => null,
+  };
+
   Future<void> _generateQuestions() async {
     final source = _sourceDocument;
     if (source == null) {
@@ -446,13 +456,12 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     final requestId = ++_generationRequestId;
     setState(() => _isGenerating = true);
     try {
-      final extension = _fileExtension(source.name);
       final generated = await context
           .read<QuizRepository>()
           .generateQuestionsFromFile(
             courseId: widget.courseId,
             fileName: source.name,
-            mimeType: extension == 'pdf' ? 'application/pdf' : 'text/plain',
+            mimeType: uploadMimeType(source.name),
             bytes: source.bytes,
             questionCount: _generationQuestionCount,
             questionType: _generationType,

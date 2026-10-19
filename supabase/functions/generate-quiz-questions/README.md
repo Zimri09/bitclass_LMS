@@ -1,7 +1,7 @@
 # Generate Quiz Questions
 
 Authenticated instructors can generate editable quiz-question drafts from a
-PDF or UTF-8 TXT file. The function verifies the instructor role and course
+PDF, UTF-8 TXT, DOCX, or PPTX file. The function verifies the instructor role and course
 ownership before sending the document to Gemini. It does not save or publish a
 quiz.
 
@@ -29,6 +29,6 @@ Keep JWT verification enabled (the default) and deploy with:
 supabase functions deploy generate-quiz-questions
 ```
 
-The first release supports PDF files up to 8 MB and UTF-8 TXT files up to 1 MB.
-DOCX and PPTX require a separate trusted text-extraction pipeline and are not
-accepted yet.
+PDF, DOCX, and PPTX files are limited to 8 MB. UTF-8 TXT files are limited to
+1 MB. DOCX and PPTX text is extracted from their Office XML packages; images,
+charts, and complex layout are not interpreted.
