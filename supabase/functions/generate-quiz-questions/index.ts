@@ -387,7 +387,6 @@ async function generateQuestions(
     ...new Set(
       [
         configuredModel,
-        "gemini-3.1-flash-lite",
         "gemini-3.5-flash-lite",
       ].filter(
         (model): model is string => Boolean(model),

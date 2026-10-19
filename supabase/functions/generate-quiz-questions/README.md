@@ -15,7 +15,7 @@ Set the production secret and optional model override:
 
 ```powershell
 supabase secrets set GEMINI_API_KEY=your-key
-supabase secrets set GEMINI_MODEL=gemini-3.1-flash-lite
+supabase secrets set GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 For local development, copy `supabase/functions/.env.example` to
