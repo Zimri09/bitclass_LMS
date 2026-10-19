@@ -1,3 +1,4 @@
+import { decodeSourceText, hasReadableSource } from './source_text.ts';
 import "jsr:@supabase/functions-js@2.112.2/edge-runtime.d.ts";
 
 type GenerateRequest = {
@@ -297,10 +298,10 @@ function validateRequest(value: unknown): GenerateRequest {
     }
   } else {
     const text = decodeBase64Text(fileData);
-    if (text.trim().length < 200) {
+    if (!hasReadableSource(text)) {
       throw new HttpError(
         400,
-        "The document needs at least 200 characters of readable content.",
+        "The document is empty or contains only whitespace. Add readable lesson content and try again.",
       );
     }
   }
@@ -371,9 +372,9 @@ function decodeBase64Text(value: string): string {
   try {
     const binary = atob(value);
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return decodeSourceText(bytes);
   } catch {
-    throw new HttpError(400, "The TXT file is not valid UTF-8 text.");
+    throw new HttpError(400, "The TXT file is not valid text. Save it as UTF-8 or Unicode (UTF-16 with a byte-order mark) and try again.");
   }
 }
 

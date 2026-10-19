@@ -11,6 +11,7 @@ import '../../../../core/config/environment.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/url_utils.dart';
+import '../../../../core/utils/upload_file.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/file_repository.dart';
@@ -35,7 +36,7 @@ class UploadFileScreen extends StatefulWidget {
 }
 
 class _UploadFileScreenState extends State<UploadFileScreen> {
-  static const int _maxUploadBytes = 50 * 1024 * 1024;
+  static const int _maxUploadBytes = maxCourseUploadBytes;
 
   final _formKey = GlobalKey<FormState>();
   final _fileNameController = TextEditingController();
@@ -64,24 +65,12 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
     setState(() => _isPickingFile = true);
 
     try {
-      final file = await fp.FilePicker.pickFile(type: fp.FileType.any);
+      final file = await pickUploadFile();
 
       if (file == null) return;
 
-      final fileSize = await file.length();
-      if (fileSize > _maxUploadBytes) {
-        _showError(
-          'This file is larger than 50 MB. Compress it or increase the '
-          'Supabase Storage limit before uploading.',
-        );
-        return;
-      }
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
-        _showError('Could not read the selected file. Please try again.');
-        return;
-      }
-
+      final bytes = await readUploadFile(file, maxBytes: _maxUploadBytes);
+      if (!mounted) return;
       setState(() {
         _pickedFile = file;
         _pickedBytes = bytes;
@@ -106,55 +95,7 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
     return _ext.isNotEmpty ? '$base.$_ext' : base;
   }
 
-  String get _mimeType {
-    const mimes = <String, String>{
-      'pdf': 'application/pdf',
-      'doc': 'application/msword',
-      'docx':
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'ppt': 'application/vnd.ms-powerpoint',
-      'pptx':
-          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'xls': 'application/vnd.ms-excel',
-      'xlsx':
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'mp4': 'video/mp4',
-      'avi': 'video/x-msvideo',
-      'mov': 'video/quicktime',
-      'mkv': 'video/x-matroska',
-      'webm': 'video/webm',
-      'mp3': 'audio/mpeg',
-      'wav': 'audio/wav',
-      'ogg': 'audio/ogg',
-      'aac': 'audio/aac',
-      'png': 'image/png',
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'gif': 'image/gif',
-      'webp': 'image/webp',
-      'svg': 'image/svg+xml',
-      'bmp': 'image/bmp',
-      'zip': 'application/zip',
-      'rar': 'application/x-rar-compressed',
-      '7z': 'application/x-7z-compressed',
-      'tar': 'application/x-tar',
-      'gz': 'application/gzip',
-      'dart': 'text/x-dart',
-      'py': 'text/x-python',
-      'js': 'application/javascript',
-      'ts': 'text/typescript',
-      'html': 'text/html',
-      'css': 'text/css',
-      'json': 'application/json',
-      'xml': 'application/xml',
-      'yaml': 'application/yaml',
-      'yml': 'application/yaml',
-      'md': 'text/markdown',
-      'txt': 'text/plain',
-      'csv': 'text/csv',
-    };
-    return mimes[_ext] ?? 'application/octet-stream';
-  }
+  String get _mimeType => uploadMimeType(_pickedFile?.name ?? '');
 
   void _showError(String msg) {
     if (!mounted) return;

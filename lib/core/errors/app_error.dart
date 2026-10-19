@@ -64,8 +64,30 @@ String userFriendlyErrorMessage(Object error, {String? fallback}) {
 
   final message = error
       .toString()
-      .replaceFirst(RegExp(r'^(Exception|Error):\s*'), '')
+      .replaceFirst(RegExp(r'^(Exception|Error|FormatException):\s*'), '')
       .trim();
   if (message.isNotEmpty) return message;
   return fallback ?? 'Something went wrong. Please try again.';
+}
+
+String uploadErrorMessage(Object error) {
+  if (isNetworkFailure(error)) return noInternetConnectionMessage;
+  final message = error.toString().toLowerCase();
+  if (message.contains('mime') || message.contains('invalidcontenttype')) {
+    return 'This file type is not allowed by storage. Check the file extension or ask your administrator to review the allowed file types.';
+  }
+  if (message.contains('413') ||
+      message.contains('entitytoolarge') ||
+      message.contains('maximum allowed size')) {
+    return 'The file exceeds the storage upload limit. Choose a smaller file.';
+  }
+  if (message.contains('row-level security') ||
+      message.contains('403') ||
+      message.contains('unauthorized')) {
+    return 'You do not have permission to upload here. Check your course access and sign in again.';
+  }
+  if (message.contains('bucket') && message.contains('not found')) {
+    return 'The upload storage is unavailable. Ask your administrator to check the storage configuration.';
+  }
+  return 'Upload failed: ${userFriendlyErrorMessage(error)}';
 }

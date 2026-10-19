@@ -11,6 +11,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
 import '../../../../core/utils/url_utils.dart';
+import '../../../../core/utils/upload_file.dart';
+import '../../../../core/errors/app_error.dart';
 import '../models/models.dart';
 
 /// Repository handling file upload operations.
@@ -652,6 +654,8 @@ class FileRepository {
     var uploadedToStorage = false;
 
     try {
+      validateUploadBytes(fileData, maxBytes: maxCourseUploadBytes);
+      mimeType = uploadMimeType(fileName, fallback: mimeType);
       final extension = fileName.split('.').last;
       final fileType = CourseFile.getTypeFromExtension(extension);
       final safeFileName = _safePathSegment(fileName, maxLength: 120);
@@ -674,7 +678,7 @@ class FileRepository {
               fileOptions: FileOptions(contentType: mimeType, upsert: false),
             );
       } catch (e) {
-        throw Exception('Storage upload failed: $e');
+        throw Exception(uploadErrorMessage(e));
       }
       uploadedToStorage = true;
 

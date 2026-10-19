@@ -1,7 +1,7 @@
 import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart' as fp;
+import '../../../../core/utils/upload_file.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
@@ -400,10 +400,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
       if (widget.sourcePicker != null) {
         source = await widget.sourcePicker!();
       } else {
-        final file = await fp.FilePicker.pickFile(
-          type: fp.FileType.custom,
-          allowedExtensions: const ['pdf', 'txt'],
-        );
+        final file = await pickUploadFile(extensions: const ['pdf', 'txt']);
         if (file == null) return;
 
         final extension = _fileExtension(file.name);
@@ -412,18 +409,9 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
           _showError('Only PDF and TXT files are supported right now.');
           return;
         }
-        final fileSize = await file.length();
-        if (fileSize <= 0 || fileSize > maxBytes) {
-          _showError(
-            extension == 'pdf'
-                ? 'Select a PDF that is no larger than 8 MB.'
-                : 'Select a TXT file that is no larger than 1 MB.',
-          );
-          return;
-        }
         source = QuizSourceDocument(
           name: file.name,
-          bytes: await file.readAsBytes(),
+          bytes: await readUploadFile(file, maxBytes: maxBytes),
         );
       }
       if (source == null) return;
@@ -434,15 +422,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
         _showError('Only PDF and TXT files are supported right now.');
         return;
       }
-      final fileSize = source.bytes.length;
-      if (fileSize <= 0 || fileSize > maxBytes) {
-        _showError(
-          extension == 'pdf'
-              ? 'Select a PDF that is no larger than 8 MB.'
-              : 'Select a TXT file that is no larger than 1 MB.',
-        );
-        return;
-      }
+      validateUploadBytes(source.bytes, maxBytes: maxBytes);
 
       if (!mounted) return;
       setState(() {
