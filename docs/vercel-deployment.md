@@ -18,7 +18,7 @@ in the Build Step**: it needs the shared build script and the existing
 `packages/bitclass_notifications` dependency.
 
 The checked-in `vercel.json` files specify the build command and output directory.
-The script installs Flutter 3.44.8, matching `.github/workflows/deploy.yml`, then
+The script installs Flutter 3.47.7, matching `.github/workflows/deploy.yml`, then
 fetches dependencies and builds in production mode.
 
 The script uses the same public Supabase URL and anonymous key defaults as FTP.

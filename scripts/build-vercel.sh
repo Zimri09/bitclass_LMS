@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Run from the Flutter application's root directory. Match the FTP workflow SDK.
-flutter_version=3.44.8
+flutter_version=3.47.7
 sdk_dir="$(mktemp -d)/flutter"
 git clone --depth 1 --branch "$flutter_version" https://github.com/flutter/flutter.git "$sdk_dir"
 export PATH="$sdk_dir/bin:$PATH"
