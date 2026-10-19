@@ -5,8 +5,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:bitclass/shared/widgets/lesson_widgets.dart';
 
 void main() {
+  for (final lessonId in <String?>[null, 'lesson-1']) {
+    testWidgets(
+      'preview keeps exact content for ${lessonId == null ? 'create' : 'edit'}',
+      (tester) async {
+        final repository = _FakeLessonRepository();
+        addTearDown(repository.dispose);
+        await tester.pumpWidget(
+          RepositoryProvider<LessonRepository>.value(
+            value: repository,
+            child: MaterialApp(
+              home: LessonEditorScreen(
+                courseId: 'course-1',
+                lessonId: lessonId,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Content'));
+        await tester.pumpAndSettle();
+        final editor = find.byKey(const Key('lesson-content-field'));
+        if (lessonId == null) await tester.enterText(editor, _originalContent);
+        final field = tester.widget<TextFormField>(editor);
+        expect(field.controller!.text, _originalContent);
+        await tester.tap(find.text('Preview'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<MarkdownContent>(find.byType(MarkdownContent)).content,
+          _originalContent,
+        );
+        await tester.tap(find.text('Edit Markdown'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextFormField>(editor).controller!.text,
+          _originalContent,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('create lesson form does not expose lesson type choices', (
     tester,
   ) async {
@@ -71,7 +112,8 @@ void main() {
           'https://example.com/a-very-long-path-that-must-wrap-within-the-editor';
       final longContent = List.generate(
         30,
-        (index) => '## Paragraph $index\n\n$longWord\nBody text for lesson $index.',
+        (index) =>
+            '## Paragraph $index\n\n$longWord\nBody text for lesson $index.',
       ).join('\n\n');
       final editor = find.byKey(const Key('lesson-content-field'));
 
@@ -96,6 +138,9 @@ void main() {
   );
 }
 
+const _originalContent =
+    '  Original text  \nSecond line\n\n\n```dart\n  code();\n```\n';
+
 class _FakeLessonRepository extends LessonRepository {
   final SupabaseClient _client;
 
@@ -109,6 +154,21 @@ class _FakeLessonRepository extends LessonRepository {
 
   @override
   Future<List<ModuleModel>> getModules(String courseId) async => const [];
+
+  @override
+  Future<LessonModel?> getLesson(String courseId, String lessonId) async =>
+      LessonModel(
+        id: lessonId,
+        courseId: courseId,
+        moduleId: 'module-1',
+        title: 'Existing lesson',
+        order: 0,
+        type: LessonType.text,
+        content: _originalContent,
+        durationMinutes: 10,
+        isPublished: false,
+        createdAt: DateTime(2026),
+      );
 
   Future<void> dispose() async => _client.auth.dispose();
 }

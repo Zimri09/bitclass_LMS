@@ -155,6 +155,7 @@ class MarkdownContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Markdown(
       data: content,
+      softLineBreak: true,
       selectable: selectable,
       padding: padding ?? const EdgeInsets.all(16),
       shrinkWrap: true,
@@ -166,6 +167,7 @@ class MarkdownContent extends StatelessWidget {
 
   MarkdownStyleSheet _buildStyleSheet(BuildContext context) {
     return MarkdownStyleSheet(
+      blockSpacing: 16,
       // Headings
       h1: GoogleFonts.inter(
         fontSize: 28,
@@ -291,7 +293,7 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
     }
 
     return CodeBlockWidget(
-      code: element.textContent.trim(),
+      code: element.textContent.replaceFirst(RegExp(r'\n$'), ''),
       language: language,
     );
   }

@@ -2,6 +2,7 @@ import 'package:bitclass/core/theme/app_colors.dart';
 import 'package:bitclass/shared/widgets/lesson_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 void main() {
   setUp(() => AppColors.isDarkMode = false);
@@ -11,12 +12,32 @@ void main() {
     return MaterialApp(
       theme: ThemeData.light(),
       home: Scaffold(
-        body: SingleChildScrollView(
-          child: SizedBox(width: 420, child: child),
-        ),
+        body: SingleChildScrollView(child: SizedBox(width: 420, child: child)),
       ),
     );
   }
+
+  testWidgets('lesson renderer preserves soft breaks and code indentation', (
+    tester,
+  ) async {
+    const content =
+        'Title\nLevel: Beginner\n\nNext paragraph.\n\n```\n  indented\n```';
+    await tester.pumpWidget(
+      buildSubject(const MarkdownContent(content: content)),
+    );
+    final markdown = tester.widget<Markdown>(find.byType(Markdown));
+    expect(markdown.softLineBreak, isTrue);
+    expect(markdown.data, content);
+    expect(
+      tester.widget<CodeBlockWidget>(find.byType(CodeBlockWidget)).code,
+      '  indented',
+    );
+    final rendered = tester
+        .widgetList<SelectableText>(find.byType(SelectableText))
+        .map((text) => text.textSpan?.toPlainText() ?? text.data ?? '')
+        .join();
+    expect(rendered, contains('Title\nLevel: Beginner'));
+  });
 
   testWidgets('module shows lesson count without student progress', (
     tester,

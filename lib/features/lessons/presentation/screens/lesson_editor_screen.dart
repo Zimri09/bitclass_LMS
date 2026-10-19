@@ -9,6 +9,8 @@ import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/url_utils.dart';
+import '../../../../core/utils/lesson_paste/paste.dart';
+import '../../../../shared/widgets/lesson_widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/lesson_repository.dart';
 
@@ -33,6 +35,9 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   final _durationController = TextEditingController(text: '10');
 
   late TabController _tabController;
+  final _contentFocus = FocusNode();
+  late final VoidCallback _removePasteListener;
+  bool _showPreview = false;
 
   bool _isLoading = false;
   bool _isSaving = false;
@@ -51,6 +56,23 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _removePasteListener = listenForLessonPaste(
+      isActive: () =>
+          mounted &&
+          _contentFocus.hasFocus &&
+          !_showPreview &&
+          _tabController.index == 1,
+      insert: (markdown) {
+        final value = _contentController.value;
+        final selection = value.selection;
+        final start = selection.isValid ? selection.start : value.text.length;
+        final end = selection.isValid ? selection.end : value.text.length;
+        _contentController.value = TextEditingValue(
+          text: value.text.replaceRange(start, end, markdown),
+          selection: TextSelection.collapsed(offset: start + markdown.length),
+        );
+      },
+    );
     _loadModules();
     if (widget.lessonId != null) {
       _loadLesson();
@@ -79,6 +101,8 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
     _titleController.dispose();
     _descriptionController.dispose();
     _contentController.dispose();
+    _removePasteListener();
+    _contentFocus.dispose();
     _videoUrlController.dispose();
     _durationController.dispose();
     _tabController.dispose();
@@ -431,6 +455,18 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text('Lesson Content', style: AppTextStyles.h4),
+                TextButton.icon(
+                  onPressed: () {
+                    _contentFocus.unfocus();
+                    setState(() => _showPreview = !_showPreview);
+                  },
+                  icon: Icon(
+                    _showPreview
+                        ? Icons.edit_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                  label: Text(_showPreview ? 'Edit Markdown' : 'Preview'),
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -473,39 +509,46 @@ class _LessonEditorScreenState extends State<LessonEditorScreen>
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: TextFormField(
-                  key: const Key('lesson-content-field'),
-                  controller: _contentController,
-                  decoration: InputDecoration(
-                    hintText: _getContentPlaceholder(),
-                    hintMaxLines: 20,
-                    hintStyle: const TextStyle(height: 1.45),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
-                  maxLines: null,
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
-                  keyboardType: TextInputType.multiline,
-                  textInputAction: TextInputAction.newline,
-                  scrollPhysics: const ClampingScrollPhysics(),
-                  smartDashesType: SmartDashesType.disabled,
-                  smartQuotesType: SmartQuotesType.disabled,
-                  style: TextStyle(
-                    fontFamily: _effectiveLessonType == LessonType.code
-                        ? 'monospace'
-                        : null,
-                    color: _effectiveLessonType == LessonType.code
-                        ? AppColors.primary
-                        : AppColors.textPrimary,
-                    height: 1.45,
-                  ),
-                  cursorColor: _effectiveLessonType == LessonType.code
-                      ? AppColors.primary
-                      : AppColors.textPrimary,
-                ),
+                child: _showPreview
+                    ? SingleChildScrollView(
+                        child: MarkdownContent(
+                          content: _contentController.text,
+                        ),
+                      )
+                    : TextFormField(
+                        key: const Key('lesson-content-field'),
+                        focusNode: _contentFocus,
+                        controller: _contentController,
+                        decoration: InputDecoration(
+                          hintText: _getContentPlaceholder(),
+                          hintMaxLines: 20,
+                          hintStyle: const TextStyle(height: 1.7),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        maxLines: null,
+                        expands: true,
+                        textAlignVertical: TextAlignVertical.top,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        scrollPhysics: const ClampingScrollPhysics(),
+                        smartDashesType: SmartDashesType.disabled,
+                        smartQuotesType: SmartQuotesType.disabled,
+                        style: TextStyle(
+                          fontFamily: _effectiveLessonType == LessonType.code
+                              ? 'monospace'
+                              : null,
+                          color: _effectiveLessonType == LessonType.code
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                          height: 1.7,
+                        ),
+                        cursorColor: _effectiveLessonType == LessonType.code
+                            ? AppColors.primary
+                            : AppColors.textPrimary,
+                      ),
               ),
             ),
           ],

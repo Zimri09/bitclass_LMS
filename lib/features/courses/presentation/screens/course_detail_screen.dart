@@ -436,13 +436,13 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
                       courseId: course.id,
                       onContentChanged: _refreshContent,
                     ),
-                    const SizedBox(height: 32),
-                    Text('Course settings', style: AppTextStyles.h3),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 24),
+                    Text('Course settings', style: AppTextStyles.h4),
+                    const SizedBox(height: 10),
                     _buildPublishToggleCard(context),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     _buildCourseCodeCard(context),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 20),
                   ],
 
                   // Progress (if enrolled)
@@ -471,274 +471,246 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
     );
   }
 
-  /// Publish / Unpublish toggle card for the course owner
+  /// Compact, neutral settings rows share alignment across screen sizes.
+  Widget _buildSettingsCard({
+    required IconData icon,
+    required Widget title,
+    required String description,
+    required Widget control,
+    bool wrapControl = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackControl =
+              wrapControl &&
+              (constraints.maxWidth < 480 ||
+                  MediaQuery.textScalerOf(context).scale(14) > 20);
+          final details = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(icon, size: 18, color: AppColors.textSecondary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          if (stackControl) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                details,
+                Padding(
+                  padding: const EdgeInsets.only(left: 28, top: 6),
+                  child: control,
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: details),
+              const SizedBox(width: 12),
+              control,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Publish / Unpublish toggle card for the course owner.
   Widget _buildPublishToggleCard(BuildContext context) {
     final isPublished = course.isPublished;
-    final statusColor = isPublished ? AppColors.success : AppColors.warning;
-    final statusLabel = isPublished ? 'Published' : 'Draft';
-    final statusIcon = isPublished ? Icons.public : Icons.lock_outline;
-
-    return GlowCard(
-      glowColor: statusColor,
-      glowIntensity: 0.12,
-      isHoverable: false,
-      padding: EdgeInsets.zero,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: [
-              statusColor.withValues(alpha: 0.12),
-              statusColor.withValues(alpha: 0.04),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    return _buildSettingsCard(
+      icon: isPublished ? Icons.public : Icons.lock_outline,
+      title: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            'Course Status',
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          border: Border.all(color: statusColor.withValues(alpha: 0.35)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Row(
-          children: [
-            // Status icon
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(statusIcon, color: statusColor, size: 22),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(5),
             ),
-            const SizedBox(width: 14),
-
-            // Status text
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text('Course Status', style: AppTextStyles.h4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          statusLabel,
-                          style: AppTextStyles.caption.copyWith(
-                            color: statusColor,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+            child: Text(
+              isPublished ? 'Published' : 'Draft',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+      description: isPublished
+          ? 'Visible to students in Browse Courses'
+          : 'Hidden from students — publish to make it live',
+      control: Semantics(
+        label: 'Publish course',
+        child: BlocBuilder<CourseBloc, CourseState>(
+          builder: (context, state) {
+            final isLoading = state is CourseLoading;
+            return isLoading
+                ? Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.textSecondary,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isPublished
-                        ? 'Visible to students in Browse Courses'
-                        : 'Hidden from students — publish to make it live',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Toggle switch
-            BlocBuilder<CourseBloc, CourseState>(
-              builder: (context, state) {
-                final isLoading = state is CourseLoading;
-                return isLoading
-                    ? Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: statusColor,
+                  )
+                : Switch(
+                    value: isPublished,
+                    activeThumbColor: AppColors.backgroundSecondary,
+                    inactiveThumbColor: AppColors.textSecondary,
+                    activeTrackColor: AppColors.textPrimary,
+                    inactiveTrackColor: AppColors.surfaceLight,
+                    onChanged: (newValue) async {
+                      // Confirm before toggling
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(
+                            newValue ? 'Publish Course?' : 'Unpublish Course?',
+                            style: AppTextStyles.h3,
                           ),
-                        ),
-                      )
-                    : Switch(
-                        value: isPublished,
-                        activeThumbColor: AppColors.success,
-                        inactiveThumbColor: AppColors.warning,
-                        inactiveTrackColor: AppColors.warning.withValues(
-                          alpha: 0.3,
-                        ),
-                        onChanged: (newValue) async {
-                          // Confirm before toggling
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: Text(
-                                newValue
-                                    ? 'Publish Course?'
-                                    : 'Unpublish Course?',
-                                style: AppTextStyles.h3,
-                              ),
-                              content: Text(
-                                newValue
-                                    ? 'This will make the course visible to all students in Browse Courses.'
-                                    : 'This will hide the course from students. Enrolled students will still have access.',
-                                style: AppTextStyles.bodyMedium,
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(false),
-                                  child: const Text('Cancel'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.of(ctx).pop(true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: newValue
-                                        ? AppColors.success
-                                        : AppColors.warning,
-                                  ),
-                                  child: Text(
-                                    newValue ? 'Publish' : 'Unpublish',
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ],
+                          content: Text(
+                            newValue
+                                ? 'This will make the course visible to all students in Browse Courses.'
+                                : 'This will hide the course from students. Enrolled students will still have access.',
+                            style: AppTextStyles.bodyMedium,
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('Cancel'),
                             ),
-                          );
-                          if (confirmed == true && context.mounted) {
-                            context.read<CourseBloc>().add(
-                              ToggleCoursePublish(
-                                courseId: course.id,
-                                publish: newValue,
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: newValue
+                                    ? AppColors.success
+                                    : AppColors.warning,
                               ),
-                            );
-                          }
-                        },
+                              child: Text(
+                                newValue ? 'Publish' : 'Unpublish',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
-              },
-            ),
-          ],
+                      if (confirmed == true && context.mounted) {
+                        context.read<CourseBloc>().add(
+                          ToggleCoursePublish(
+                            courseId: course.id,
+                            publish: newValue,
+                          ),
+                        );
+                      }
+                    },
+                  );
+          },
         ),
       ),
     );
   }
 
-  /// Card showing the shareable course code for instructors
+  /// Card showing the shareable course code for instructors.
   Widget _buildCourseCodeCard(BuildContext context) {
     final code = course.courseCode.isNotEmpty ? course.courseCode : '------';
-    return GlowCard(
-      glowColor: AppColors.secondary,
-      glowIntensity: 0.15,
-      isHoverable: false,
-      padding: EdgeInsets.zero,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: [
-              AppColors.secondary.withValues(alpha: 0.15),
-              AppColors.primary.withValues(alpha: 0.08),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.vpn_key_rounded,
-                    color: AppColors.secondary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text('Course Join Code', style: AppTextStyles.h4),
-                const Spacer(),
-                IconButton(
-                  icon: Icon(Icons.copy_rounded, color: AppColors.secondary),
-                  tooltip: 'Copy code',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: code));
-                    ScaffoldMessenger.of(context).showAppSnackBar(
-                      SnackBar(
-                        content: const Row(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text(
-                              'Code copied to clipboard!',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: AppColors.success,
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // The code displayed large
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+    return _buildSettingsCard(
+      icon: Icons.vpn_key_outlined,
+      title: Text(
+        'Course Join Code',
+        style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+      ),
+      description: 'Share this code with students to join from Browse Courses.',
+      wrapControl: true,
+      control: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.background.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: AppColors.secondary.withValues(alpha: 0.4),
-                  width: 1.5,
-                ),
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.border),
               ),
-              child: Text(
+              child: SelectableText(
                 code,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.h1.copyWith(
-                  letterSpacing: 12,
-                  color: AppColors.secondary,
-                  fontWeight: FontWeight.w800,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Share this code with students so they can join from the Browse Courses tab',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: Icon(
+              Icons.copy_rounded,
+              size: 18,
+              color: AppColors.textSecondary,
             ),
-          ],
-        ),
+            tooltip: 'Copy code',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: code));
+              ScaffoldMessenger.of(context).showAppSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Code copied to clipboard!',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: AppColors.success,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
