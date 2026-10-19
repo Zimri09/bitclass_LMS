@@ -354,18 +354,20 @@ class _CourseDetailContentState extends State<_CourseDetailContent> {
         // Content
         SliverLayoutBuilder(
           builder: (context, constraints) {
-            final contentWidth = constraints.crossAxisExtent < 1120
-                ? constraints.crossAxisExtent
-                : 1120.0;
+            final compact = constraints.crossAxisExtent < 600;
+            final gutter = compact ? 16.0 : 24.0;
+            final availableWidth = constraints.crossAxisExtent - gutter * 2;
+            final contentWidth = availableWidth < 1080
+                ? availableWidth
+                : 1080.0;
             final horizontalPadding =
                 (constraints.crossAxisExtent - contentWidth) / 2;
-            final compact = constraints.crossAxisExtent < 600;
 
             return SliverPadding(
               padding: EdgeInsets.fromLTRB(
-                horizontalPadding + (compact ? 16 : 0),
+                horizontalPadding,
                 compact ? 20 : 28,
-                horizontalPadding + (compact ? 16 : 0),
+                horizontalPadding,
                 32,
               ),
               sliver: SliverList(

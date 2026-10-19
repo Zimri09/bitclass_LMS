@@ -16,6 +16,7 @@ import '../../features/notifications/data/models/notification_model.dart';
 import '../../features/notifications/data/repositories/notification_repository.dart';
 import '../../features/settings/data/repositories/support_repository.dart';
 import 'bitclass_logo.dart';
+import 'app_page_frame.dart';
 
 /// Responsive breakpoints
 class _Breakpoints {
@@ -476,14 +477,28 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Widget _buildContentRail(BuildContext context) {
+    final path = GoRouterState.of(context).matchedLocation;
+    final isReadingPage =
+        path == AppRoutes.profile ||
+        path == AppRoutes.notifications ||
+        path.startsWith('${AppRoutes.notifications}/') ||
+        path == AppRoutes.settings ||
+        path.startsWith('${AppRoutes.settings}/') ||
+        path.contains('/discussions') ||
+        path.endsWith('/create') ||
+        path.endsWith('/edit') ||
+        path.endsWith('/upload');
+    final isWorkspace =
+        path == AppRoutes.codeLab || path == AppRoutes.adminSupport;
     return ColoredBox(
       color: AppColors.of(context).background,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1280),
-          child: SizedBox(width: double.infinity, child: widget.child),
-        ),
+      child: AppPageFrame(
+        maxWidth: isWorkspace
+            ? AppPageFrame.workspaceWidth
+            : isReadingPage
+            ? AppPageFrame.readingWidth
+            : AppPageFrame.standardWidth,
+        child: widget.child,
       ),
     );
   }
