@@ -7,6 +7,7 @@ import 'package:bitclass/features/quizzes/data/models/models.dart';
 import 'package:bitclass/features/quizzes/data/repositories/quiz_repository.dart';
 import 'package:bitclass/features/quizzes/presentation/screens/quiz_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,6 +16,16 @@ void main() {
   testWidgets('student results show status without answer details', (
     tester,
   ) async {
+    const protectionChannel = MethodChannel('bitclass/quiz_protection');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      protectionChannel,
+      (call) async => call.method == 'enable' ? 'unavailable' : null,
+    );
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(protectionChannel, null),
+    );
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -46,6 +57,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Posted: Aug 28, 2026 at 12:18 PM'), findsOneWidget);
+    await tester.ensureVisible(find.text('Take Quiz'));
     await tester.tap(find.text('Take Quiz'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Leaked selected option'));
@@ -97,6 +109,7 @@ final _quiz = QuizModel(
   questionCount: 1,
   showCorrectAnswers: true,
   isPublished: true,
+  dueDate: DateTime.utc(2026, 8, 29),
   createdAt: DateTime(2026, 8, 28, 12, 18),
 );
 
@@ -154,6 +167,13 @@ class _FakeQuizRepository extends QuizRepository {
   }
 
   _FakeQuizRepository._(this._client) : super(supabase: _client);
+
+  @override
+  Future<void> recordSecurityEvent(
+    String id,
+    String type,
+    String platform,
+  ) async {}
 
   @override
   Future<QuizModel?> getQuiz(String quizId) async => _quiz;

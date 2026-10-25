@@ -28,6 +28,35 @@ class QuizAvailability {
 
 /// Repository for quiz operations.
 class QuizRepository {
+  /// Best-effort telemetry never interrupts answers or submission.
+  Future<void> recordSecurityEvent(
+    String attemptId,
+    String type,
+    String platform,
+  ) async {
+    if (_supabase == null) return;
+    try {
+      await _supabase.from('quiz_security_events').insert({
+        'attempt_id': attemptId,
+        'event_type': type,
+        'platform': platform,
+      });
+    } catch (error) {
+      log('Quiz activity event could not be saved', name: 'QuizRepository');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSecurityEvents(String quizId) async {
+    if (_supabase == null) return [];
+    final rows = await _supabase
+        .from('quiz_security_events')
+        .select('*, quiz_attempts!inner(quiz_id, user_id, attempt_number)')
+        .eq('quiz_attempts.quiz_id', quizId)
+        .order('created_at', ascending: false)
+        .limit(500);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
   static const String _quizzesTable = 'quizzes';
   static const String _questionsTable = 'questions';
   static const String _attemptsTable = 'quiz_attempts';

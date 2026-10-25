@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +11,8 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/quiz_repository.dart';
 import '../bloc/quiz_bloc.dart';
+import '../../security/quiz_security_session.dart';
+import '../widgets/quiz_security_review.dart';
 
 /// Screen for taking a quiz
 class QuizScreen extends StatefulWidget {
@@ -27,6 +30,31 @@ class _QuizScreenState extends State<QuizScreen> {
   final TextEditingController _textController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
   final Set<String> _selectedAnswers = {};
+  QuizSecuritySession? _security;
+  bool _protectionReady = false;
+  bool _allowExit = false;
+  String? _inputQuestionId;
+
+  void _syncProtection(QuizState state) {
+    if (state is QuizInProgress && !state.isPreview && !_isInstructor) {
+      if (_security != null) return;
+      final session = QuizSecuritySession(context.read<QuizRepository>());
+      _security = session;
+      _protectionReady = false;
+      unawaited(
+        session.start(state.attempt.id).then((_) {
+          if (mounted && identical(_security, session)) {
+            setState(() => _protectionReady = true);
+          }
+        }),
+      );
+    } else {
+      final session = _security;
+      _security = null;
+      _protectionReady = false;
+      if (session != null) unawaited(session.stop());
+    }
+  }
 
   bool get _isInstructor {
     final authState = context.read<AuthBloc>().state;
@@ -49,11 +77,13 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _loadQuiz() {
+    _inputQuestionId = null;
     _quizBloc.add(LoadQuiz(quizId: widget.quizId, userId: _currentUserId));
   }
 
   @override
   void dispose() {
+    unawaited(_security?.stop(leaving: true) ?? Future.value());
     _textController.dispose();
     _codeController.dispose();
     _quizBloc.close();
@@ -66,6 +96,7 @@ class _QuizScreenState extends State<QuizScreen> {
       value: _quizBloc,
       child: BlocConsumer<QuizBloc, QuizState>(
         listener: (context, state) {
+          _syncProtection(state);
           if (state is QuizError) {
             ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
@@ -79,9 +110,15 @@ class _QuizScreenState extends State<QuizScreen> {
           }
         },
         builder: (context, state) {
-          return Scaffold(
-            appBar: _buildAppBar(context, state),
-            body: _buildBody(context, state),
+          return PopScope(
+            canPop: _security == null || _allowExit,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) _showExitConfirmation(context, state);
+            },
+            child: Scaffold(
+              appBar: _buildAppBar(context, state),
+              body: _buildBody(context, state),
+            ),
           );
         },
       ),
@@ -89,6 +126,9 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _updateInputsForQuestion(QuizInProgress state) {
+    // Timer ticks and autosave responses must not reset the active text/caret.
+    if (_inputQuestionId == state.currentQuestion.id) return;
+    _inputQuestionId = state.currentQuestion.id;
     final answer = state.currentAnswer;
     _selectedAnswers.clear();
     if (answer != null) {
@@ -190,6 +230,9 @@ class _QuizScreenState extends State<QuizScreen> {
     }
 
     if (state is QuizInProgress) {
+      if (!state.isPreview && !_isInstructor && !_protectionReady) {
+        return const Center(child: CircularProgressIndicator());
+      }
       return _buildQuizInProgress(context, state);
     }
 
@@ -364,6 +407,17 @@ class _QuizScreenState extends State<QuizScreen> {
             const SizedBox(height: 24),
           ],
 
+          if (isInstructor) QuizSecurityReview(quizId: widget.quizId),
+          if (!isInstructor)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text(
+                'During a quiz, available capture protections are enabled and '
+                'leaving, backgrounding, and capture signals may be recorded for instructor review. '
+                'Browsers cannot block operating-system screenshots, screen recording, or external cameras. '
+                'iOS screenshots can only be detected after capture.',
+              ),
+            ),
           // Previous attempts
           if (!isInstructor && state.previousAttempts.isNotEmpty) ...[
             Text(
@@ -512,12 +566,15 @@ class _QuizScreenState extends State<QuizScreen> {
       return;
     }
 
+    _inputQuestionId = null;
+
     _quizBloc.add(
       StartQuizAttempt(quizId: widget.quizId, userId: _currentUserId),
     );
   }
 
   void _startInstructorPreview() {
+    _inputQuestionId = null;
     _quizBloc.add(
       StartQuizAttempt(
         quizId: widget.quizId,
@@ -530,6 +587,20 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget _buildQuizInProgress(BuildContext context, QuizInProgress state) {
     return Column(
       children: [
+        if (!state.isPreview)
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text(switch (_security?.capability) {
+              'android_secure_window' =>
+                'Secure screen enabled. Activity signals may be recorded.',
+              'ios_capture_detection' =>
+                'Recording hides the quiz. Screenshots are detected after capture.',
+              'browser_deterrents' =>
+                'Copy/print deterrents active. Browsers cannot block OS screenshots, recording, or cameras.',
+              _ =>
+                'Capture blocking is unavailable on this device. Activity signals may be recorded.',
+            }, style: const TextStyle(fontSize: 12)),
+          ),
         if (state.isPreview)
           Container(
             width: double.infinity,
@@ -1596,6 +1667,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _showExitConfirmation(BuildContext context, QuizState state) {
+    _security?.record('leave_attempt');
     if (state is QuizInProgress) {
       if (state.isPreview) {
         _loadQuiz();
@@ -1618,9 +1690,14 @@ class _QuizScreenState extends State<QuizScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                context.pop();
+                await _security?.stop(leaving: true);
+                if (!mounted) return;
+                setState(() => _allowExit = true);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) this.context.pop();
+                });
               },
               style: FilledButton.styleFrom(backgroundColor: AppColors.error),
               child: const Text('Exit'),

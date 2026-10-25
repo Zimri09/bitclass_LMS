@@ -504,8 +504,10 @@ class QuizBloc extends Bloc<QuizEvent, QuizState> {
 
   void _startTimer(int seconds, {required bool closesAtDeadline}) {
     _timer?.cancel();
+    final elapsed = Stopwatch()..start();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      final remaining = seconds - timer.tick;
+      // Background tabs may throttle callbacks; elapsed time still counts.
+      final remaining = seconds - elapsed.elapsed.inSeconds;
       if (remaining <= 0) {
         timer.cancel();
         // Auto-submit when time runs out
