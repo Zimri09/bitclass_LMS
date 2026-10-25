@@ -34,6 +34,7 @@ class ConversationScreen extends StatefulWidget {
 
 class _ConversationScreenState extends State<ConversationScreen> {
   final _messageController = TextEditingController();
+  final _messageFocusNode = FocusNode();
   final _scrollController = ScrollController();
   late final MessagingRepository _messagingRepository;
   List<MessageModel> _messages = const [];
@@ -64,6 +65,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+    _messageFocusNode.dispose();
     _scrollController.dispose();
     _editWindowTimer?.cancel();
     unawaited(_repository.removeRealtimeChannel(_realtimeChannel));
@@ -134,6 +136,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ..clear()
         ..addAll(eligibleIds);
     });
+  }
+
+  void _insertEmoji(String emoji) {
+    final value = _messageController.value;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : value.text.length;
+    final end = selection.isValid ? selection.end : value.text.length;
+    _messageController.value = TextEditingValue(
+      text: value.text.replaceRange(start, end, emoji),
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+    _messageFocusNode.requestFocus();
   }
 
   Future<void> _sendMessage() async {
@@ -334,94 +348,129 @@ class _ConversationScreenState extends State<ConversationScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 860),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: AppColors.border.withValues(alpha: 0.9),
+            child: LayoutBuilder(
+              builder: (context, constraints) => Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.end,
+                spacing: 10,
+                runSpacing: 6,
+                children: [
+                  SizedBox(
+                    width: constraints.maxWidth < 560
+                        ? constraints.maxWidth
+                        : constraints.maxWidth - 254,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: AppColors.border.withValues(alpha: 0.9),
+                        ),
                       ),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Focus(
-                      onKeyEvent: (node, event) {
-                        if (event is KeyDownEvent &&
-                            event.logicalKey == LogicalKeyboardKey.enter &&
-                            !HardwareKeyboard.instance.isShiftPressed) {
-                          _sendMessage();
-                          return KeyEventResult.handled;
-                        }
-                        return KeyEventResult.ignored;
-                      },
-                      child: TextField(
-                        controller: _messageController,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.newline,
-                        decoration: const InputDecoration(
-                          hintText: 'Write a message...',
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Focus(
+                        onKeyEvent: (node, event) {
+                          if (event is KeyDownEvent &&
+                              event.logicalKey == LogicalKeyboardKey.enter &&
+                              !HardwareKeyboard.instance.isShiftPressed) {
+                            _sendMessage();
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: TextField(
+                          controller: _messageController,
+                          focusNode: _messageFocusNode,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.newline,
+                          decoration: const InputDecoration(
+                            hintText: 'Write a message...',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 12),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _messageController,
-                  builder: (context, value, child) {
-                    final canSend = value.text.trim().isNotEmpty && !_isSending;
-                    return Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: canSend
-                            ? AppColors.primary
-                            : AppColors.primary.withValues(alpha: 0.35),
-                        shape: BoxShape.circle,
-                        boxShadow: canSend
-                            ? [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(
-                                    alpha: 0.3,
-                                  ),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                            : null,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final shortcut in const [
+                        ('Haha', '😂'),
+                        ('Sad', '😢'),
+                        ('Angry', '😡'),
+                        ('Heart', '❤️'),
+                      ])
+                        IconButton(
+                          tooltip: '${shortcut.$1} ${shortcut.$2}',
+                          constraints: const BoxConstraints.tightFor(
+                            width: 48,
+                            height: 48,
+                          ),
+                          onPressed: _isSending
+                              ? null
+                              : () => _insertEmoji(shortcut.$2),
+                          icon: Text(
+                            shortcut.$2,
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                        ),
+                      const SizedBox(width: 10),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _messageController,
+                        builder: (context, value, child) {
+                          final canSend =
+                              value.text.trim().isNotEmpty && !_isSending;
+                          return Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: canSend
+                                  ? AppColors.primary
+                                  : AppColors.primary.withValues(alpha: 0.35),
+                              shape: BoxShape.circle,
+                              boxShadow: canSend
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: IconButton(
+                              tooltip: 'Send message',
+                              padding: EdgeInsets.zero,
+                              onPressed: canSend ? _sendMessage : null,
+                              icon: _isSending
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.send_rounded,
+                                      color: Colors.white,
+                                      size: 19,
+                                    ),
+                            ),
+                          );
+                        },
                       ),
-                      child: IconButton(
-                        tooltip: 'Send message',
-                        padding: EdgeInsets.zero,
-                        onPressed: canSend ? _sendMessage : null,
-                        icon: _isSending
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.send_rounded,
-                                color: Colors.white,
-                                size: 19,
-                              ),
-                      ),
-                    );
-                  },
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

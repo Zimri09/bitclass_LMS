@@ -27,6 +27,7 @@ class GradesScreen extends StatefulWidget {
 class _GradesScreenState extends State<GradesScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String? _selectedCourseId;
 
   @override
   void initState() {
@@ -53,6 +54,15 @@ class _GradesScreenState extends State<GradesScreen>
       appBar: AppBar(
         leading: const AppDrawerButton(),
         title: Text('My Grades', style: AppTextStyles.h3),
+        actions: [
+          BlocBuilder<GradesBloc, GradesState>(
+            builder: (context, state) => IconButton(
+              tooltip: 'Refresh grades',
+              onPressed: state is GradesLoading ? null : _loadGrades,
+              icon: const Icon(Icons.refresh),
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -76,12 +86,66 @@ class _GradesScreenState extends State<GradesScreen>
             );
           }
           if (state is GradesLoaded) {
-            return TabBarView(
-              controller: _tabController,
+            final courses = state.summary.courseGrades;
+            if (courses.isEmpty) {
+              return const EmptyState(
+                icon: Icons.school_outlined,
+                title: 'No enrolled courses',
+                subtitle: 'Enroll in a course to see your grades here',
+              );
+            }
+            final selected = courses.firstWhere(
+              (course) => course.courseId == _selectedCourseId,
+              orElse: () => courses.first,
+            );
+            _selectedCourseId = selected.courseId;
+            // Reuse the existing sorting and grade-status filters within
+            // a summary containing only the selected course.
+            final summary = state.summary.copyWith(courseGrades: [selected]);
+            return Column(
               children: [
-                _buildOverviewTab(state.summary),
-                _buildQuizzesTab(state.summary),
-                _buildAssignmentsTab(state.summary),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Course',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selected.courseId,
+                        isExpanded: true,
+                        items: [
+                          for (final course in courses)
+                            DropdownMenuItem(
+                              value: course.courseId,
+                              child: Text(
+                                course.course.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedCourseId = value);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildOverviewTab(summary),
+                      _buildQuizzesTab(summary),
+                      _buildAssignmentsTab(summary),
+                    ],
+                  ),
+                ),
               ],
             );
           }
@@ -119,7 +183,7 @@ class _GradesScreenState extends State<GradesScreen>
       return const EmptyState(
         icon: Icons.quiz_outlined,
         title: 'No quiz grades',
-        subtitle: 'Complete quizzes to see your scores',
+        subtitle: 'No graded quizzes in this course yet',
       );
     }
 
@@ -128,7 +192,10 @@ class _GradesScreenState extends State<GradesScreen>
       itemCount: gradedAttempts.length,
       itemBuilder: (context, index) {
         final attempt = gradedAttempts[index];
-        return _QuizAttemptCard(attempt: attempt);
+        return _QuizAttemptCard(
+          attempt: attempt,
+          title: summary.courseGrades.first.quizTitles[attempt.quizId],
+        );
       },
     );
   }
@@ -142,7 +209,7 @@ class _GradesScreenState extends State<GradesScreen>
       return const EmptyState(
         icon: Icons.assignment_outlined,
         title: 'No activity grades',
-        subtitle: 'Submit activities to see your grades',
+        subtitle: 'No graded activities in this course yet',
       );
     }
 
@@ -231,14 +298,20 @@ class _CourseGradeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Stats row
-          Row(
+          Text(
+            'Total points: ${_gradeValue(courseGrade.earnedPoints)} / ${_gradeValue(courseGrade.totalPoints)}',
+            style: AppTextStyles.bodyMedium,
+          ),
+          Text('Graded items only', style: AppTextStyles.caption),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 24,
+            runSpacing: 8,
             children: [
               _buildStatItem(
                 Icons.quiz_outlined,
                 '${courseGrade.gradedQuizAttempts.length} Quizzes',
               ),
-              const SizedBox(width: 24),
               _buildStatItem(
                 Icons.assignment_outlined,
                 '${courseGrade.gradedSubmissions.length} Activities',
@@ -252,6 +325,7 @@ class _CourseGradeCard extends StatelessWidget {
 
   Widget _buildStatItem(IconData icon, String text) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 4),
@@ -275,8 +349,9 @@ class _CourseGradeCard extends StatelessWidget {
 
 class _QuizAttemptCard extends StatelessWidget {
   final QuizAttemptModel attempt;
+  final String? title;
 
-  const _QuizAttemptCard({required this.attempt});
+  const _QuizAttemptCard({required this.attempt, this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -306,11 +381,16 @@ class _QuizAttemptCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Quiz Attempt #${attempt.attemptNumber}',
+                  title ?? 'Quiz Attempt #${attempt.attemptNumber}',
                   style: AppTextStyles.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (title != null)
+                  Text(
+                    'Attempt #${attempt.attemptNumber}',
+                    style: AppTextStyles.caption,
+                  ),
                 Text(
                   'Completed ${_formatDate(attempt.submittedAt ?? attempt.startedAt)}',
                   style: AppTextStyles.caption.copyWith(

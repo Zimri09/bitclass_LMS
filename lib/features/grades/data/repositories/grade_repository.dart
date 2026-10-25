@@ -77,6 +77,7 @@ class GradeRepository {
       enrollment: resolvedEnrollment,
       quizAttempts: quizAttempts.cast(),
       assignmentSubmissions: submissions,
+      quizTitles: {for (final quiz in quizzes) quiz.id: quiz.title},
     );
   }
 }

@@ -127,6 +127,8 @@ void main() {
       // earned = 80 + 90 = 170
       // percentage = 170/200 * 100 = 85
       expect(grade.overallGrade, 85.0);
+      expect(grade.earnedPoints, 170);
+      expect(grade.totalPoints, 200);
     });
 
     test('overallGrade uses each assignment saved maximum points', () {
@@ -141,6 +143,8 @@ void main() {
       );
 
       expect(grade.overallGrade, 96.0);
+      expect(grade.earnedPoints, 24);
+      expect(grade.totalPoints, 25);
     });
 
     test('overallGrade is zero when no graded items', () {

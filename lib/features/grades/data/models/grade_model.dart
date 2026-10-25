@@ -12,6 +12,7 @@ class CourseGradeModel extends Equatable {
   final EnrollmentModel enrollment;
   final List<QuizAttemptModel> quizAttempts;
   final List<SubmissionModel> assignmentSubmissions;
+  final Map<String, String> quizTitles;
 
   const CourseGradeModel({
     required this.courseId,
@@ -20,6 +21,7 @@ class CourseGradeModel extends Equatable {
     required this.enrollment,
     this.quizAttempts = const [],
     this.assignmentSubmissions = const [],
+    this.quizTitles = const {},
   });
 
   @override
@@ -30,6 +32,7 @@ class CourseGradeModel extends Equatable {
     enrollment,
     quizAttempts,
     assignmentSubmissions,
+    quizTitles,
   ];
 
   /// Returns the list of graded quiz attempts only
@@ -41,21 +44,17 @@ class CourseGradeModel extends Equatable {
       .where((s) => s.status == SubmissionStatus.graded)
       .toList();
 
+  /// Points from graded items only, using each item's saved maximum.
+  double get totalPoints =>
+      gradedQuizAttempts.fold<double>(0, (sum, a) => sum + a.totalPoints) +
+      gradedSubmissions.fold<double>(0, (sum, s) => sum + s.resolvedMaxPoints);
+
+  double get earnedPoints =>
+      gradedQuizAttempts.fold<double>(0, (sum, a) => sum + a.score) +
+      gradedSubmissions.fold<double>(0, (sum, s) => sum + (s.score ?? 0));
+
   /// Overall grade percentage across all graded items in this course
   double get overallGrade {
-    var totalPoints = 0.0;
-    var earnedPoints = 0.0;
-
-    for (final attempt in gradedQuizAttempts) {
-      totalPoints += attempt.totalPoints;
-      earnedPoints += attempt.score;
-    }
-
-    for (final submission in gradedSubmissions) {
-      totalPoints += submission.resolvedMaxPoints;
-      earnedPoints += submission.score ?? 0;
-    }
-
     if (totalPoints == 0) return 0;
     return (earnedPoints / totalPoints) * 100;
   }
@@ -87,6 +86,7 @@ class CourseGradeModel extends Equatable {
     EnrollmentModel? enrollment,
     List<QuizAttemptModel>? quizAttempts,
     List<SubmissionModel>? assignmentSubmissions,
+    Map<String, String>? quizTitles,
   }) {
     return CourseGradeModel(
       courseId: courseId ?? this.courseId,
@@ -96,6 +96,7 @@ class CourseGradeModel extends Equatable {
       quizAttempts: quizAttempts ?? this.quizAttempts,
       assignmentSubmissions:
           assignmentSubmissions ?? this.assignmentSubmissions,
+      quizTitles: quizTitles ?? this.quizTitles,
     );
   }
 }
