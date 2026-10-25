@@ -11,6 +11,7 @@ class MessagingRepository {
   final SupabaseClient? _supabase;
   final List<MessageModel> _demoMessages = [];
   final Map<String, DateTime> _demoHiddenConversations = {};
+  final Set<String> _demoHiddenMessageIds = {};
 
   MessagingRepository({SupabaseClient? supabase})
     : _supabase = EnvironmentConfig.isDemoMode
@@ -94,6 +95,8 @@ class MessagingRepository {
               hiddenAt == null ||
               message.createdAt.toUtc().isAfter(hiddenAt.toUtc());
           return message.courseId == courseId &&
+              !message.isUnsent &&
+              !_demoHiddenMessageIds.contains(message.id) &&
               isParticipant &&
               isAfterHiddenAt;
         }).toList(),
@@ -104,6 +107,7 @@ class MessagingRepository {
         .from(_messagesTable)
         .select()
         .eq('course_id', courseId)
+        .eq('is_unsent', false)
         .or(
           'and(sender_id.eq.$userId,recipient_id.eq.$participantId),'
           'and(sender_id.eq.$participantId,recipient_id.eq.$userId)',
@@ -114,9 +118,14 @@ class MessagingRepository {
         )
         .order('created_at', ascending: true);
     return _sortChronologically(
-      (rows as List<dynamic>).cast<Map<String, dynamic>>().map(
-        MessageModel.fromMap,
-      ),
+      (rows as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(MessageModel.fromMap)
+          .where(
+            (message) =>
+                !message.isUnsent &&
+                !(message.senderId == userId && message.hiddenForSender),
+          ),
     );
   }
 
@@ -163,6 +172,7 @@ class MessagingRepository {
         orElse: () => throw StateError('Message not found.'),
       );
       return message.senderId == currentUserId &&
+          !message.isUnsent &&
           DateTime.now().toUtc().difference(message.createdAt.toUtc()) <=
               const Duration(minutes: 15);
     }
@@ -205,10 +215,27 @@ class MessagingRepository {
     return _messageFromRpcResult(row);
   }
 
+  Future<void> unsendMessageForYou(String messageId) async {
+    if (EnvironmentConfig.isDemoMode) {
+      final message = _demoMessages.firstWhere((item) => item.id == messageId);
+      if (message.senderId != currentUserId) {
+        throw StateError('You can only unsend your own messages.');
+      }
+      _demoHiddenMessageIds.add(messageId);
+      return;
+    }
+    await _supabase!.rpc(
+      'hide_private_message',
+      params: {'target_message_id': messageId},
+    );
+  }
+
+  /// Redact the stored content; readable tombstones still deliver realtime
+  /// UPDATE events to both participants, but never appear in conversations.
   Future<MessageModel> unsendMessage(String messageId) async {
     if (EnvironmentConfig.isDemoMode) {
       final index = _demoMessages.indexWhere((item) => item.id == messageId);
-      if (index < 0 || !await canModifyMessage(messageId)) {
+      if (index < 0 || _demoMessages[index].senderId != currentUserId) {
         throw StateError('This message can no longer be unsent.');
       }
       final message = _demoMessages[index];
@@ -219,8 +246,7 @@ class MessagingRepository {
         recipientId: message.recipientId,
         body: 'Message unsent',
         createdAt: message.createdAt,
-        readAt: message.readAt,
-        editedAt: message.editedAt,
+        readAt: message.readAt ?? DateTime.now(),
         isUnsent: true,
       );
       _demoMessages[index] = updated;
@@ -250,6 +276,7 @@ class MessagingRepository {
             message.senderId == participantId &&
             message.recipientId == userId &&
             message.readAt == null &&
+            !message.isUnsent &&
             (hiddenAt == null || message.createdAt.isAfter(hiddenAt))) {
           _demoMessages[index] = MessageModel(
             id: message.id,
@@ -259,6 +286,9 @@ class MessagingRepository {
             body: message.body,
             createdAt: message.createdAt,
             readAt: DateTime.now(),
+            editedAt: message.editedAt,
+            isUnsent: message.isUnsent,
+            hiddenForSender: message.hiddenForSender,
           );
         }
       }
@@ -267,6 +297,7 @@ class MessagingRepository {
     await _supabase!
         .from(_messagesTable)
         .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('is_unsent', false)
         .eq('course_id', courseId)
         .eq('sender_id', participantId)
         .eq('recipient_id', userId)
@@ -295,6 +326,7 @@ class MessagingRepository {
                 message.senderId == participantId &&
                 message.recipientId == userId &&
                 message.readAt == null &&
+                !message.isUnsent &&
                 (hiddenAt == null || message.createdAt.isAfter(hiddenAt)),
           )
           .length;
@@ -302,6 +334,7 @@ class MessagingRepository {
     final rows = await _supabase!
         .from(_messagesTable)
         .select('id')
+        .eq('is_unsent', false)
         .eq('course_id', courseId)
         .eq('sender_id', participantId)
         .eq('recipient_id', userId)

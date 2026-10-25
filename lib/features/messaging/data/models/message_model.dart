@@ -10,6 +10,7 @@ class MessageModel extends Equatable {
   final DateTime? readAt;
   final DateTime? editedAt;
   final bool isUnsent;
+  final bool hiddenForSender;
 
   const MessageModel({
     required this.id,
@@ -21,6 +22,7 @@ class MessageModel extends Equatable {
     this.readAt,
     this.editedAt,
     this.isUnsent = false,
+    this.hiddenForSender = false,
   });
 
   factory MessageModel.fromMap(Map<String, dynamic> map) {
@@ -38,6 +40,7 @@ class MessageModel extends Equatable {
           ? null
           : DateTime.parse(map['edited_at'] as String).toLocal(),
       isUnsent: map['is_unsent'] as bool? ?? false,
+      hiddenForSender: map['hidden_for_sender'] as bool? ?? false,
     );
   }
 
@@ -52,5 +55,6 @@ class MessageModel extends Equatable {
     readAt,
     editedAt,
     isUnsent,
+    hiddenForSender,
   ];
 }

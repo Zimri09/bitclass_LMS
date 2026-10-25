@@ -274,11 +274,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     color: AppColors.textSecondary,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Direct conversation · Private and encrypted',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.textSecondary,
+                  Flexible(
+                    child: Text(
+                      'Direct conversation · Private and encrypted',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ],
@@ -587,6 +589,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                               if (showDateDivider)
                                 _DateDivider(date: message.createdAt),
                               _MessageBubble(
+                                key: ValueKey(message.id),
                                 message: message,
                                 isSent: isSent,
                                 canModify: _modifiableMessageIds.contains(
@@ -671,6 +674,7 @@ class _MessageBubble extends StatefulWidget {
   final VoidCallback onChanged;
 
   const _MessageBubble({
+    super.key,
     required this.message,
     required this.isSent,
     required this.canModify,
@@ -683,21 +687,23 @@ class _MessageBubble extends StatefulWidget {
 }
 
 class _MessageBubbleState extends State<_MessageBubble> {
-  bool _isHovered = false;
+  bool _isUnsending = false;
 
   Future<void> _showMenu(BuildContext context, TapDownDetails? details) async {
-    if (!widget.canModify || widget.message.isUnsent) return;
+    if (!widget.isSent || widget.message.isUnsent || _isUnsending) return;
 
     final RenderBox overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final bubble = context.findRenderObject() as RenderBox;
+    final anchor = bubble.localToGlobal(Offset.zero, ancestor: overlay);
     final position = details != null
         ? RelativeRect.fromRect(
             details.globalPosition & const Size(40, 40),
             Offset.zero & overlay.size,
           )
         : RelativeRect.fromLTRB(
-            overlay.size.width - 150,
-            overlay.size.height / 2,
+            anchor.dx + bubble.size.width,
+            anchor.dy + bubble.size.height,
             0,
             0,
           );
@@ -706,24 +712,40 @@ class _MessageBubbleState extends State<_MessageBubble> {
       context: context,
       position: position,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: const [
-        PopupMenuItem(
-          value: 'edit',
+      items: [
+        if (widget.canModify)
+          const PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 18),
+                SizedBox(width: 10),
+                Flexible(child: Text('Edit message')),
+              ],
+            ),
+          ),
+        const PopupMenuItem(
+          value: 'unsendForYou',
           child: Row(
             children: [
-              Icon(Icons.edit_outlined, size: 18),
+              Icon(Icons.visibility_off_outlined, size: 18),
               SizedBox(width: 10),
-              Text('Edit message'),
+              Flexible(child: Text('Unsend for You')),
             ],
           ),
         ),
-        PopupMenuItem(
-          value: 'unsend',
+        const PopupMenuItem(
+          value: 'unsendForEveryone',
           child: Row(
             children: [
               Icon(Icons.delete_outline, size: 18, color: AppColors.error),
               SizedBox(width: 10),
-              Text('Unsend message', style: TextStyle(color: AppColors.error)),
+              Flexible(
+                child: Text(
+                  'Unsend for Everyone',
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
             ],
           ),
         ),
@@ -732,7 +754,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
 
     if (!context.mounted) return;
     if (selected == 'edit') _edit(context);
-    if (selected == 'unsend') _unsend(context);
+    if (selected == 'unsendForYou') _unsend(context, forEveryone: false);
+    if (selected == 'unsendForEveryone') _unsend(context, forEveryone: true);
   }
 
   Future<void> _edit(BuildContext context) async {
@@ -777,29 +800,41 @@ class _MessageBubbleState extends State<_MessageBubble> {
     }
   }
 
-  Future<void> _unsend(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unsend message?'),
-        content: const Text(
-          'This message will be replaced with “Message unsent”.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Unsend'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _unsend(
+    BuildContext context, {
+    required bool forEveryone,
+  }) async {
+    if (_isUnsending || !widget.isSent) return;
+    final confirmed =
+        !forEveryone ||
+        await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Unsend for Everyone?'),
+                content: const Text(
+                  'This will remove the message from both conversations. This cannot be undone.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Unsend for Everyone'),
+                  ),
+                ],
+              ),
+            ) ==
+            true;
     if (confirmed != true || !context.mounted) return;
+    setState(() => _isUnsending = true);
     try {
-      await widget.repository.unsendMessage(widget.message.id);
+      if (forEveryone) {
+        await widget.repository.unsendMessage(widget.message.id);
+      } else {
+        await widget.repository.unsendMessageForYou(widget.message.id);
+      }
       widget.onChanged();
     } catch (error) {
       if (context.mounted) {
@@ -807,13 +842,15 @@ class _MessageBubbleState extends State<_MessageBubble> {
           SnackBar(content: Text('Unable to unsend message: $error')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isUnsending = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final maxBubbleWidth = (MediaQuery.sizeOf(context).width * 0.72).clamp(
-      240.0,
+    final maxBubbleWidth = (MediaQuery.sizeOf(context).width * 0.65).clamp(
+      0.0,
       560.0,
     );
     final isSent = widget.isSent;
@@ -892,42 +929,31 @@ class _MessageBubbleState extends State<_MessageBubble> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: Row(
-          mainAxisAlignment: isSent
-              ? MainAxisAlignment.end
-              : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (isSent && widget.canModify && !message.isUnsent) ...[
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: _isHovered ? 1.0 : 0.0,
-                child: IconButton(
-                  icon: const Icon(Icons.more_horiz, size: 16),
-                  color: AppColors.textSecondary,
-                  tooltip: 'Message options',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 28,
-                  ),
-                  onPressed: () => _showMenu(context, null),
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
-            GestureDetector(
-              onTapDown: (d) => tapDownDetails = d,
-              onLongPress: () => _showMenu(context, tapDownDetails),
-              onSecondaryTapDown: (d) => _showMenu(context, d),
-              child: bubble,
+      child: Row(
+        mainAxisAlignment: isSent
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (isSent && !message.isUnsent) ...[
+            IconButton(
+              icon: const Icon(Icons.more_horiz, size: 16),
+              color: AppColors.textSecondary,
+              tooltip: 'Message options',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              onPressed: _isUnsending ? null : () => _showMenu(context, null),
             ),
+            const SizedBox(width: 4),
           ],
-        ),
+          GestureDetector(
+            onTapDown: (d) => tapDownDetails = d,
+            onLongPress: () => _showMenu(context, tapDownDetails),
+            onSecondaryTapDown: (d) => _showMenu(context, d),
+            child: bubble,
+          ),
+        ],
       ),
     );
   }
