@@ -9,6 +9,7 @@ import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/url_utils.dart';
 import '../../../../shared/widgets/loading_widgets.dart';
+import '../../../../shared/widgets/upload_file_preview.dart';
 import '../../../../shared/widgets/responsive_card_wrap.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
@@ -334,11 +335,15 @@ class _FileListScreenState extends State<FileListScreen> {
                   color: _getTypeColor(file.type).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  file.isExternalLink ? Icons.link : _getTypeIcon(file.type),
-                  color: _getTypeColor(file.type),
-                  size: kIsWeb ? 21 : 24,
-                ),
+                child: file.isExternalLink
+                    ? const Icon(Icons.link)
+                    : UploadFilePreview(
+                        mimeType: file.mimeType,
+                        sourceKey: file.id,
+                        loadUrl: () => context
+                            .read<FileRepository>()
+                            .getAccessibleUrl(file),
+                      ),
               ),
               const SizedBox(width: 12),
               // File info
@@ -431,32 +436,39 @@ class _FileListScreenState extends State<FileListScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          file.formattedSize,
+                          file.isExternalLink
+                              ? file.formattedSize
+                              : '${fileTypeLabel(file.mimeType)} · ${file.formattedSize}',
                           style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 12,
                           ),
                         ),
-                        if (!file.isExternalLink) ...[
-                          const SizedBox(width: 12),
-                          Icon(
-                            Icons.download,
-                            size: 12,
-                            color: AppColors.textMuted,
+                        if (!file.isExternalLink)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.download,
+                                size: 12,
+                                color: AppColors.textMuted,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${file.downloadCount}',
+                                style: TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${file.downloadCount}',
-                            style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(width: 12),
                         Text(
                           _formatDate(file.createdAt),
                           style: TextStyle(
@@ -771,25 +783,6 @@ class _FileListScreenState extends State<FileListScreen> {
 
     if (confirmed != true || !mounted) return;
     fileBloc.add(DeleteFile(fileId: file.id, courseId: widget.courseId));
-  }
-
-  IconData _getTypeIcon(FileType type) {
-    switch (type) {
-      case FileType.document:
-        return Icons.description;
-      case FileType.image:
-        return Icons.image;
-      case FileType.video:
-        return Icons.videocam;
-      case FileType.audio:
-        return Icons.audiotrack;
-      case FileType.code:
-        return Icons.code;
-      case FileType.archive:
-        return Icons.archive;
-      case FileType.other:
-        return Icons.insert_drive_file;
-    }
   }
 
   Color _getTypeColor(FileType type) {

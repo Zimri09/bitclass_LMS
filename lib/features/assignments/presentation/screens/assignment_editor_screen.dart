@@ -420,12 +420,16 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
     }
     setState(() => _isPickingFile = true);
     try {
-      final file = await pickAssignmentFile();
-      if (file == null || !mounted) return;
+      final files = await pickAssignmentFiles(
+        remaining: AssignmentRepository.maxAttachments - _attachmentCount,
+      );
+      if (files.isEmpty || !mounted) return;
       setState(() {
-        _pendingMaterials.add(
-          _PendingMaterial(id: const Uuid().v4(), file: file),
-        );
+        for (final file in files) {
+          _pendingMaterials.add(
+            _PendingMaterial(id: const Uuid().v4(), file: file),
+          );
+        }
         _hasChanges = true;
       });
     } catch (error) {
@@ -817,6 +821,7 @@ class _AssignmentEditorScreenState extends State<AssignmentEditorScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: AssignmentAttachmentTile(
                   attachment: pending.preview,
+                  previewBytes: pending.file.bytes,
                   onRemove: () {
                     setState(() {
                       _pendingMaterials.remove(pending);

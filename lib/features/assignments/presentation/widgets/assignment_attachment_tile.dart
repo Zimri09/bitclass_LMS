@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../shared/widgets/upload_file_preview.dart';
+import '../../data/repositories/assignment_repository.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/assignment_attachment.dart';
@@ -8,6 +12,7 @@ class AssignmentAttachmentTile extends StatelessWidget {
   final VoidCallback? onOpen;
   final VoidCallback? onRemove;
   final bool isBusy;
+  final Uint8List? previewBytes;
 
   const AssignmentAttachmentTile({
     super.key,
@@ -15,13 +20,14 @@ class AssignmentAttachmentTile extends StatelessWidget {
     this.onOpen,
     this.onRemove,
     this.isBusy = false,
+    this.previewBytes,
   });
 
   @override
   Widget build(BuildContext context) {
     final subtitle = attachment.isLink
         ? _linkHost(attachment.url)
-        : attachment.formattedSize;
+        : '${fileTypeLabel(attachment.mimeType ?? '')} · ${attachment.formattedSize}';
 
     return Material(
       color: AppColors.surfaceLight,
@@ -40,13 +46,18 @@ class AssignmentAttachmentTile extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  attachment.isLink
-                      ? Icons.link_rounded
-                      : Icons.insert_drive_file_outlined,
-                  color: AppColors.primary,
-                  size: 21,
-                ),
+                child: attachment.isLink
+                    ? const Icon(Icons.link_rounded)
+                    : UploadFilePreview(
+                        mimeType: attachment.mimeType ?? '',
+                        bytes: previewBytes,
+                        sourceKey: attachment.storagePath,
+                        loadUrl: attachment.isStoredFile
+                            ? () => context
+                                  .read<AssignmentRepository>()
+                                  .getAttachmentUrl(attachment)
+                            : null,
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(

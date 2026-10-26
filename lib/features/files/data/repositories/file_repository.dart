@@ -212,6 +212,20 @@ class FileRepository {
     }
   }
 
+  Future<Uint8List> readOfflinePreview(
+    OfflineCourseFile offline, {
+    required String userId,
+  }) async {
+    if (kIsWeb || offline.userId != userId) {
+      throw StateError('Offline file is unavailable.');
+    }
+    final file = File(offline.localPath);
+    if (await file.length() > maxCourseUploadBytes) {
+      throw StateError('File exceeds the preview limit.');
+    }
+    return file.readAsBytes();
+  }
+
   Future<void> removeOfflineFile({
     required String userId,
     required String fileId,
@@ -616,7 +630,6 @@ class FileRepository {
 
       await Future.delayed(const Duration(milliseconds: 500));
 
-      final extension = fileName.split('.').last;
       final newFile = CourseFile(
         id: fileId,
         courseId: courseId,
@@ -626,8 +639,14 @@ class FileRepository {
         name: fileName,
         description: description,
         url: 'https://example.com/files/$fileId',
-        type: CourseFile.getTypeFromExtension(extension),
-        mimeType: mimeType,
+        type: CourseFile.getTypeFromMime(
+          detectUploadMimeType(fileName, fileData, reportedMimeType: mimeType),
+        ),
+        mimeType: detectUploadMimeType(
+          fileName,
+          fileData,
+          reportedMimeType: mimeType,
+        ),
         sizeBytes: fileData.length,
         createdAt: DateTime.now(),
       );
@@ -655,9 +674,12 @@ class FileRepository {
 
     try {
       validateUploadBytes(fileData, maxBytes: maxCourseUploadBytes);
-      mimeType = uploadMimeType(fileName, fallback: mimeType);
-      final extension = fileName.split('.').last;
-      final fileType = CourseFile.getTypeFromExtension(extension);
+      mimeType = detectUploadMimeType(
+        fileName,
+        fileData,
+        reportedMimeType: mimeType,
+      );
+      final fileType = CourseFile.getTypeFromMime(mimeType);
       final safeFileName = _safePathSegment(fileName, maxLength: 120);
       storagePath = '$courseId/$fileId-$safeFileName';
 

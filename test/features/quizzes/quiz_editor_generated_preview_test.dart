@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart' as fp;
+import '../../helpers/upload_picker_fake.dart';
 
 import 'package:bitclass/features/auth/data/models/user_model.dart';
 import 'package:bitclass/features/auth/data/repositories/auth_repository.dart';
@@ -15,6 +17,75 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  testWidgets(
+    'multiple source files are reviewed, removed and generated sequentially',
+    (tester) async {
+      final previous = fp.FilePickerPlatform.instance;
+      fp.FilePickerPlatform.instance = UploadPickerFake([
+        MemoryUploadFile('one.txt', [65]),
+        MemoryUploadFile('two.txt', [66]),
+        MemoryUploadFile('remove.txt', [67]),
+      ]);
+      addTearDown(() => fp.FilePickerPlatform.instance = previous);
+      final authRepository = _FakeAuthRepository();
+      final authBloc = AuthBloc(authRepository: authRepository)
+        ..add(AuthUserUpdated(_instructor));
+      await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+      final repository = _FakeQuizRepository();
+      addTearDown(() async {
+        repository.dispose();
+        await authBloc.close();
+        await authRepository.dispose();
+      });
+      await tester.pumpWidget(
+        RepositoryProvider<QuizRepository>.value(
+          value: repository,
+          child: BlocProvider<AuthBloc>.value(
+            value: authBloc,
+            child: _quizEditorNavigationApp(),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open Quiz Editor'));
+      await tester.pumpAndSettle();
+      final scrollable = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(
+        find.text('Generate from File'),
+        300,
+        scrollable: scrollable,
+      );
+      await tester.tap(find.text('Generate from File'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Choose'),
+        300,
+        scrollable: scrollable,
+      );
+      await tester.tap(find.text('Choose'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byTooltip('Remove remove.txt'),
+        250,
+        scrollable: scrollable,
+      );
+      await tester.tap(find.byTooltip('Remove remove.txt'));
+      await tester.pumpAndSettle();
+      await _startGeneration(tester, chooseFile: false);
+      expect(repository.generationFileNames, ['one.txt']);
+      repository.generationRequests.first.complete([
+        _question.copyWith(id: 'generated-one'),
+      ]);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(repository.generationFileNames, ['one.txt', 'two.txt']);
+      repository.generationRequests.last.complete([
+        _question.copyWith(id: 'generated-two'),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Questions (2)'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'pending generation can be cancelled and back remains actionable',
     (tester) async {
@@ -559,6 +630,7 @@ class _FakeQuizRepository extends QuizRepository {
   QuizModel? updatedQuiz;
   final List<QuestionModel> savedQuestions = [];
   final List<Completer<List<QuestionModel>>> generationRequests = [];
+  final generationFileNames = <String>[];
 
   factory _FakeQuizRepository({QuestionModel question = _question}) {
     final client = SupabaseClient('http://localhost:54321', 'test-anon-key');
@@ -602,6 +674,7 @@ class _FakeQuizRepository extends QuizRepository {
     String? instructions,
   }) {
     final request = Completer<List<QuestionModel>>();
+    generationFileNames.add(fileName);
     generationRequests.add(request);
     return request.future;
   }

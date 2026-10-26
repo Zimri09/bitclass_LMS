@@ -1,4 +1,5 @@
 import 'package:bitclass_notifications/bitclass_notifications.dart';
+import '../../../../shared/widgets/upload_file_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -569,13 +570,14 @@ class _LessonScreenState extends State<LessonScreen> {
                 color: AppColors.primary.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                file.isExternalLink
-                    ? Icons.link
-                    : Icons.insert_drive_file_outlined,
-                size: 20,
-                color: AppColors.primary,
-              ),
+              child: file.isExternalLink
+                  ? const Icon(Icons.link)
+                  : UploadFilePreview(
+                      mimeType: file.mimeType,
+                      sourceKey: file.id,
+                      loadUrl: () =>
+                          context.read<FileRepository>().getAccessibleUrl(file),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -596,7 +598,7 @@ class _LessonScreenState extends State<LessonScreen> {
                     file.description.isEmpty
                         ? (file.isExternalLink
                               ? 'Web link'
-                              : file.formattedSize)
+                              : '${fileTypeLabel(file.mimeType)} · ${file.formattedSize}')
                         : file.description,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -605,6 +607,14 @@ class _LessonScreenState extends State<LessonScreen> {
                       fontSize: 12,
                     ),
                   ),
+                  if (!file.isExternalLink && file.description.isNotEmpty)
+                    Text(
+                      '${fileTypeLabel(file.mimeType)} · ${file.formattedSize}',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
                 ],
               ),
             ),

@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/foundation.dart';
+import '../../../../core/utils/upload_file.dart';
 
 import '../../data/repositories/assignment_repository.dart';
 
@@ -28,9 +29,27 @@ Future<PickedAssignmentFile?> pickAssignmentFile() async {
 
   return PickedAssignmentFile(
     name: file.name,
-    mimeType: assignmentMimeType(file.name),
+    mimeType: detectUploadMimeType(file.name, bytes),
     bytes: bytes,
   );
+}
+
+Future<List<PickedAssignmentFile>> pickAssignmentFiles({
+  required int remaining,
+}) async {
+  final files = await pickUploadData(
+    maxBytes: AssignmentRepository.maxAttachmentBytes,
+    maxFiles: remaining,
+  );
+  return files
+      .map(
+        (file) => PickedAssignmentFile(
+          name: file.name,
+          mimeType: file.mimeType,
+          bytes: file.bytes,
+        ),
+      )
+      .toList();
 }
 
 String assignmentMimeType(String fileName) {

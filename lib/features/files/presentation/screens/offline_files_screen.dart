@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/errors/app_error.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_shell.dart';
+import '../../../../shared/widgets/upload_file_preview.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/file_repository.dart';
@@ -250,7 +251,15 @@ class _OfflineFilesScreenState extends State<OfflineFilesScreen> {
                   color: _typeColor(file.type).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(_typeIcon(file.type), color: _typeColor(file.type)),
+                child: UploadFilePreview(
+                  mimeType: file.mimeType,
+                  sourceKey: '${offline.userId}/${file.id}',
+                  loadBytes: () =>
+                      context.read<FileRepository>().readOfflinePreview(
+                        offline,
+                        userId: _currentUserId ?? '',
+                      ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -287,7 +296,7 @@ class _OfflineFilesScreenState extends State<OfflineFilesScreen> {
                         const SizedBox(width: 10),
                         Flexible(
                           child: Text(
-                            file.formattedSize,
+                            '${fileTypeLabel(file.mimeType)} · ${file.formattedSize}',
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: AppColors.textMuted,
@@ -392,18 +401,6 @@ class _OfflineFilesScreenState extends State<OfflineFilesScreen> {
     ScaffoldMessenger.of(context).showAppSnackBar(
       const SnackBar(content: Text('Offline download removed.')),
     );
-  }
-
-  IconData _typeIcon(FileType type) {
-    return switch (type) {
-      FileType.document => Icons.description_outlined,
-      FileType.image => Icons.image_outlined,
-      FileType.video => Icons.video_file_outlined,
-      FileType.audio => Icons.audio_file_outlined,
-      FileType.code => Icons.code,
-      FileType.archive => Icons.archive_outlined,
-      FileType.other => Icons.insert_drive_file_outlined,
-    };
   }
 
   Color _typeColor(FileType type) {

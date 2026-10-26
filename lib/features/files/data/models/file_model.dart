@@ -68,6 +68,38 @@ class CourseFile {
   }
 
   /// Determine file type from extension
+  static FileType getTypeFromMime(String mimeType) {
+    final mime = mimeType.toLowerCase().split(';').first;
+    if (mime.startsWith('image/')) return FileType.image;
+    if (mime.startsWith('video/')) return FileType.video;
+    if (mime.startsWith('audio/')) return FileType.audio;
+    if (mime.contains('zip') ||
+        mime.contains('compressed') ||
+        mime.contains('tar') ||
+        mime.contains('rar')) {
+      return FileType.archive;
+    }
+    if (mime == 'application/pdf' ||
+        mime.contains('word') ||
+        mime.contains('office') ||
+        mime.contains('opendocument') ||
+        mime.contains('powerpoint') ||
+        mime.contains('excel') ||
+        mime == 'text/plain' ||
+        mime == 'text/markdown' ||
+        mime == 'text/csv') {
+      return FileType.document;
+    }
+    if (mime.startsWith('text/') ||
+        mime.contains('javascript') ||
+        mime.contains('json') ||
+        mime.contains('xml') ||
+        mime.contains('yaml')) {
+      return FileType.code;
+    }
+    return FileType.other;
+  }
+
   static FileType getTypeFromExtension(String extension) {
     switch (extension.toLowerCase()) {
       case 'pdf':

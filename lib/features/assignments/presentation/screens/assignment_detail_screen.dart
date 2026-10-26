@@ -1,4 +1,6 @@
 import 'package:bitclass_notifications/bitclass_notifications.dart';
+import '../../../../core/utils/upload_file.dart';
+import '../../../../shared/widgets/upload_file_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -760,6 +762,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
   }
 
   Future<void> _addStudentFile(AssignmentDetailLoaded state) async {
+    if (_isWorkBusy) return;
     final repository = context.read<AssignmentRepository>();
     final current = state.submission?.attachments ?? const [];
     if (current.length >= AssignmentRepository.maxAttachments) {
@@ -768,19 +771,39 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
     }
 
     setState(() => _isWorkBusy = true);
-    AssignmentAttachment? uploaded;
+    final uploaded = <AssignmentAttachment>[];
+    var saved = false;
     try {
-      final file = await pickAssignmentFile();
-      if (file == null || !mounted) return;
-      uploaded = await repository.uploadAttachment(
-        courseId: widget.courseId,
-        assignmentId: widget.assignmentId,
-        userId: _userId,
-        fileName: file.name,
-        mimeType: file.mimeType,
-        bytes: file.bytes,
-        isSubmission: true,
+      final picked = await pickAssignmentFiles(
+        remaining: AssignmentRepository.maxAttachments - current.length,
       );
+      if (picked.isEmpty || !mounted) return;
+      final files = await reviewUploadFiles(
+        context,
+        picked
+            .map(
+              (file) => UploadFileData(
+                name: file.name,
+                mimeType: file.mimeType,
+                bytes: file.bytes,
+              ),
+            )
+            .toList(),
+      );
+      if (files == null || files.isEmpty || !mounted) return;
+      for (final file in files) {
+        uploaded.add(
+          await repository.uploadAttachment(
+            courseId: widget.courseId,
+            assignmentId: widget.assignmentId,
+            userId: _userId,
+            fileName: file.name,
+            mimeType: file.mimeType,
+            bytes: file.bytes,
+            isSubmission: true,
+          ),
+        );
+      }
       await repository.saveDraft(
         assignmentId: widget.assignmentId,
         courseId: widget.courseId,
@@ -788,17 +811,20 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
         userDisplayName: _userDisplayName,
         code: _currentCode,
         language: state.assignment.language,
-        attachments: [...current, uploaded],
+        attachments: [...current, ...uploaded],
       );
+      saved = true;
       if (mounted) {
-        _showMessage('File attached.', AppColors.success);
+        _showMessage('${uploaded.length} files attached.', AppColors.success);
         _loadAssignment();
       }
     } catch (error) {
-      if (uploaded != null) {
-        try {
-          await repository.deleteStoredAttachment(uploaded);
-        } catch (_) {}
+      if (!saved) {
+        for (final attachment in uploaded) {
+          try {
+            await repository.deleteStoredAttachment(attachment);
+          } catch (_) {}
+        }
       }
       if (mounted) _showMessage(error.toString(), AppColors.error);
     } finally {

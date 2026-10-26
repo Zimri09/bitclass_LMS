@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart' as fp;
+import '../../helpers/upload_picker_fake.dart';
 
 import 'package:bitclass/core/theme/app_colors.dart';
 import 'package:bitclass/features/assignments/data/models/models.dart';
@@ -17,6 +20,61 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  for (final failSecond in [false, true]) {
+    testWidgets(
+      'student batch preserves draft and cleans up failures: $failSecond',
+      (tester) async {
+        _usePhoneSize(tester);
+        final originalPicker = fp.FilePickerPlatform.instance;
+        fp.FilePickerPlatform.instance = UploadPickerFake([
+          MemoryUploadFile('one.txt', [65, 66]),
+          MemoryUploadFile('two.txt', [67, 68]),
+          MemoryUploadFile('remove.txt', [69]),
+        ]);
+        addTearDown(() => fp.FilePickerPlatform.instance = originalPicker);
+        final fixture = await _pumpStudentAssignment(
+          tester,
+          assignment: _publishedAssignment(requiresAttachment: true),
+        );
+        addTearDown(fixture.dispose);
+        fixture.assignmentRepository.failSecondUpload = failSecond;
+        await tester.scrollUntilVisible(
+          find.text('File'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.text('File'));
+        await tester.pumpAndSettle();
+        expect(find.text('Selected files'), findsOneWidget);
+        await tester.tap(find.byTooltip('Remove remove.txt'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Attach 2 files'));
+        await tester.pumpAndSettle();
+        expect(fixture.assignmentRepository.uploadedNames, [
+          'one.txt',
+          'two.txt',
+        ]);
+        if (failSecond) {
+          expect(fixture.assignmentRepository.submission, isNull);
+          expect(fixture.assignmentRepository.deletedAttachments, ['one.txt']);
+        } else {
+          expect(
+            fixture.assignmentRepository.submission!.attachments.map(
+              (file) => file.name,
+            ),
+            ['one.txt', 'two.txt'],
+          );
+          expect(
+            fixture.assignmentRepository.submission!.attachments.map(
+              (file) => file.mimeType,
+            ),
+            everyElement('text/plain'),
+          );
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('instructor can save assignment details and a link as a draft', (
     tester,
   ) async {
@@ -770,6 +828,57 @@ class _FakeAssignmentRepository extends AssignmentRepository {
   String? submittedCode;
   int markDoneCalls = 0;
   int unsubmitCalls = 0;
+  bool failSecondUpload = false;
+  final uploadedNames = <String>[];
+  final deletedAttachments = <String>[];
+
+  @override
+  Future<AssignmentAttachment> uploadAttachment({
+    required String courseId,
+    required String assignmentId,
+    required String userId,
+    required String fileName,
+    required String mimeType,
+    required Uint8List bytes,
+    required bool isSubmission,
+  }) async {
+    uploadedNames.add(fileName);
+    if (failSecondUpload && uploadedNames.length == 2) {
+      throw StateError('Upload failed');
+    }
+    return AssignmentAttachment(
+      id: fileName,
+      name: fileName,
+      kind: AssignmentAttachmentKind.file,
+      storagePath: 'test/$fileName',
+      mimeType: mimeType,
+      sizeBytes: bytes.length,
+    );
+  }
+
+  @override
+  Future<void> deleteStoredAttachment(AssignmentAttachment attachment) async {
+    deletedAttachments.add(attachment.name);
+  }
+
+  @override
+  Future<SubmissionModel> saveDraft({
+    required String assignmentId,
+    required String courseId,
+    required String userId,
+    required String userDisplayName,
+    required String code,
+    required ProgrammingLanguage language,
+    List<AssignmentAttachment>? attachments,
+  }) async {
+    submission = _completedSubmission(
+      status: SubmissionStatus.draft,
+      userDisplayName: userDisplayName,
+      code: code,
+      attachments: attachments,
+    );
+    return submission!;
+  }
 
   factory _FakeAssignmentRepository({
     AssignmentModel? assignment,

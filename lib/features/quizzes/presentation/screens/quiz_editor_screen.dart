@@ -2,6 +2,7 @@ import 'package:bitclass_notifications/bitclass_notifications.dart';
 import 'dart:typed_data';
 
 import '../../../../core/utils/upload_file.dart';
+import '../../../../shared/widgets/upload_file_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
@@ -26,8 +27,10 @@ typedef QuizSourcePicker = Future<QuizSourceDocument?> Function();
 class QuizSourceDocument {
   final String name;
   final Uint8List bytes;
+  final String mimeType;
 
-  const QuizSourceDocument({required this.name, required this.bytes});
+  QuizSourceDocument({required this.name, required this.bytes})
+    : mimeType = detectUploadMimeType(name, bytes);
 }
 
 String _fileExtension(String name) {
@@ -76,7 +79,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   bool _isExitDialogOpen = false;
   QuizModel? _quiz;
   List<QuestionModel> _questions = [];
-  QuizSourceDocument? _sourceDocument;
+  final List<QuizSourceDocument> _sourceDocuments = [];
   int _generationRequestId = 0;
   _QuestionCreationMode _creationMode = _QuestionCreationMode.manual;
   QuizGenerationQuestionType _generationType = QuizGenerationQuestionType.mixed;
@@ -395,44 +398,38 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   Future<void> _pickSourceFile() async {
     if (_isPickingSource || _isGenerating) return;
     setState(() => _isPickingSource = true);
-
     try {
-      QuizSourceDocument? source;
+      final List<QuizSourceDocument> sources;
       if (widget.sourcePicker != null) {
-        source = await widget.sourcePicker!();
+        final source = await widget.sourcePicker!();
+        sources = source == null ? [] : [source];
       } else {
-        final file = await pickUploadFile(
+        final files = await pickUploadData(
+          maxBytes: _maxPdfBytes,
           extensions: const ['pdf', 'txt', 'docx', 'pptx'],
+          maxBytesForFile: (name) =>
+              _maxBytesForGenerationExtension(_fileExtension(name)) ?? 0,
         );
-        if (file == null) return;
-
-        final extension = _fileExtension(file.name);
+        sources = files
+            .map(
+              (file) => QuizSourceDocument(name: file.name, bytes: file.bytes),
+            )
+            .toList();
+      }
+      for (final source in sources) {
+        final extension = _fileExtension(source.name);
         final maxBytes = _maxBytesForGenerationExtension(extension);
-        if (maxBytes == null) {
-          _showError('Only PDF, TXT, DOCX, and PPTX files are supported.');
-          return;
+        if (maxBytes == null ||
+            source.mimeType != uploadMimeType(source.name)) {
+          throw FormatException(
+            '${source.name}: choose a PDF, TXT, DOCX or PPTX whose content matches its type.',
+          );
         }
-        source = QuizSourceDocument(
-          name: file.name,
-          bytes: await readUploadFile(file, maxBytes: maxBytes),
-        );
+        validateUploadBytes(source.bytes, maxBytes: maxBytes);
       }
-      if (source == null) return;
-
-      final extension = _fileExtension(source.name);
-      final maxBytes = _maxBytesForGenerationExtension(extension);
-      if (maxBytes == null) {
-        _showError('Only PDF, TXT, DOCX, and PPTX files are supported.');
-        return;
-      }
-      validateUploadBytes(source.bytes, maxBytes: maxBytes);
-
-      if (!mounted) return;
-      setState(() {
-        _sourceDocument = source;
-      });
+      if (mounted) setState(() => _sourceDocuments.addAll(sources));
     } catch (error) {
-      if (mounted) _showError('Failed to select file: $error');
+      if (mounted) _showError('Failed to select files: $error');
     } finally {
       if (mounted) setState(() => _isPickingSource = false);
     }
@@ -446,9 +443,8 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
   };
 
   Future<void> _generateQuestions() async {
-    final source = _sourceDocument;
-    if (source == null) {
-      _showError('Select a PDF or TXT file first.');
+    if (_sourceDocuments.isEmpty) {
+      _showError('Select source files first.');
       return;
     }
     if (_isGenerating) return;
@@ -456,45 +452,53 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
     final requestId = ++_generationRequestId;
     setState(() => _isGenerating = true);
     try {
-      final generated = await context
-          .read<QuizRepository>()
-          .generateQuestionsFromFile(
-            courseId: widget.courseId,
-            fileName: source.name,
-            mimeType: uploadMimeType(source.name),
-            bytes: source.bytes,
-            questionCount: _generationQuestionCount,
-            questionType: _generationType,
-            difficulty: _generationDifficulty,
-            points: QuizGenerationPoints(
-              multipleChoice: _multipleChoicePoints,
-              trueFalse: _trueFalsePoints,
-              shortAnswer: _shortAnswerPoints,
-            ),
-            instructions: _generationInstructionsController.text,
-          );
-      if (!mounted || requestId != _generationRequestId) return;
+      var generatedCount = 0;
+      for (final source in List<QuizSourceDocument>.of(_sourceDocuments)) {
+        if (!mounted || requestId != _generationRequestId) return;
+        final generated = await context
+            .read<QuizRepository>()
+            .generateQuestionsFromFile(
+              courseId: widget.courseId,
+              fileName: source.name,
+              mimeType: source.mimeType,
+              bytes: source.bytes,
+              questionCount: _generationQuestionCount,
+              questionType: _generationType,
+              difficulty: _generationDifficulty,
+              points: QuizGenerationPoints(
+                multipleChoice: _multipleChoicePoints,
+                trueFalse: _trueFalsePoints,
+                shortAnswer: _shortAnswerPoints,
+              ),
+              instructions: _generationInstructionsController.text,
+            );
+        if (!mounted || requestId != _generationRequestId) return;
 
-      setState(() {
-        final startingOrder = _questions.length;
-        _questions.addAll([
-          for (var index = 0; index < generated.length; index++)
-            generated[index].copyWith(order: startingOrder + index),
-        ]);
-        _hasGeneratedQuestions = true;
-        _isPublished = false;
-      });
+        setState(() {
+          final startingOrder = _questions.length;
+          _questions.addAll([
+            for (var index = 0; index < generated.length; index++)
+              generated[index].copyWith(order: startingOrder + index),
+          ]);
+          _hasGeneratedQuestions = true;
+          _isPublished = false;
+          _sourceDocuments.remove(source);
+          generatedCount += generated.length;
+        });
+      }
       ScaffoldMessenger.of(context).showAppSnackBar(
         SnackBar(
           content: Text(
-            '${generated.length} draft questions generated. Review them before publishing.',
+            '$generatedCount draft questions generated. Review them before publishing.',
           ),
           backgroundColor: AppColors.success,
         ),
       );
     } catch (error) {
       if (mounted && requestId == _generationRequestId) {
-        _showError('Question generation failed: $error');
+        _showError(
+          'Question generation failed: $error. Completed drafts are kept; retry the remaining files.',
+        );
       }
     } finally {
       if (mounted && requestId == _generationRequestId) {
@@ -699,23 +703,29 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
           Text('Quiz Settings', style: AppTextStyles.h4),
           const SizedBox(height: 16),
 
-          ListTile(
-            key: const ValueKey('quiz-due-date'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.event_outlined),
-            title: const Text('Due date'),
-            subtitle: Text(formatDueDateTime(_dueDateTime)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _selectDueDate,
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
+              key: const ValueKey('quiz-due-date'),
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_outlined),
+              title: const Text('Due date'),
+              subtitle: Text(formatDueDateTime(_dueDateTime)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _selectDueDate,
+            ),
           ),
-          ListTile(
-            key: const ValueKey('quiz-due-time'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.schedule_outlined),
-            title: const Text('Due time'),
-            subtitle: Text(_dueTime.format(context)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _selectDueTime,
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
+              key: const ValueKey('quiz-due-time'),
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule_outlined),
+              title: const Text('Due time'),
+              subtitle: Text(_dueTime.format(context)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _selectDueTime,
+            ),
           ),
           const Padding(
             padding: EdgeInsets.only(bottom: 16),
@@ -915,79 +925,34 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
               ],
             )
           else ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.2),
+            Text(
+              'PDF, DOCX and PPTX: up to 8 MB each. TXT: up to 1 MB each.',
+              style: AppTextStyles.bodySmall,
+            ),
+            for (final source in _sourceDocuments)
+              PendingUploadTile(
+                file: UploadFileData(
+                  name: source.name,
+                  mimeType: source.mimeType,
+                  bytes: source.bytes,
                 ),
+                onRemove: _isGenerating
+                    ? null
+                    : () => setState(() => _sourceDocuments.remove(source)),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    _sourceDocument == null
-                        ? Icons.upload_file_outlined
-                        : Icons.description_outlined,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _sourceDocument == null
-                        ? Text(
-                            'Choose a PDF (up to 8 MB) or TXT file (up to 1 MB).',
-                            style: AppTextStyles.bodySmall,
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _sourceDocument!.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTextStyles.bodyMedium.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                _formatBytes(_sourceDocument!.bytes.length),
-                                style: AppTextStyles.caption.copyWith(
-                                  color: colors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                  if (_sourceDocument != null)
-                    IconButton(
-                      tooltip: 'Remove file',
-                      onPressed: _isGenerating
-                          ? null
-                          : () {
-                              setState(() {
-                                _sourceDocument = null;
-                              });
-                            },
-                      icon: const Icon(Icons.close),
-                    )
-                  else
-                    OutlinedButton(
-                      onPressed: _isPickingSource ? null : _pickSourceFile,
-                      child: Text(_isPickingSource ? 'Opening...' : 'Choose'),
-                    ),
-                ],
+            OutlinedButton.icon(
+              onPressed: _isPickingSource || _isGenerating
+                  ? null
+                  : _pickSourceFile,
+              icon: const Icon(Icons.add),
+              label: Text(
+                _isPickingSource
+                    ? 'Opening...'
+                    : _sourceDocuments.isEmpty
+                    ? 'Choose'
+                    : 'Add files',
               ),
             ),
-            if (_sourceDocument != null) ...[
-              const SizedBox(height: 10),
-              TextButton.icon(
-                onPressed: _isGenerating ? null : _pickSourceFile,
-                icon: const Icon(Icons.swap_horiz),
-                label: const Text('Replace file'),
-              ),
-            ],
             const SizedBox(height: 14),
             Wrap(
               spacing: 12,
@@ -999,7 +964,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                     initialValue: _generationQuestionCount,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                      labelText: 'Number of questions',
+                      labelText: 'Questions per file',
                     ),
                     items: const [5, 10, 15, 20, 25, 30]
                         .map(
@@ -1113,7 +1078,7 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
                 key: const ValueKey('quiz-generation-action'),
                 onPressed: _isGenerating
                     ? _cancelGeneration
-                    : _sourceDocument == null
+                    : _sourceDocuments.isEmpty
                     ? null
                     : _generateQuestions,
                 style: _isGenerating
@@ -1219,13 +1184,6 @@ class _QuizEditorScreenState extends State<QuizEditorScreen> {
               },
       ),
     );
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    final kilobytes = bytes / 1024;
-    if (kilobytes < 1024) return '${kilobytes.toStringAsFixed(1)} KB';
-    return '${(kilobytes / 1024).toStringAsFixed(1)} MB';
   }
 
   Widget _buildQuestionsSection() {

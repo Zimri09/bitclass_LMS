@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/environment.dart';
 import '../../../../core/utils/url_utils.dart';
+import '../../../../core/utils/upload_file.dart';
 import '../models/models.dart';
 
 part '../fixtures/assignment_demo_data.dart';
@@ -357,6 +358,11 @@ class AssignmentRepository {
     }
 
     final attachmentId = const Uuid().v4();
+    mimeType = detectUploadMimeType(
+      fileName,
+      bytes,
+      reportedMimeType: mimeType,
+    );
     final normalizedName = _safeFileName(fileName);
     final scope = isSubmission ? 'submissions' : 'materials';
     final storagePath =
@@ -615,8 +621,7 @@ class AssignmentRepository {
     final submittedAttachments =
         attachments ?? existing?.attachments ?? const <AssignmentAttachment>[];
     _validateAttachments(submittedAttachments);
-    if (assignment.requiresStudentAttachment &&
-        submittedAttachments.isEmpty) {
+    if (assignment.requiresStudentAttachment && submittedAttachments.isEmpty) {
       throw Exception('Attach at least one file or link before submitting.');
     }
     if (assignment.isCodeActivity && code.trim().isEmpty) {
