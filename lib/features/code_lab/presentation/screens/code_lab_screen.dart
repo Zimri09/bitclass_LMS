@@ -245,9 +245,9 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
                 : (selection) => _selectLanguage(selection.first),
           ),
           const _SafetyPill(icon: Icons.wifi_off, label: 'No network'),
-          const _SafetyPill(
+          _SafetyPill(
             icon: Icons.timer_outlined,
-            label: '5 second limit',
+            label: '${_language.executionLimitSeconds} second limit',
           ),
           const _SafetyPill(
             icon: Icons.delete_sweep_outlined,

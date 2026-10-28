@@ -52,7 +52,10 @@ Deno.serve(async (request) => {
     const runner = runnerConfiguration(body.language);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8_000);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      body.language === "java" ? 25_000 : 8_000,
+    );
     let response: Response;
     try {
       response = await fetch(runner.url, {

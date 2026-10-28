@@ -67,7 +67,7 @@ class SupabaseCodeExecutionRepository implements CodeExecutionRepository {
               'stdin': stdin,
             },
           )
-          .timeout(const Duration(seconds: 12));
+          .timeout(language.requestTimeout);
 
       if (response.status < 200 || response.status >= 300) {
         throw CodeExecutionException(_errorMessage(response.data));

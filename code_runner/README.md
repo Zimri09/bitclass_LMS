@@ -13,7 +13,8 @@ Each execution uses a fixed command and enforces:
 - non-root user and all Linux capabilities dropped
 - read-only root filesystem with no host directory mounted
 - a bounded memory limit (1 GB by default), 0.5 CPU, 32 processes for
-  Python or 64 for GCC/Java, 256 open files, and a 5 second limit (including compilation)
+  Python or 64 for GCC/Java, 256 open files, and a 5 second limit for Python/C
+  or 20 seconds for Java (including compilation)
 - 32 KB each for stdout and stderr
 - no image pulls during requests
 - immediate container cleanup
@@ -80,6 +81,6 @@ Java uses a fixed `javac --release 21` command and runs `Main` from a temporary
 classpath. Use `public class Main` and `public static void main(String[] args)`
 without a package declaration. Multiple helper classes in that file are allowed;
 external libraries, Maven/Gradle, and network downloads are not supported.
-Compilation and execution share the same five-second budget and container
+Java compilation and execution share a twenty-second budget and container
 isolation. The JVM heap is capped at 128 MB within the existing container memory
 limit; temporary files are limited to 32 MB. No schema migration is needed.

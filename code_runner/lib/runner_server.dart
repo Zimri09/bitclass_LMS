@@ -100,6 +100,8 @@ class CodeRunnerServer {
   static const int _maxOutputBytesPerStream = 32 * 1024;
   static const int _requestsPerMinute = 10;
   static const Duration _executionTimeout = Duration(seconds: 5);
+  // Java starts a compiler JVM and a program JVM under the 0.5 CPU quota.
+  static const Duration _javaExecutionTimeout = Duration(seconds: 20);
   static const int _pythonPidsLimit = 32;
   static const int _cPidsLimit = 64;
   static const String _pythonBootstrap =
@@ -404,7 +406,11 @@ exec java -Xms16m -Xmx128m -XX:+UseSerialGC -XX:ActiveProcessorCount=1 -XX:-UseP
 
       var exitCode = -1;
       try {
-        exitCode = await process.exitCode.timeout(_executionTimeout);
+        exitCode = await process.exitCode.timeout(
+          language == _ExecutionLanguage.java
+              ? _javaExecutionTimeout
+              : _executionTimeout,
+        );
       } on TimeoutException {
         timedOut = true;
         process.kill(ProcessSignal.sigkill);

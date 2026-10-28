@@ -17,6 +17,10 @@ enum CodeExecutionLanguage {
 
   String get fileName => this == java ? 'Main.java' : 'main$fileExtension';
 
+  int get executionLimitSeconds => this == java ? 20 : 5;
+
+  Duration get requestTimeout => Duration(seconds: this == java ? 30 : 12);
+
   String get starterCode => switch (this) {
     CodeExecutionLanguage.java =>
       '''public class Main {

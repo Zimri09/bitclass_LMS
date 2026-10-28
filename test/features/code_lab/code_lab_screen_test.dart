@@ -31,6 +31,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Main.java'), findsOneWidget);
+      expect(find.text('20 second limit'), findsOneWidget);
       expect(
         tester.widget<CodeEditor>(find.byType(CodeEditor)).syntax,
         CodeEditorSyntax.java,
@@ -94,6 +95,7 @@ void main() {
 
     expect(find.text('Python, C & Java Sandbox'), findsOneWidget);
     expect(find.text('No network'), findsOneWidget);
+    expect(find.text('5 second limit'), findsOneWidget);
     expect(find.byKey(const ValueKey('code-lab-stdin')), findsNothing);
 
     await tester.scrollUntilVisible(
