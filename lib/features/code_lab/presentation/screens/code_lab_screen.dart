@@ -67,9 +67,11 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
       _submittedStdin = stdin;
     });
     try {
-      final result = await context
-          .read<CodeExecutionRepository>()
-          .execute(language: _language, source: _source, stdin: stdin);
+      final result = await context.read<CodeExecutionRepository>().execute(
+        language: _language,
+        source: _source,
+        stdin: stdin,
+      );
       if (!mounted) return;
       setState(() => _result = result);
     } catch (error) {
@@ -207,10 +209,10 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Python & C Sandbox', style: AppTextStyles.h3),
+                Text('Python, C & Java Sandbox', style: AppTextStyles.h3),
                 const SizedBox(height: 5),
                 Text(
-                  'Write, compile, and run one isolated program at a time. Your Python and C drafts are kept separately while you switch.',
+                  'Write, compile, and run one isolated program at a time. Each language keeps its own draft while you switch.',
                   style: AppTextStyles.bodySmall.copyWith(
                     color: colors.textSecondary,
                   ),
@@ -219,6 +221,7 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
             ),
           ),
           SegmentedButton<CodeExecutionLanguage>(
+            showSelectedIcon: false,
             key: const ValueKey('code-lab-language-selector'),
             segments: const [
               ButtonSegment(
@@ -230,6 +233,10 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
                 value: CodeExecutionLanguage.c,
                 label: Text('C'),
                 icon: Icon(Icons.memory),
+              ),
+              ButtonSegment(
+                value: CodeExecutionLanguage.java,
+                label: Text('Java'),
               ),
             ],
             selected: {_language},
@@ -256,14 +263,16 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        Wrap(
+          spacing: 16,
+          runSpacing: 4,
+          alignment: WrapAlignment.spaceBetween,
           children: [
             Text(
-              'main${_language.fileExtension}',
+              _language.fileName,
               key: const ValueKey('code-lab-filename'),
               style: AppTextStyles.h4,
             ),
-            const Spacer(),
             Text(
               '$sourceBytes / ${CodeExecutionRepository.maxSourceBytes} bytes',
               style: AppTextStyles.caption.copyWith(
@@ -275,17 +284,29 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        CodeEditor(
-          key: ValueKey(
-            'code-lab-editor-${_language.name}-$_editorRevision',
+        if (_language == CodeExecutionLanguage.java)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Java 21: use class Main with public static void main(String[] args), without a package declaration.',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
           ),
+        CodeEditor(
+          key: ValueKey('code-lab-editor-${_language.name}-$_editorRevision'),
           initialCode: _source,
-          language: _language == CodeExecutionLanguage.python
-              ? ProgrammingLanguage.python
-              : ProgrammingLanguage.cpp,
-          syntax: _language == CodeExecutionLanguage.python
-              ? CodeEditorSyntax.python
-              : CodeEditorSyntax.c,
+          language: switch (_language) {
+            CodeExecutionLanguage.python => ProgrammingLanguage.python,
+            CodeExecutionLanguage.c => ProgrammingLanguage.cpp,
+            CodeExecutionLanguage.java => ProgrammingLanguage.java,
+          },
+          syntax: switch (_language) {
+            CodeExecutionLanguage.python => CodeEditorSyntax.python,
+            CodeExecutionLanguage.c => CodeEditorSyntax.c,
+            CodeExecutionLanguage.java => CodeEditorSyntax.java,
+          },
           languageLabel: _language.displayName,
           height: height,
           readOnly: _isRunning,
@@ -350,10 +371,7 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
         Row(
           children: [
             Expanded(
-              child: Text(
-                'Program inputs (optional)',
-                style: AppTextStyles.h4,
-              ),
+              child: Text('Program inputs (optional)', style: AppTextStyles.h4),
             ),
             TextButton.icon(
               key: const ValueKey('code-lab-remove-input'),
@@ -367,6 +385,8 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
         Text(
           _language == CodeExecutionLanguage.python
               ? 'Enter one answer per line. Each input() call reads the next line.'
+              : _language == CodeExecutionLanguage.java
+              ? 'Enter input as your Scanner or BufferedReader expects, one answer per line.'
               : 'Enter input exactly as the program expects. scanf() and fgets() read from these lines.',
           style: AppTextStyles.bodySmall.copyWith(color: colors.textSecondary),
         ),
@@ -453,8 +473,7 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
                   color: hasError ? AppColors.error : AppColors.secondary,
                 ),
                 const SizedBox(width: 8),
-                Text(outputTitle, style: AppTextStyles.label),
-                const Spacer(),
+                Expanded(child: Text(outputTitle, style: AppTextStyles.label)),
                 if (result != null)
                   Text(
                     '${result.durationMs} ms | exit ${result.exitCode}',

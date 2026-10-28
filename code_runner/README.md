@@ -1,6 +1,6 @@
 # BitClass Code Runner
 
-This service runs one Python or C file per disposable gVisor container. It is
+This service runs one Python, C, or Java file per disposable gVisor container. It is
 intended for a dedicated Linux host and must not share a machine with Supabase,
 databases, CI workers, or other sensitive services.
 
@@ -13,7 +13,7 @@ Each execution uses a fixed command and enforces:
 - non-root user and all Linux capabilities dropped
 - read-only root filesystem with no host directory mounted
 - a bounded memory limit (1 GB by default), 0.5 CPU, 32 processes for
-  Python or 64 for GCC, 256 open files, and a 5 second limit
+  Python or 64 for GCC/Java, 256 open files, and a 5 second limit (including compilation)
 - 32 KB each for stdout and stderr
 - no image pulls during requests
 - immediate container cleanup
@@ -43,7 +43,7 @@ mounts from the caller, and it logs neither source code nor program input.
 
    ```caddyfile
    runner.example.com {
-     @runner path /healthz /v1/execute/python /v1/execute/c
+     @runner path /healthz /v1/execute/python /v1/execute/c /v1/execute/java
      handle @runner {
        reverse_proxy 127.0.0.1:8080
      }
@@ -60,3 +60,26 @@ run on an otherwise disposable, dedicated VM.
 `GET /healthz` returns `{"status":"ok"}` without running a container. Program
 execution requires `POST /v1/execute/python` or `POST /v1/execute/c` with the
 private `X-Runner-Token` header. Never expose that token to Flutter clients.
+
+## Enabling Java
+
+Java is optional so an existing Python/C installation can still start without a
+JDK image. Java requests return a configuration error until it is configured.
+
+1. Pull an approved Linux Java 21 JDK image (for example the Ubuntu-based
+   Eclipse Temurin 21 JDK image, including `sh`, `dd`, and `cat`). Record its
+   immutable repository digest as above and set `JAVA_RUNNER_IMAGE` on the host.
+2. Install this runner version and restart it. Startup verifies the pinned image
+   is installed. Add `/v1/execute/java` to the reverse proxy routes.
+3. Deploy the updated `execute-code` relay, then the Flutter app.
+4. Verify an authenticated Java run prints `0` through `4`, a Scanner program
+   reads supplied input, invalid source produces a compile error, and an infinite
+   loop times out. Recheck Python and C before publishing to students.
+
+Java uses a fixed `javac --release 21` command and runs `Main` from a temporary
+classpath. Use `public class Main` and `public static void main(String[] args)`
+without a package declaration. Multiple helper classes in that file are allowed;
+external libraries, Maven/Gradle, and network downloads are not supported.
+Compilation and execution share the same five-second budget and container
+isolation. The JVM heap is capped at 128 MB within the existing container memory
+limit; temporary files are limited to 32 MB. No schema migration is needed.

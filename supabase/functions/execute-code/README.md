@@ -1,6 +1,6 @@
 # Execute Code Relay
 
-This authenticated Supabase Edge Function validates Python and C Code Lab
+This authenticated Supabase Edge Function validates Python, C, and Java Code Lab
 requests, then relays them to the separate BitClass code-runner service. It
 does not execute student code or expose Supabase credentials to the runner.
 
@@ -18,6 +18,6 @@ Deploy with JWT verification enabled:
 supabase functions deploy execute-code
 ```
 
-Requests must use the `python` or `c` language identifier and contain no more
+Requests must use the `python`, `c`, or `java` language identifier and contain no more
 than 20 KB of source and 8 KB of standard input. The runner is responsible for
 centralized rate limits, compilation, and sandbox enforcement.

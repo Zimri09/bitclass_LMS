@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js@2.112.2/edge-runtime.d.ts";
 
-type Language = "python" | "c";
+type Language = "python" | "c" | "java";
 
 type ExecuteRequest = {
   language: Language;
@@ -140,7 +140,7 @@ async function parseRequest(request: Request): Promise<ExecuteRequest> {
 
   const body = value as Record<string, unknown>;
   const language = requiredLanguage(body.language);
-  const label = language === "python" ? "Python" : "C";
+  const label = { python: "Python", c: "C", java: "Java" }[language];
   const source = requiredString(body.source, `${label} source`);
   const stdin = optionalString(body.stdin, "Program input");
   const encoder = new TextEncoder();
@@ -157,8 +157,8 @@ async function parseRequest(request: Request): Promise<ExecuteRequest> {
 }
 
 function requiredLanguage(value: unknown): Language {
-  if (value !== "python" && value !== "c") {
-    throw new HttpError(400, "Choose Python or C before running code.");
+  if (value !== "python" && value !== "c" && value !== "java") {
+    throw new HttpError(400, "Choose Python, C, or Java before running code.");
   }
   return value;
 }

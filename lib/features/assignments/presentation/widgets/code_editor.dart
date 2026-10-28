@@ -8,7 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/models.dart';
 
-enum CodeEditorSyntax { automatic, python, c }
+enum CodeEditorSyntax { automatic, python, c, java }
 
 class _SyntaxHighlightingController extends TextEditingController {
   CodeEditorSyntax syntax;
@@ -33,6 +33,15 @@ class _SyntaxHighlightingController extends TextEditingController {
     multiLine: true,
   );
 
+  static final RegExp _javaTokens = RegExp(
+    r'(/\*[\s\S]*?\*/|//[^\n]*)'
+    r'''|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')'''
+    r'|(@[\w.]+)'
+    r'|(\b(?:abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|if|implements|import|instanceof|int|interface|long|native|new|package|private|protected|public|record|return|short|static|strictfp|super|switch|synchronized|this|throw|throws|transient|try|var|void|volatile|while|true|false|null)\b)'
+    r'|(\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?[fFdDlL]*)\b)',
+    multiLine: true,
+  );
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -52,6 +61,7 @@ class _SyntaxHighlightingController extends TextEditingController {
     final pattern = switch (syntax) {
       CodeEditorSyntax.python => _pythonTokens,
       CodeEditorSyntax.c => _cTokens,
+      CodeEditorSyntax.java => _javaTokens,
       CodeEditorSyntax.automatic => null,
     };
     final baseStyle = style ?? const TextStyle();

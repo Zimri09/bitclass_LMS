@@ -9,6 +9,7 @@ class RunnerConfig {
   final String sharedSecret;
   final String pythonImage;
   final String cImage;
+  final String? javaImage;
   final String dockerBinary;
   final String containerRuntime;
   final int maxConcurrentJobs;
@@ -20,6 +21,7 @@ class RunnerConfig {
     required this.sharedSecret,
     required this.pythonImage,
     required this.cImage,
+    this.javaImage,
     required this.dockerBinary,
     required this.containerRuntime,
     required this.maxConcurrentJobs,
@@ -44,6 +46,12 @@ class RunnerConfig {
       throw StateError('C_RUNNER_IMAGE must be pinned to a sha256 digest.');
     }
     final port = int.tryParse(environment['RUNNER_PORT'] ?? '') ?? 8080;
+    final javaImage = environment['JAVA_RUNNER_IMAGE']?.trim();
+    if (javaImage != null &&
+        javaImage.isNotEmpty &&
+        !RegExp(r'@sha256:[0-9a-fA-F]{64}$').hasMatch(javaImage)) {
+      throw StateError('JAVA_RUNNER_IMAGE must be pinned to a sha256 digest.');
+    }
     final maxConcurrent =
         int.tryParse(environment['RUNNER_MAX_CONCURRENT'] ?? '') ?? 1;
     final memoryLimitMb =
@@ -72,6 +80,7 @@ class RunnerConfig {
       sharedSecret: secret,
       pythonImage: pythonImage,
       cImage: cImage,
+      javaImage: javaImage == null || javaImage.isEmpty ? null : javaImage,
       dockerBinary: environment['DOCKER_BINARY']?.trim().isNotEmpty == true
           ? environment['DOCKER_BINARY']!.trim()
           : 'docker',
@@ -82,7 +91,7 @@ class RunnerConfig {
   }
 }
 
-enum _ExecutionLanguage { python, c }
+enum _ExecutionLanguage { python, c, java }
 
 class CodeRunnerServer {
   static const int _maxRequestBytes = 32 * 1024;
@@ -115,6 +124,20 @@ fi
 exec /tmp/program < /tmp/stdin
 ''';
   static const String _compileErrorMarker = '__BITCLASS_COMPILE_ERROR__';
+  static const String _javaBootstrap = r'''
+set -eu
+IFS= read -r source_length
+case "$source_length" in
+  ''|*[!0-9]*) exit 126 ;;
+esac
+dd iflag=fullblock bs=1 count="$source_length" of=/tmp/Main.java status=none
+cat > /tmp/stdin
+if ! javac -J-Xms16m -J-Xmx128m -J-XX:+UseSerialGC -J-XX:ActiveProcessorCount=1 -encoding UTF-8 -proc:none --release 21 -d /tmp /tmp/Main.java; then
+  printf '\n__BITCLASS_COMPILE_ERROR__\n' >&2
+  exit 125
+fi
+exec java -Xms16m -Xmx128m -XX:+UseSerialGC -XX:ActiveProcessorCount=1 -XX:-UsePerfData -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/tmp -cp /tmp Main < /tmp/stdin
+''';
 
   final RunnerConfig config;
   final Map<String, List<DateTime>> _recentRequests = {};
@@ -173,6 +196,12 @@ exec /tmp/program < /tmp/stdin
       final body = await _readJsonBody(request);
       final execution = _ExecutionRequest.fromJson(body);
       _validate(execution, language);
+      if (language == _ExecutionLanguage.java && config.javaImage == null) {
+        throw const _RequestError(
+          HttpStatus.serviceUnavailable,
+          'Java execution is not configured on the code runner yet.',
+        );
+      }
       if (!_allowRequest(execution.userId)) {
         await _json(request.response, HttpStatus.tooManyRequests, {
           'error': 'Too many runs. Wait a minute and try again.',
@@ -207,6 +236,7 @@ exec /tmp/program < /tmp/stdin
     return switch (path) {
       '/v1/execute/python' => _ExecutionLanguage.python,
       '/v1/execute/c' => _ExecutionLanguage.c,
+      '/v1/execute/java' => _ExecutionLanguage.java,
       _ => null,
     };
   }
@@ -241,10 +271,7 @@ exec /tmp/program < /tmp/stdin
     }
   }
 
-  void _validate(
-    _ExecutionRequest request,
-    _ExecutionLanguage language,
-  ) {
+  void _validate(_ExecutionRequest request, _ExecutionLanguage language) {
     final userIdPattern = RegExp(
       r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
     );
@@ -255,7 +282,11 @@ exec /tmp/program < /tmp/stdin
         utf8.encode(request.source).length > _maxSourceBytes) {
       throw _RequestError(
         HttpStatus.badRequest,
-        '${language == _ExecutionLanguage.python ? 'Python' : 'C'} source must be between 1 byte and 20 KB.',
+        '${switch (language) {
+          _ExecutionLanguage.python => 'Python',
+          _ExecutionLanguage.c => 'C',
+          _ExecutionLanguage.java => 'Java',
+        }} source must be between 1 byte and 20 KB.',
       );
     }
     if (utf8.encode(request.stdin).length > _maxStdinBytes) {
@@ -304,6 +335,14 @@ exec /tmp/program < /tmp/stdin
 
     try {
       final languageArguments = switch (language) {
+        _ExecutionLanguage.java => [
+          '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=32m',
+          '--env=HOME=/tmp',
+          config.javaImage!,
+          'sh',
+          '-c',
+          _javaBootstrap,
+        ],
         _ExecutionLanguage.python => [
           '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m',
           '--env=PYTHONDONTWRITEBYTECODE=1',
@@ -341,7 +380,7 @@ exec /tmp/program < /tmp/stdin
         '--memory=${config.memoryLimitMb}m',
         '--memory-swap=${config.memoryLimitMb}m',
         '--cpus=0.5',
-        '--pids-limit=${language == _ExecutionLanguage.c ? _cPidsLimit : _pythonPidsLimit}',
+        '--pids-limit=${language == _ExecutionLanguage.python ? _pythonPidsLimit : _cPidsLimit}',
         '--ulimit=nofile=256:256',
         ...languageArguments,
       ], mode: ProcessStartMode.normal);
@@ -381,7 +420,7 @@ exec /tmp/program < /tmp/stdin
       );
       stopwatch.stop();
       final isCompileError =
-          language == _ExecutionLanguage.c &&
+          language != _ExecutionLanguage.python &&
           exitCode == 125 &&
           outputs[1].text.contains(_compileErrorMarker);
       final phase = isCompileError
@@ -422,6 +461,7 @@ exec /tmp/program < /tmp/stdin
     for (final entry in {
       'Python': config.pythonImage,
       'C': config.cImage,
+      if (config.javaImage != null) 'Java': config.javaImage!,
     }.entries) {
       final imageResult = await Process.run(config.dockerBinary, [
         'image',

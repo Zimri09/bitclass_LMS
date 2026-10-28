@@ -9,6 +9,72 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final width in [320.0, 1200.0]) {
+    testWidgets('Java runs and retains its own draft at width $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = _FakeCodeExecutionRepository();
+      await tester.pumpWidget(
+        RepositoryProvider<CodeExecutionRepository>.value(
+          value: repository,
+          child: const MaterialApp(home: CodeLabScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final selector = find.byKey(const ValueKey('code-lab-language-selector'));
+      await tester.tap(
+        find.descendant(of: selector, matching: find.text('Java')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Main.java'), findsOneWidget);
+      expect(
+        tester.widget<CodeEditor>(find.byType(CodeEditor)).syntax,
+        CodeEditorSyntax.java,
+      );
+      final editor = find.descendant(
+        of: find.byType(CodeEditor),
+        matching: find.byType(TextField),
+      );
+      const draft =
+          'public class Main { public static void main(String[] args) { System.out.println("Java draft"); } }';
+      await tester.enterText(editor, draft);
+      await tester.ensureVisible(selector);
+      await tester.tap(
+        find.descendant(of: selector, matching: find.text('Python')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(editor).controller!.text,
+        CodeExecutionLanguage.python.starterCode,
+      );
+      await tester.tap(
+        find.descendant(of: selector, matching: find.text('Java')),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(editor).controller!.text, draft);
+      final inputButton = find.byKey(const ValueKey('code-lab-add-input'));
+      await tester.ensureVisible(inputButton);
+      await tester.tap(inputButton);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('code-lab-stdin')),
+        'Ada\n42',
+      );
+      final run = find.byKey(const ValueKey('code-lab-run'));
+      await tester.ensureVisible(run);
+      await tester.tap(run);
+      await tester.pumpAndSettle();
+      expect(repository.lastLanguage, CodeExecutionLanguage.java);
+      expect(repository.lastSource, draft);
+      expect(repository.lastStdin, 'Ada\n42');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('runs the Python starter program on a phone layout', (
     tester,
   ) async {
@@ -26,7 +92,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Python & C Sandbox'), findsOneWidget);
+    expect(find.text('Python, C & Java Sandbox'), findsOneWidget);
     expect(find.text('No network'), findsOneWidget);
     expect(find.byKey(const ValueKey('code-lab-stdin')), findsNothing);
 
@@ -135,9 +201,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final selector = find.byKey(
-      const ValueKey('code-lab-language-selector'),
-    );
+    final selector = find.byKey(const ValueKey('code-lab-language-selector'));
     await tester.tap(find.descendant(of: selector, matching: find.text('C')));
     await tester.pumpAndSettle();
     expect(find.text('main.c'), findsOneWidget);
@@ -195,9 +259,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final selector = find.byKey(
-      const ValueKey('code-lab-language-selector'),
-    );
+    final selector = find.byKey(const ValueKey('code-lab-language-selector'));
     await tester.tap(find.descendant(of: selector, matching: find.text('C')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -262,12 +324,12 @@ class _FakeCodeExecutionRepository implements CodeExecutionRepository {
     if (error != null) throw error!;
     return result ??
         const CodeExecutionResult(
-      stdout: '0\n1\n2\n3\n4\n',
-      stderr: '',
-      exitCode: 0,
-      durationMs: 37,
-      timedOut: false,
-      truncated: false,
-    );
+          stdout: '0\n1\n2\n3\n4\n',
+          stderr: '',
+          exitCode: 0,
+          durationMs: 37,
+          timedOut: false,
+          truncated: false,
+        );
   }
 }
