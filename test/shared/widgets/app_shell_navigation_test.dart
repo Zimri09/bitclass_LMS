@@ -15,6 +15,136 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  for (final width in [400.0, 800.0, 1200.0]) {
+    testWidgets('active destination follows navigation at width $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repository = _FakeAuthRepository();
+      final notifications = _FakeNotificationRepository();
+      final authBloc = AuthBloc(authRepository: repository)
+        ..add(AuthUserUpdated(_studentUser));
+      await authBloc.stream.firstWhere((state) => state is AuthAuthenticated);
+      addTearDown(() async {
+        await authBloc.close();
+        await repository.dispose();
+        await notifications.disposeFake();
+      });
+
+      final destinations = {
+        'Classes': AppRoutes.dashboard,
+        'To-do': AppRoutes.todos,
+        'Code Lab': AppRoutes.codeLab,
+        'Offline Files': AppRoutes.offlineFiles,
+        'My Grades': AppRoutes.grades,
+        'Notifications': AppRoutes.notifications,
+        'Profile': AppRoutes.profile,
+        'Settings': AppRoutes.settings,
+      };
+      final router = GoRouter(
+        initialLocation: '${AppRoutes.profile}?tab=account',
+        routes: [
+          ShellRoute(
+            builder: (context, state, child) => AppShell(child: child),
+            routes: [
+              for (final entry in destinations.entries)
+                GoRoute(
+                  path: entry.value,
+                  builder: (context, state) => _TestPage('${entry.key} page'),
+                ),
+              GoRoute(
+                path: AppRoutes.notificationSettings,
+                builder: (context, state) => const _TestPage('Alert settings'),
+              ),
+              GoRoute(
+                path: AppRoutes.courses,
+                builder: (context, state) => const _TestPage('Class catalog'),
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        RepositoryProvider<NotificationRepository>.value(
+          value: notifications,
+          child: BlocProvider<AuthBloc>.value(
+            value: authBloc,
+            child: MaterialApp.router(routerConfig: router),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      Future<void> openNavigation() async {
+        if (width < 600) {
+          await tester.tap(find.byTooltip('Open navigation').last);
+          await tester.pumpAndSettle();
+        }
+      }
+
+      void expectActive(String label) {
+        for (final destination in destinations.keys) {
+          final icon = tester.widget<Icon>(
+            find.descendant(
+              of: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Semantics &&
+                    widget.properties.label == destination,
+              ),
+              matching: find.byType(Icon),
+            ),
+          );
+          expect(
+            icon.color == AppColors.primary,
+            destination == label,
+            reason: '$destination when $label is open',
+          );
+        }
+      }
+
+      // A fresh router at a URL models a direct load or page refresh.
+      await openNavigation();
+      expectActive('Profile');
+      for (final label in ['Classes', ...destinations.keys.skip(1)]) {
+        await tester.tap(
+          find.byWidgetPredicate(
+            (widget) => widget is Semantics && widget.properties.label == label,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await openNavigation();
+        expectActive(label);
+      }
+      if (width < 600) {
+        tester.state<ScaffoldState>(find.byType(Scaffold).first).closeDrawer();
+        await tester.pumpAndSettle();
+      }
+
+      // Pop the pushed Settings page back to Profile.
+      router.pop();
+      await tester.pumpAndSettle();
+      await openNavigation();
+      expectActive('Profile');
+
+      // URL-driven changes (including history restoration) and nested routes.
+      for (final entry in {
+        AppRoutes.notificationSettings: 'Notifications',
+        AppRoutes.courses: 'Classes',
+        AppRoutes.profile: 'Profile',
+      }.entries) {
+        router.go(entry.key);
+        await tester.pumpAndSettle();
+        expectActive(entry.value);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   testWidgets('admin receives instructor navigation', (tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1;

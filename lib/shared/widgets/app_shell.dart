@@ -109,6 +109,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Shell-scoped GoRouterState can still describe the underlying page after
+    // a push. Follow the delegate so pushes, pops, and URL changes all rebuild
+    // navigation using the currently visible route.
+    return ListenableBuilder(
+      listenable: GoRouter.of(context).routerDelegate,
+      builder: (context, _) => _buildShell(context),
+    );
+  }
+
+  String get _currentPath => GoRouter.of(context).state.uri.path;
+
+  Widget _buildShell(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     final isInstructor =
         authState is AuthAuthenticated && authState.user.isStaff;
@@ -121,7 +133,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       isAdmin: isAdmin,
     );
     final width = MediaQuery.sizeOf(context).width;
-    final currentPath = GoRouterState.of(context).matchedLocation;
+    final currentPath = _currentPath;
     if (_lastObservedPath != currentPath) {
       _lastObservedPath = currentPath;
       _backNavigation.reset();
@@ -233,7 +245,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _handleRootBack(BuildContext context) {
-    final currentPath = GoRouterState.of(context).matchedLocation;
+    final currentPath = _currentPath;
     final action = _backNavigation.handle(
       isHome:
           currentPath == AppRoutes.dashboard ||
@@ -274,7 +286,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
     _backNavigation.reset();
-    final currentPath = GoRouterState.of(context).matchedLocation;
+    final currentPath = _currentPath;
     if (destination == AppRoutes.dashboard) {
       context.go(AppRoutes.dashboard);
       return;
@@ -312,7 +324,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Widget _buildDrawer(BuildContext context, bool isInstructor, bool isOffline) {
-    final currentPath = GoRouterState.of(context).matchedLocation;
+    final currentPath = _currentPath;
     final colors = AppColors.of(context);
 
     return Drawer(
@@ -513,7 +525,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     bool isOffline, {
     required bool expanded,
   }) {
-    final currentPath = GoRouterState.of(context).matchedLocation;
+    final currentPath = _currentPath;
     final colors = AppColors.of(context);
 
     return Container(
