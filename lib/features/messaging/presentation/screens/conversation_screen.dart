@@ -1032,11 +1032,12 @@ class _MessageBubbleState extends State<_MessageBubble> {
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
+                bubble,
                 if (!message.isUnsent &&
                     (message.senderReaction != null ||
                         message.recipientReaction != null))
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(top: 4),
                     child: Wrap(
                       spacing: 4,
                       children: [
@@ -1075,7 +1076,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
                       ],
                     ),
                   ),
-                bubble,
               ],
             ),
           ),

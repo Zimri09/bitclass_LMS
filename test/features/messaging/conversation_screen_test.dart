@@ -223,7 +223,7 @@ void main() {
           expect(find.byTooltip('You: Haha'), findsOneWidget);
           expect(
             tester.getTopLeft(find.text('😂')).dy,
-            lessThan(tester.getTopLeft(find.text('Welcome')).dy),
+            greaterThan(tester.getBottomLeft(find.text('Welcome')).dy),
           );
           expect(repository.sentBodies, isEmpty);
           await tester.tap(find.byTooltip('Message options'));
