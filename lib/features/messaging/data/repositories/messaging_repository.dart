@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/environment.dart';
 import '../models/message_model.dart';
+import '../models/message_reaction.dart';
 
 class MessagingRepository {
   static const _messagesTable = 'private_messages';
@@ -183,6 +184,45 @@ class MessagingRepository {
     return result == true;
   }
 
+  Future<void> setReaction({
+    required String messageId,
+    required MessageReaction? reaction,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) throw StateError('You must be signed in to react.');
+    if (EnvironmentConfig.isDemoMode) {
+      final index = _demoMessages.indexWhere((item) => item.id == messageId);
+      if (index < 0) throw StateError('Message not found.');
+      final message = _demoMessages[index];
+      if (message.isUnsent ||
+          (message.senderId != userId && message.recipientId != userId)) {
+        throw StateError('You cannot react to this message.');
+      }
+      _demoMessages[index] = MessageModel(
+        id: message.id,
+        courseId: message.courseId,
+        senderId: message.senderId,
+        recipientId: message.recipientId,
+        body: message.body,
+        createdAt: message.createdAt,
+        readAt: message.readAt,
+        editedAt: message.editedAt,
+        hiddenForSender: message.hiddenForSender,
+        senderReaction: message.senderId == userId
+            ? reaction
+            : message.senderReaction,
+        recipientReaction: message.recipientId == userId
+            ? reaction
+            : message.recipientReaction,
+      );
+      return;
+    }
+    await _supabase!.rpc(
+      'set_private_message_reaction',
+      params: {'target_message_id': messageId, 'new_reaction': reaction?.name},
+    );
+  }
+
   Future<MessageModel> editMessage({
     required String messageId,
     required String body,
@@ -204,6 +244,8 @@ class MessagingRepository {
         createdAt: message.createdAt,
         readAt: message.readAt,
         editedAt: DateTime.now(),
+        senderReaction: message.senderReaction,
+        recipientReaction: message.recipientReaction,
       );
       _demoMessages[index] = updated;
       return updated;
@@ -289,6 +331,8 @@ class MessagingRepository {
             editedAt: message.editedAt,
             isUnsent: message.isUnsent,
             hiddenForSender: message.hiddenForSender,
+            senderReaction: message.senderReaction,
+            recipientReaction: message.recipientReaction,
           );
         }
       }
@@ -386,7 +430,10 @@ class MessagingRepository {
           ),
           callback: (_) => onChanged(),
         )
-        .subscribe();
+        .subscribe((status, error) {
+          // Reload after initial subscription and reconnect to close any gap.
+          if (status == RealtimeSubscribeStatus.subscribed) onChanged();
+        });
   }
 
   Future<void> removeRealtimeChannel(RealtimeChannel? channel) async {

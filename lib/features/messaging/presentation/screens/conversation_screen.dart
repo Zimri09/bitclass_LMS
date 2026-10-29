@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../data/models/message_model.dart';
+import '../../data/models/message_reaction.dart';
 import '../../data/repositories/messaging_repository.dart';
 
 class ConversationScreen extends StatefulWidget {
@@ -90,6 +91,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
         participantId: widget.participantId,
       );
       if (!mounted || loadGeneration != _loadGeneration) return;
+      final shouldScroll =
+          !silent ||
+          (_messages.isEmpty && messages.isNotEmpty) ||
+          (messages.isNotEmpty &&
+              _messages.isNotEmpty &&
+              messages.last.id != _messages.last.id);
       setState(() {
         _messages = messages;
         _isLoading = false;
@@ -97,7 +104,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       });
       await _refreshModificationEligibility();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
+        if (shouldScroll && _scrollController.hasClients) {
           _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
             duration: const Duration(milliseconds: 180),
@@ -136,18 +143,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ..clear()
         ..addAll(eligibleIds);
     });
-  }
-
-  void _insertEmoji(String emoji) {
-    final value = _messageController.value;
-    final selection = value.selection;
-    final start = selection.isValid ? selection.start : value.text.length;
-    final end = selection.isValid ? selection.end : value.text.length;
-    _messageController.value = TextEditingValue(
-      text: value.text.replaceRange(start, end, emoji),
-      selection: TextSelection.collapsed(offset: start + emoji.length),
-    );
-    _messageFocusNode.requestFocus();
   }
 
   Future<void> _sendMessage() async {
@@ -358,9 +353,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 runSpacing: 6,
                 children: [
                   SizedBox(
-                    width: constraints.maxWidth < 560
-                        ? constraints.maxWidth
-                        : constraints.maxWidth - 254,
+                    width: constraints.maxWidth - 52,
                     child: Container(
                       decoration: BoxDecoration(
                         color: AppColors.background,
@@ -401,27 +394,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      for (final shortcut in const [
-                        ('Haha', '😂'),
-                        ('Sad', '😢'),
-                        ('Angry', '😡'),
-                        ('Heart', '❤️'),
-                      ])
-                        IconButton(
-                          tooltip: '${shortcut.$1} ${shortcut.$2}',
-                          constraints: const BoxConstraints.tightFor(
-                            width: 48,
-                            height: 48,
-                          ),
-                          onPressed: _isSending
-                              ? null
-                              : () => _insertEmoji(shortcut.$2),
-                          icon: Text(
-                            shortcut.$2,
-                            style: const TextStyle(fontSize: 22),
-                          ),
-                        ),
-                      const SizedBox(width: 10),
                       ValueListenableBuilder<TextEditingValue>(
                         valueListenable: _messageController,
                         builder: (context, value, child) {
@@ -688,9 +660,14 @@ class _MessageBubble extends StatefulWidget {
 
 class _MessageBubbleState extends State<_MessageBubble> {
   bool _isUnsending = false;
+  bool _isReacting = false;
+
+  MessageReaction? get _ownReaction => widget.isSent
+      ? widget.message.senderReaction
+      : widget.message.recipientReaction;
 
   Future<void> _showMenu(BuildContext context, TapDownDetails? details) async {
-    if (!widget.isSent || widget.message.isUnsent || _isUnsending) return;
+    if (widget.message.isUnsent || _isUnsending || _isReacting) return;
 
     final RenderBox overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
@@ -713,7 +690,36 @@ class _MessageBubbleState extends State<_MessageBubble> {
       position: position,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       items: [
-        if (widget.canModify)
+        PopupMenuItem<String>(
+          enabled: false,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final reaction in MessageReaction.values)
+                IconButton(
+                  tooltip: '${reaction.label} ${reaction.emoji}',
+                  isSelected: _ownReaction == reaction,
+                  style: IconButton.styleFrom(
+                    backgroundColor: _ownReaction == reaction
+                        ? AppColors.primary.withValues(alpha: 0.15)
+                        : null,
+                  ),
+                  onPressed: () => Navigator.pop(context, reaction.name),
+                  icon: Text(
+                    reaction.emoji,
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (_ownReaction != null)
+          const PopupMenuItem(
+            value: 'removeReaction',
+            child: Text('Remove reaction'),
+          ),
+        if (widget.isSent && widget.canModify)
           const PopupMenuItem(
             value: 'edit',
             child: Row(
@@ -724,38 +730,67 @@ class _MessageBubbleState extends State<_MessageBubble> {
               ],
             ),
           ),
-        const PopupMenuItem(
-          value: 'unsendForYou',
-          child: Row(
-            children: [
-              Icon(Icons.visibility_off_outlined, size: 18),
-              SizedBox(width: 10),
-              Flexible(child: Text('Unsend for You')),
-            ],
+        if (widget.isSent)
+          const PopupMenuItem(
+            value: 'unsendForYou',
+            child: Row(
+              children: [
+                Icon(Icons.visibility_off_outlined, size: 18),
+                SizedBox(width: 10),
+                Flexible(child: Text('Unsend for You')),
+              ],
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: 'unsendForEveryone',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 18, color: AppColors.error),
-              SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  'Unsend for Everyone',
-                  style: TextStyle(color: AppColors.error),
+        if (widget.isSent)
+          const PopupMenuItem(
+            value: 'unsendForEveryone',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+                SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    'Unsend for Everyone',
+                    style: TextStyle(color: AppColors.error),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
       ],
     );
 
     if (!context.mounted) return;
+    final reaction = MessageReaction.fromValue(selected);
+    if (reaction != null || selected == 'removeReaction') {
+      await _react(reaction == _ownReaction ? null : reaction);
+      return;
+    }
     if (selected == 'edit') _edit(context);
     if (selected == 'unsendForYou') _unsend(context, forEveryone: false);
     if (selected == 'unsendForEveryone') _unsend(context, forEveryone: true);
+  }
+
+  Future<void> _react(MessageReaction? reaction) async {
+    if (_isReacting) return;
+    setState(() => _isReacting = true);
+    try {
+      await widget.repository.setReaction(
+        messageId: widget.message.id,
+        reaction: reaction,
+      );
+      widget.onChanged();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showAppSnackBar(
+          const SnackBar(
+            content: Text('Unable to update reaction. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isReacting = false);
+    }
   }
 
   Future<void> _edit(BuildContext context) async {
@@ -935,7 +970,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (isSent && !message.isUnsent) ...[
+          if (!message.isUnsent) ...[
             IconButton(
               icon: const Icon(Icons.more_horiz, size: 16),
               color: AppColors.textSecondary,
@@ -943,7 +978,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-              onPressed: _isUnsending ? null : () => _showMenu(context, null),
+              onPressed: _isUnsending || _isReacting
+                  ? null
+                  : () => _showMenu(context, null),
             ),
             const SizedBox(width: 4),
           ],
@@ -951,7 +988,58 @@ class _MessageBubbleState extends State<_MessageBubble> {
             onTapDown: (d) => tapDownDetails = d,
             onLongPress: () => _showMenu(context, tapDownDetails),
             onSecondaryTapDown: (d) => _showMenu(context, d),
-            child: bubble,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: isSent
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (!message.isUnsent &&
+                    (message.senderReaction != null ||
+                        message.recipientReaction != null))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Wrap(
+                      spacing: 4,
+                      children: [
+                        for (final entry in [
+                          (message.senderReaction, isSent),
+                          (message.recipientReaction, !isSent),
+                        ])
+                          if (entry.$1 != null)
+                            Tooltip(
+                              message:
+                                  '${entry.$2 ? "You" : "Participant"}: ${entry.$1!.label}',
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () => _showMenu(context, null),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: entry.$2
+                                          ? AppColors.primary
+                                          : AppColors.border,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    entry.$1!.emoji,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                bubble,
+              ],
+            ),
           ),
         ],
       ),

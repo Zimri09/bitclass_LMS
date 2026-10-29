@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'message_reaction.dart';
 
 class MessageModel extends Equatable {
   final String id;
@@ -11,6 +12,8 @@ class MessageModel extends Equatable {
   final DateTime? editedAt;
   final bool isUnsent;
   final bool hiddenForSender;
+  final MessageReaction? senderReaction;
+  final MessageReaction? recipientReaction;
 
   const MessageModel({
     required this.id,
@@ -23,6 +26,8 @@ class MessageModel extends Equatable {
     this.editedAt,
     this.isUnsent = false,
     this.hiddenForSender = false,
+    this.senderReaction,
+    this.recipientReaction,
   });
 
   factory MessageModel.fromMap(Map<String, dynamic> map) {
@@ -41,6 +46,8 @@ class MessageModel extends Equatable {
           : DateTime.parse(map['edited_at'] as String).toLocal(),
       isUnsent: map['is_unsent'] as bool? ?? false,
       hiddenForSender: map['hidden_for_sender'] as bool? ?? false,
+      senderReaction: MessageReaction.fromValue(map['sender_reaction']),
+      recipientReaction: MessageReaction.fromValue(map['recipient_reaction']),
     );
   }
 
@@ -56,5 +63,7 @@ class MessageModel extends Equatable {
     editedAt,
     isUnsent,
     hiddenForSender,
+    senderReaction,
+    recipientReaction,
   ];
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bitclass/features/messaging/data/repositories/messaging_repository.dart';
+import 'package:bitclass/features/messaging/data/models/message_reaction.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -27,8 +28,11 @@ void main() {
         Object? response;
         if (path.contains('/rpc/')) {
           final body = jsonDecode(await utf8.decoder.bind(request).join());
-          expect(body, {'target_message_id': 'message'});
-          if (path.endsWith('hide_private_message')) {
+          if (path.endsWith('set_private_message_reaction')) {
+            expect(body['target_message_id'], 'message');
+            row['sender_reaction'] = body['new_reaction'];
+          } else if (path.endsWith('hide_private_message')) {
+            expect(body, {'target_message_id': 'message'});
             row['hidden_for_sender'] = true;
           } else if (path.endsWith('unsend_private_message')) {
             row['is_unsent'] = true;
@@ -68,6 +72,19 @@ void main() {
       });
 
       final sender = repository('sender');
+      for (final reaction in [
+        MessageReaction.haha,
+        MessageReaction.heart,
+        null,
+      ]) {
+        await sender.setReaction(messageId: 'message', reaction: reaction);
+        final reopened = await repository(
+          'recipient',
+        ).getConversation(courseId: 'course', participantId: 'sender');
+        expect(reopened.single.senderReaction, reaction);
+        expect(reopened.single.recipientReaction, isNull);
+        expect(reopened.single.body, 'Original message');
+      }
       await sender.unsendMessageForYou('message');
       expect(
         await repository(

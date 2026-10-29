@@ -1,12 +1,55 @@
+import 'package:bitclass/features/messaging/data/models/message_reaction.dart';
 import 'package:bitclass/features/messaging/data/models/message_model.dart';
 import 'package:bitclass/features/messaging/data/repositories/messaging_repository.dart';
 import 'package:bitclass/features/messaging/presentation/screens/conversation_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  testWidgets('right-click, toggle and remote reaction updates', (
+    tester,
+  ) async {
+    final repository = _MessagingRepository();
+    await _pumpConversation(tester, repository);
+    await tester.tap(find.text('Welcome'), buttons: kSecondaryMouseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Sad 😢'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('You: Sad'), findsOneWidget);
+    await tester.longPress(find.text('Welcome'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Sad 😢'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('You: Sad'), findsNothing);
+    repository.message = MessageModel(
+      id: 'message',
+      courseId: 'course',
+      senderId: 'teacher',
+      recipientId: 'student',
+      body: 'Welcome',
+      createdAt: DateTime(2026),
+      senderReaction: MessageReaction.angry,
+    );
+    repository.onChanged!();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Participant: Angry'), findsOneWidget);
+    repository.failReaction = true;
+    await tester.tap(find.byTooltip('Message options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Heart ❤️'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('You: Heart'), findsNothing);
+    expect(find.byTooltip('Participant: Angry'), findsOneWidget);
+    expect(
+      find.text('Unable to update reaction. Please try again.'),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
   for (final width in [320.0, 1000.0]) {
     testWidgets('own messages expose both unsend options at $width', (
       tester,
@@ -65,14 +108,16 @@ void main() {
   );
 
   testWidgets(
-    'received messages have no menu and realtime removes unsent messages',
+    'received messages offer reactions and realtime removes unsent messages',
     (tester) async {
       final repository = _MessagingRepository();
       await _pumpConversation(tester, repository);
-      expect(find.byTooltip('Message options'), findsNothing);
+      expect(find.byTooltip('Message options'), findsOneWidget);
       await tester.longPress(find.text('Welcome'));
       await tester.pumpAndSettle();
       expect(find.text('Unsend for You'), findsNothing);
+      await tester.tap(find.byTooltip('Haha 😂'));
+      await tester.pumpAndSettle();
       repository.unsentForEveryone = true;
       repository.onChanged!();
       await tester.pumpAndSettle();
@@ -98,60 +143,53 @@ void main() {
   });
 
   for (final width in [320.0, 1000.0]) {
-    testWidgets('emoji shortcuts insert and send normal messages at $width', (
-      tester,
-    ) async {
-      tester.view.physicalSize = Size(width, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final repository = _MessagingRepository();
-      await tester.pumpWidget(
-        RepositoryProvider<MessagingRepository>.value(
-          value: repository,
-          child: const MaterialApp(
-            home: ConversationScreen(
-              courseId: 'course',
-              currentUserId: 'student',
-              participantId: 'teacher',
-              participantName: 'Teacher',
-            ),
-          ),
-        ),
+    for (final ownMessage in [false, true]) {
+      testWidgets(
+        'react, change, remove and reopen at $width, sent=$ownMessage',
+        (tester) async {
+          tester.view.physicalSize = Size(width, 800);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final repository = _MessagingRepository(ownMessage: ownMessage);
+          await _pumpConversation(tester, repository);
+          expect(find.byTooltip('Haha 😂'), findsNothing);
+          await tester.longPress(find.text('Welcome'));
+          await tester.pumpAndSettle();
+          for (final label in ['Haha 😂', 'Sad 😢', 'Angry 😡', 'Heart ❤️']) {
+            expect(find.byTooltip(label), findsOneWidget);
+          }
+          await tester.tap(find.byTooltip('Haha 😂'));
+          await tester.pumpAndSettle();
+          expect(find.byTooltip('You: Haha'), findsOneWidget);
+          expect(
+            tester.getTopLeft(find.text('😂')).dy,
+            lessThan(tester.getTopLeft(find.text('Welcome')).dy),
+          );
+          expect(repository.sentBodies, isEmpty);
+          await tester.tap(find.byTooltip('Message options'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('Heart ❤️'));
+          await tester.pumpAndSettle();
+          expect(find.byTooltip('You: Heart'), findsOneWidget);
+          await tester.pumpWidget(const SizedBox());
+          await _pumpConversation(tester, repository);
+          expect(find.byTooltip('You: Heart'), findsOneWidget);
+          await tester.tap(find.byTooltip('Message options'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Remove reaction'));
+          await tester.pumpAndSettle();
+          expect(find.byTooltip('You: Heart'), findsNothing);
+          await tester.enterText(find.byType(TextField), 'Hello ❤️');
+          await tester.pump();
+          await tester.tap(find.byTooltip('Send message'));
+          await tester.pumpAndSettle();
+          expect(repository.sentBodies, ['Hello ❤️']);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        },
       );
-      await tester.pumpAndSettle();
-      final input = find.byType(TextField);
-      final field = tester.widget<TextField>(input);
-      for (final label in ['Haha 😂', 'Sad 😢', 'Angry 😡', 'Heart ❤️']) {
-        await tester.tap(find.byTooltip(label));
-        await tester.pumpAndSettle();
-      }
-      expect(field.controller!.text, '😂😢😡❤️');
-      expect(field.focusNode!.hasFocus, isTrue);
-      expect(repository.sentBodies, isEmpty);
-
-      await tester.enterText(input, 'Hello world');
-      field.controller!.selection = const TextSelection(
-        baseOffset: 6,
-        extentOffset: 11,
-      );
-      await tester.tap(find.byTooltip('Heart ❤️'));
-      await tester.pumpAndSettle();
-      expect(field.controller!.text, 'Hello ❤️');
-      expect(field.controller!.selection.baseOffset, 'Hello ❤️'.length);
-      await tester.tap(find.byTooltip('Send message'));
-      await tester.pumpAndSettle();
-      expect(repository.sentBodies, ['Hello ❤️']);
-      expect(field.controller!.text, isEmpty);
-
-      await tester.tap(find.byTooltip('Haha 😂'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Send message'));
-      await tester.pumpAndSettle();
-      expect(repository.sentBodies, ['Hello ❤️', '😂']);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    });
+    }
   }
 }
 
@@ -188,9 +226,32 @@ class _MessagingRepository implements MessagingRepository {
   bool hiddenForYou = false;
   bool unsentForEveryone = false;
   bool failUnsend = false;
+  bool failReaction = false;
   VoidCallback? onChanged;
   final sentBodies = <String>[];
-  final MessageModel message;
+  MessageModel message;
+
+  @override
+  Future<void> setReaction({
+    required String messageId,
+    required MessageReaction? reaction,
+  }) async {
+    if (failReaction) throw StateError('Offline');
+    message = MessageModel(
+      id: message.id,
+      courseId: message.courseId,
+      senderId: message.senderId,
+      recipientId: message.recipientId,
+      body: message.body,
+      createdAt: message.createdAt,
+      senderReaction: message.senderId == 'student'
+          ? reaction
+          : message.senderReaction,
+      recipientReaction: message.recipientId == 'student'
+          ? reaction
+          : message.recipientReaction,
+    );
+  }
 
   @override
   Future<bool> canModifyMessage(String messageId) async => false;
