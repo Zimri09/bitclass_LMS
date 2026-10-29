@@ -12,6 +12,7 @@ class MessageModel extends Equatable {
   final DateTime? editedAt;
   final bool isUnsent;
   final bool hiddenForSender;
+  final bool hiddenForRecipient;
   final MessageReaction? senderReaction;
   final MessageReaction? recipientReaction;
 
@@ -26,6 +27,7 @@ class MessageModel extends Equatable {
     this.editedAt,
     this.isUnsent = false,
     this.hiddenForSender = false,
+    this.hiddenForRecipient = false,
     this.senderReaction,
     this.recipientReaction,
   });
@@ -46,6 +48,7 @@ class MessageModel extends Equatable {
           : DateTime.parse(map['edited_at'] as String).toLocal(),
       isUnsent: map['is_unsent'] as bool? ?? false,
       hiddenForSender: map['hidden_for_sender'] as bool? ?? false,
+      hiddenForRecipient: map['hidden_for_recipient'] as bool? ?? false,
       senderReaction: MessageReaction.fromValue(map['sender_reaction']),
       recipientReaction: MessageReaction.fromValue(map['recipient_reaction']),
     );
@@ -63,6 +66,7 @@ class MessageModel extends Equatable {
     editedAt,
     isUnsent,
     hiddenForSender,
+    hiddenForRecipient,
     senderReaction,
     recipientReaction,
   ];

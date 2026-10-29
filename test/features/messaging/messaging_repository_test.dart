@@ -34,6 +34,9 @@ void main() {
           } else if (path.endsWith('hide_private_message')) {
             expect(body, {'target_message_id': 'message'});
             row['hidden_for_sender'] = true;
+          } else if (path.endsWith('hide_received_private_message')) {
+            expect(body, {'target_message_id': 'message'});
+            row['hidden_for_recipient'] = true;
           } else if (path.endsWith('unsend_private_message')) {
             row['is_unsent'] = true;
             row['body'] = 'Message unsent';
@@ -45,8 +48,18 @@ void main() {
           expect(request.uri.queryParameters['is_unsent'], 'eq.false');
           if (request.uri.queryParameters['select'] == 'id') {
             expect(request.uri.queryParameters['read_at'], 'is.null');
+            expect(
+              request.uri.queryParameters['hidden_for_recipient'],
+              'eq.false',
+            );
           }
-          response = row['is_unsent'] == true ? [] : [row];
+          response =
+              row['is_unsent'] == true ||
+                  (request.uri.queryParameters['hidden_for_recipient'] ==
+                          'eq.false' &&
+                      row['hidden_for_recipient'] == true)
+              ? []
+              : [row];
         }
         request.response.headers.contentType = ContentType.json;
         request.response.write(jsonEncode(response));
@@ -85,6 +98,28 @@ void main() {
         expect(reopened.single.recipientReaction, isNull);
         expect(reopened.single.body, 'Original message');
       }
+      row['sender_reaction'] = 'heart';
+      await repository('recipient').hideMessage('message');
+      await repository('recipient').hideMessage('message'); // Idempotent.
+      expect(
+        await repository(
+          'recipient',
+        ).getConversation(courseId: 'course', participantId: 'sender'),
+        isEmpty,
+      );
+      expect(
+        await repository(
+          'recipient',
+        ).getUnreadCount(courseId: 'course', participantId: 'sender'),
+        0,
+      );
+      final senderView = await repository(
+        'sender',
+      ).getConversation(courseId: 'course', participantId: 'recipient');
+      expect(senderView.single.body, 'Original message');
+      expect(senderView.single.senderReaction, MessageReaction.heart);
+      expect(senderView.single.isUnsent, isFalse);
+      row['hidden_for_recipient'] = false; // Independent sender-hide scenario.
       await sender.unsendMessageForYou('message');
       expect(
         await repository(

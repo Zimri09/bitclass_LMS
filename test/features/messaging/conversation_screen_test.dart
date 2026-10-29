@@ -9,6 +9,64 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  for (final width in [320.0, 1000.0]) {
+    testWidgets(
+      'hide received message persists across reload and reopening at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final repository = _MessagingRepository();
+        await _pumpConversation(tester, repository);
+        if (width == 320) {
+          await tester.longPress(find.text('Welcome'));
+        } else {
+          await tester.tap(
+            find.text('Welcome'),
+            buttons: kSecondaryMouseButton,
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Heart ❤️'), findsOneWidget);
+        expect(find.text('Unsend for Everyone'), findsNothing);
+        await tester.tap(find.text('Hide Message'));
+        await tester.pumpAndSettle();
+        expect(find.text('Welcome'), findsNothing);
+        expect(find.text('Message hidden for you.'), findsOneWidget);
+        expect(repository.unsentForEveryone, isFalse);
+        repository.onChanged!();
+        await tester.pumpAndSettle();
+        expect(find.text('Welcome'), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+        await _pumpConversation(tester, repository);
+        expect(find.text('Welcome'), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets('failed hide preserves message and allows retry', (tester) async {
+    final repository = _MessagingRepository()..failHide = true;
+    await _pumpConversation(tester, repository);
+    await tester.tap(find.byTooltip('Message options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hide Message'));
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(
+      find.text('Unable to hide message. Please try again.'),
+      findsOneWidget,
+    );
+    repository.failHide = false;
+    await tester.tap(find.byTooltip('Message options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hide Message'));
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('right-click, toggle and remote reaction updates', (
     tester,
   ) async {
@@ -65,6 +123,7 @@ void main() {
       expect(find.text('Unsend for You'), findsOneWidget);
       expect(find.text('Unsend for Everyone'), findsOneWidget);
       expect(find.text('Edit message'), findsNothing); // Old message.
+      expect(find.text('Hide Message'), findsNothing);
       await tester.tap(find.text('Unsend for Everyone'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsOneWidget);
@@ -227,6 +286,7 @@ class _MessagingRepository implements MessagingRepository {
   bool unsentForEveryone = false;
   bool failUnsend = false;
   bool failReaction = false;
+  bool failHide = false;
   VoidCallback? onChanged;
   final sentBodies = <String>[];
   MessageModel message;
@@ -251,6 +311,14 @@ class _MessagingRepository implements MessagingRepository {
           ? reaction
           : message.recipientReaction,
     );
+  }
+
+  @override
+  Future<void> hideMessage(String messageId) async {
+    expect(messageId, message.id);
+    expect(message.recipientId, 'student');
+    if (failHide) throw StateError('Offline');
+    hiddenForYou = true;
   }
 
   @override

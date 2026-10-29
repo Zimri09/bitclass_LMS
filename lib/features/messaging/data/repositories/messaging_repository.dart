@@ -125,7 +125,8 @@ class MessagingRepository {
           .where(
             (message) =>
                 !message.isUnsent &&
-                !(message.senderId == userId && message.hiddenForSender),
+                !(message.senderId == userId && message.hiddenForSender) &&
+                !(message.recipientId == userId && message.hiddenForRecipient),
           ),
     );
   }
@@ -208,6 +209,7 @@ class MessagingRepository {
         readAt: message.readAt,
         editedAt: message.editedAt,
         hiddenForSender: message.hiddenForSender,
+        hiddenForRecipient: message.hiddenForRecipient,
         senderReaction: message.senderId == userId
             ? reaction
             : message.senderReaction,
@@ -244,6 +246,8 @@ class MessagingRepository {
         createdAt: message.createdAt,
         readAt: message.readAt,
         editedAt: DateTime.now(),
+        hiddenForSender: message.hiddenForSender,
+        hiddenForRecipient: message.hiddenForRecipient,
         senderReaction: message.senderReaction,
         recipientReaction: message.recipientReaction,
       );
@@ -268,6 +272,26 @@ class MessagingRepository {
     }
     await _supabase!.rpc(
       'hide_private_message',
+      params: {'target_message_id': messageId},
+    );
+  }
+
+  /// Hide a received message for the authenticated recipient only.
+  Future<void> hideMessage(String messageId) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw StateError('You must be signed in to hide messages.');
+    }
+    if (EnvironmentConfig.isDemoMode) {
+      final message = _demoMessages.firstWhere((item) => item.id == messageId);
+      if (message.recipientId != userId || message.isUnsent) {
+        throw StateError('You can only hide received messages.');
+      }
+      _demoHiddenMessageIds.add(messageId);
+      return;
+    }
+    await _supabase!.rpc(
+      'hide_received_private_message',
       params: {'target_message_id': messageId},
     );
   }
@@ -331,6 +355,7 @@ class MessagingRepository {
             editedAt: message.editedAt,
             isUnsent: message.isUnsent,
             hiddenForSender: message.hiddenForSender,
+            hiddenForRecipient: message.hiddenForRecipient,
             senderReaction: message.senderReaction,
             recipientReaction: message.recipientReaction,
           );
@@ -371,6 +396,7 @@ class MessagingRepository {
                 message.recipientId == userId &&
                 message.readAt == null &&
                 !message.isUnsent &&
+                !_demoHiddenMessageIds.contains(message.id) &&
                 (hiddenAt == null || message.createdAt.isAfter(hiddenAt)),
           )
           .length;
@@ -379,6 +405,7 @@ class MessagingRepository {
         .from(_messagesTable)
         .select('id')
         .eq('is_unsent', false)
+        .eq('hidden_for_recipient', false)
         .eq('course_id', courseId)
         .eq('sender_id', participantId)
         .eq('recipient_id', userId)

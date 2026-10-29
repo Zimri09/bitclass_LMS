@@ -661,13 +661,16 @@ class _MessageBubble extends StatefulWidget {
 class _MessageBubbleState extends State<_MessageBubble> {
   bool _isUnsending = false;
   bool _isReacting = false;
+  bool _isHiding = false;
 
   MessageReaction? get _ownReaction => widget.isSent
       ? widget.message.senderReaction
       : widget.message.recipientReaction;
 
   Future<void> _showMenu(BuildContext context, TapDownDetails? details) async {
-    if (widget.message.isUnsent || _isUnsending || _isReacting) return;
+    if (widget.message.isUnsent || _isUnsending || _isReacting || _isHiding) {
+      return;
+    }
 
     final RenderBox overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
@@ -719,6 +722,17 @@ class _MessageBubbleState extends State<_MessageBubble> {
             value: 'removeReaction',
             child: Text('Remove reaction'),
           ),
+        if (!widget.isSent)
+          const PopupMenuItem(
+            value: 'hide',
+            child: Row(
+              children: [
+                Icon(Icons.visibility_off_outlined, size: 18),
+                SizedBox(width: 10),
+                Flexible(child: Text('Hide Message')),
+              ],
+            ),
+          ),
         if (widget.isSent && widget.canModify)
           const PopupMenuItem(
             value: 'edit',
@@ -767,6 +781,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
       return;
     }
     if (selected == 'edit') _edit(context);
+    if (selected == 'hide') _hide();
     if (selected == 'unsendForYou') _unsend(context, forEveryone: false);
     if (selected == 'unsendForEveryone') _unsend(context, forEveryone: true);
   }
@@ -790,6 +805,29 @@ class _MessageBubbleState extends State<_MessageBubble> {
       }
     } finally {
       if (mounted) setState(() => _isReacting = false);
+    }
+  }
+
+  Future<void> _hide() async {
+    if (_isHiding || widget.isSent) return;
+    setState(() => _isHiding = true);
+    try {
+      await widget.repository.hideMessage(widget.message.id);
+      if (!mounted) return;
+      widget.onChanged();
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        const SnackBar(content: Text('Message hidden for you.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showAppSnackBar(
+          const SnackBar(
+            content: Text('Unable to hide message. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isHiding = false);
     }
   }
 
@@ -978,7 +1016,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-              onPressed: _isUnsending || _isReacting
+              onPressed: _isUnsending || _isReacting || _isHiding
                   ? null
                   : () => _showMenu(context, null),
             ),
