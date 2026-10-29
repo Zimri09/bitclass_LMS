@@ -19,6 +19,9 @@ import '../../../../shared/widgets/loading_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../assignments/presentation/screens/assignment_list_screen.dart';
 import '../../../attendance/presentation/screens/attendance_screen.dart';
+import '../../../notifications/data/repositories/notification_repository.dart';
+import '../../../notifications/data/models/notification_model.dart';
+import '../../../attendance/data/repositories/attendance_repository.dart';
 import '../../../class_records/presentation/screens/course_records_screen.dart';
 import '../../../discussions/presentation/screens/channel_list_screen.dart';
 import '../../../lessons/data/repositories/lesson_repository.dart';
@@ -51,11 +54,128 @@ class CourseDetailScreen extends StatefulWidget {
 
 class _CourseDetailScreenState extends State<CourseDetailScreen> {
   int _selectedTab = 0;
+  Timer? _badgeTimer;
+  bool _loadingBadges = false;
+  Set<int> _badges = {};
+  final Map<int, List<String>> _unreadIds = {};
+  final Set<String> _acknowledged = {};
+
+  void _selectTab(int index) {
+    setState(() => _selectedTab = index);
+    unawaited(_acknowledge(index));
+  }
+
+  Future<void> _acknowledge(int index) async {
+    final repository = context.read<NotificationRepository>();
+    for (final id in List<String>.of(_unreadIds[index] ?? [])) {
+      try {
+        await repository.markAsRead(id);
+        _acknowledged.add(id);
+      } catch (error) {
+        debugPrint('Could not acknowledge course activity: $error');
+      }
+    }
+    if (mounted) await _refreshBadges();
+  }
+
+  Future<void> _refreshBadges() async {
+    if (_loadingBadges || !mounted) return;
+    final auth = context.read<AuthBloc>().state;
+    if (auth is! AuthAuthenticated) return;
+    _loadingBadges = true;
+    final notifications = context.read<NotificationRepository>();
+    final attendance = context.read<AttendanceRepository>();
+    try {
+      final items = await notifications.getNotifications(auth.user.id);
+      final badges = <int>{};
+      _unreadIds.clear();
+      if (!mounted) return;
+      final loaded = context.read<CourseBloc>().state;
+      final owner =
+          loaded is CourseDetailLoaded &&
+          loaded.course.instructorId == auth.user.id;
+      for (final n in items) {
+        if (n.isRead ||
+            _acknowledged.contains(n.id) ||
+            n.courseId != widget.courseId) {
+          continue;
+        }
+        var tab = switch (n.type) {
+          NotificationType.newLesson ||
+          NotificationType.courseUpdate ||
+          NotificationType.announcement => 0,
+          NotificationType.newAssignment ||
+          NotificationType.assignmentDue ||
+          NotificationType.assignmentGraded ||
+          NotificationType.assignmentSubmitted ||
+          NotificationType.quizAvailable ||
+          NotificationType.quizSubmitted ||
+          NotificationType.quizGraded => 1,
+          NotificationType.discussionActivity ||
+          NotificationType.discussionReply ||
+          NotificationType.discussionMention => 2,
+          _ => -1,
+        };
+        if (owner &&
+            (n.type == NotificationType.assignmentSubmitted ||
+                n.type == NotificationType.quizSubmitted)) {
+          tab = 3;
+        }
+        if (tab >= 0) {
+          badges.add(tab);
+          (_unreadIds[tab] ??= []).add(n.id);
+        }
+      }
+      if (mounted) setState(() => _badges = Set.of(badges));
+      if (!mounted) return;
+      final course = context.read<CourseBloc>().state;
+      if (course is CourseDetailLoaded &&
+          course.enrollment != null &&
+          course.course.instructorId != auth.user.id) {
+        final now = await attendance.getServerTime();
+        final sessions = await attendance.getSessions(widget.courseId);
+        final records = await attendance.getCourseRecords(widget.courseId);
+        if (sessions.any(
+          (s) =>
+              s.isCheckInOpenAt(now) &&
+              !records.any(
+                (r) =>
+                    r.sessionId == s.id &&
+                    r.studentId == auth.user.id &&
+                    (r.checkInAt != null || r.status.name != 'absent'),
+              ),
+        )) {
+          badges.add(3);
+        }
+        if (mounted) setState(() => _badges = Set.of(badges));
+      }
+    } catch (error) {
+      debugPrint('Course badge refresh failed: $error');
+    } finally {
+      _loadingBadges = false;
+    }
+  }
+
+  Widget _badgeIcon(IconData icon, int tab) => Semantics(
+    label: _badges.contains(tab) ? 'New activity or action needed' : null,
+    child: Badge(isLabelVisible: _badges.contains(tab), child: Icon(icon)),
+  );
+
+  @override
+  void dispose() {
+    _badgeTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
     _loadCourse();
+    _badgeTimer ??= Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => unawaited(_refreshBadges()),
+    );
+    unawaited(_refreshBadges());
   }
 
   void _loadCourse() {
@@ -92,6 +212,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               ),
             );
             _loadCourse();
+            _badgeTimer ??= Timer.periodic(
+              const Duration(seconds: 15),
+              (_) => unawaited(_refreshBadges()),
+            );
+            unawaited(_refreshBadges());
           } else if (state is CourseError) {
             ScaffoldMessenger.of(context).showAppSnackBar(
               SnackBar(
@@ -117,7 +242,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                 enrollment: state.enrollment,
                 selectedTab: _selectedTab,
                 onTabSelected: (index) {
-                  setState(() => _selectedTab = index);
+                  _selectTab(index);
                 },
               ),
             );
@@ -140,32 +265,34 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           return NavigationBar(
             selectedIndex: _selectedTab,
             onDestinationSelected: (index) {
-              setState(() => _selectedTab = index);
+              _selectTab(index);
             },
             destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.menu_book_outlined),
-                selectedIcon: Icon(Icons.menu_book),
+              NavigationDestination(
+                icon: _badgeIcon(Icons.menu_book_outlined, 0),
+                selectedIcon: _badgeIcon(Icons.menu_book, 0),
                 label: 'Content',
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.assignment_outlined),
-                selectedIcon: Icon(Icons.assignment),
+              NavigationDestination(
+                icon: _badgeIcon(Icons.assignment_outlined, 1),
+                selectedIcon: _badgeIcon(Icons.assignment, 1),
                 label: 'Work',
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.forum_outlined),
-                selectedIcon: Icon(Icons.forum),
+              NavigationDestination(
+                icon: _badgeIcon(Icons.forum_outlined, 2),
+                selectedIcon: _badgeIcon(Icons.forum, 2),
                 label: 'Discussion',
               ),
               NavigationDestination(
-                icon: Icon(
+                icon: _badgeIcon(
                   isOwnCourse
                       ? Icons.table_chart_outlined
                       : Icons.fact_check_outlined,
+                  3,
                 ),
-                selectedIcon: Icon(
+                selectedIcon: _badgeIcon(
                   isOwnCourse ? Icons.table_chart : Icons.fact_check,
+                  3,
                 ),
                 label: isOwnCourse ? 'Records' : 'Attendance',
               ),

@@ -1,3 +1,6 @@
+import 'dart:async';
+import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/notifications/data/repositories/notification_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -34,8 +37,10 @@ class ClassroomCourseCard extends StatelessWidget {
     return StreamBuilder<CourseModel?>(
       stream: context.read<CourseRepository>().watchCourse(course.id),
       initialData: course,
-      builder: (context, snapshot) =>
-          _buildCard(context, snapshot.data ?? course),
+      builder: (context, snapshot) => _CourseActivityIndicator(
+        courseId: course.id,
+        child: _buildCard(context, snapshot.data ?? course),
+      ),
     );
   }
 
@@ -420,4 +425,79 @@ class _BannerLabel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The card remains navigable while notification data loads or is unavailable.
+class _CourseActivityIndicator extends StatefulWidget {
+  final String courseId;
+  final Widget child;
+  const _CourseActivityIndicator({required this.courseId, required this.child});
+  @override
+  State<_CourseActivityIndicator> createState() =>
+      _CourseActivityIndicatorState();
+}
+
+class _CourseActivityIndicatorState extends State<_CourseActivityIndicator> {
+  Timer? _timer;
+  bool _unread = false;
+  bool _loading = false;
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refresh());
+    _timer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_refresh()),
+    );
+  }
+
+  Future<void> _refresh() async {
+    if (_loading) return;
+    final auth = context.read<AuthBloc>().state;
+    if (auth is! AuthAuthenticated) return;
+    _loading = true;
+    try {
+      final items = await context
+          .read<NotificationRepository>()
+          .getNotifications(auth.user.id);
+      if (mounted) {
+        setState(
+          () => _unread = items.any(
+            (n) => n.courseId == widget.courseId && !n.isRead,
+          ),
+        );
+      }
+    } catch (_) {
+      // Keep the card usable; retry on the next refresh.
+    } finally {
+      _loading = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      widget.child,
+      if (_unread)
+        Positioned(
+          top: 8,
+          left: 8,
+          child: IgnorePointer(
+            child: Semantics(
+              label: 'Unread course activity',
+              child: const Tooltip(
+                message: 'Unread course activity',
+                child: Badge(),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
 }
