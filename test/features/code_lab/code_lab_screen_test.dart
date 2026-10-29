@@ -21,7 +21,15 @@ void main() {
       await tester.pumpWidget(
         RepositoryProvider<CodeExecutionRepository>.value(
           value: repository,
-          child: const MaterialApp(home: CodeLabScreen()),
+          child: MaterialApp(
+            theme: ThemeData.light().copyWith(
+              inputDecorationTheme: const InputDecorationTheme(
+                enabledBorder: OutlineInputBorder(),
+                focusedBorder: OutlineInputBorder(),
+              ),
+            ),
+            home: const CodeLabScreen(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -40,6 +48,35 @@ void main() {
         of: find.byType(CodeEditor),
         matching: find.byType(TextField),
       );
+      final field = tester.widget<TextField>(editor);
+      final contrast =
+          (field.style!.color!.computeLuminance() + 0.05) /
+          (AppColors.codeBackground.computeLuminance() + 0.05);
+      expect(contrast, greaterThanOrEqualTo(4.5));
+      expect(field.decoration!.enabledBorder, InputBorder.none);
+      expect(field.decoration!.focusedBorder, InputBorder.none);
+      if (width >= 980) {
+        expect(
+          tester.getTopLeft(find.byType(CodeEditor)).dy,
+          closeTo(
+            tester
+                .getTopLeft(find.byKey(const ValueKey('code-lab-add-input')))
+                .dy,
+            1,
+          ),
+        );
+        expect(
+          tester.getBottomLeft(find.byType(CodeEditor)).dy,
+          closeTo(
+            tester
+                .getBottomLeft(
+                  find.byKey(const ValueKey('code-lab-console-surface')),
+                )
+                .dy,
+            1,
+          ),
+        );
+      }
       const draft =
           'public class Main { public static void main(String[] args) { System.out.println("Java draft"); } }';
       await tester.enterText(editor, draft);

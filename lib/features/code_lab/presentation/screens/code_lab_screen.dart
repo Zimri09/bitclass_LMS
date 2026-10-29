@@ -146,13 +146,23 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
                     children: [
                       _buildIntro(colors),
                       const SizedBox(height: 20),
+                      _buildEditorHeader(colors),
                       if (horizontal)
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(flex: 3, child: _buildEditor(colors, 520)),
                             const SizedBox(width: 20),
-                            Expanded(flex: 2, child: _buildConsolePane(colors)),
+                            Expanded(
+                              flex: 2,
+                              child: SizedBox(
+                                height: 520,
+                                child: _buildConsolePane(
+                                  colors,
+                                  fillHeight: true,
+                                ),
+                              ),
+                            ),
                           ],
                         )
                       else ...[
@@ -258,7 +268,7 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
     );
   }
 
-  Widget _buildEditor(AppColorScheme colors, double height) {
+  Widget _buildEditorHeader(AppColorScheme colors) {
     final sourceBytes = utf8.encode(_source).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,29 +304,32 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
               ),
             ),
           ),
-        CodeEditor(
-          key: ValueKey('code-lab-editor-${_language.name}-$_editorRevision'),
-          initialCode: _source,
-          language: switch (_language) {
-            CodeExecutionLanguage.python => ProgrammingLanguage.python,
-            CodeExecutionLanguage.c => ProgrammingLanguage.cpp,
-            CodeExecutionLanguage.java => ProgrammingLanguage.java,
-          },
-          syntax: switch (_language) {
-            CodeExecutionLanguage.python => CodeEditorSyntax.python,
-            CodeExecutionLanguage.c => CodeEditorSyntax.c,
-            CodeExecutionLanguage.java => CodeEditorSyntax.java,
-          },
-          languageLabel: _language.displayName,
-          height: height,
-          readOnly: _isRunning,
-          onChanged: (value) => setState(() => _sources[_language] = value),
-        ),
       ],
     );
   }
 
-  Widget _buildConsolePane(AppColorScheme colors) {
+  Widget _buildEditor(AppColorScheme colors, double height) {
+    return CodeEditor(
+      key: ValueKey('code-lab-editor-${_language.name}-$_editorRevision'),
+      initialCode: _source,
+      language: switch (_language) {
+        CodeExecutionLanguage.python => ProgrammingLanguage.python,
+        CodeExecutionLanguage.c => ProgrammingLanguage.cpp,
+        CodeExecutionLanguage.java => ProgrammingLanguage.java,
+      },
+      syntax: switch (_language) {
+        CodeExecutionLanguage.python => CodeEditorSyntax.python,
+        CodeExecutionLanguage.c => CodeEditorSyntax.c,
+        CodeExecutionLanguage.java => CodeEditorSyntax.java,
+      },
+      languageLabel: _language.displayName,
+      height: height,
+      readOnly: _isRunning,
+      onChanged: (value) => setState(() => _sources[_language] = value),
+    );
+  }
+
+  Widget _buildConsolePane(AppColorScheme colors, {bool fillHeight = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -344,7 +357,16 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        _buildOutput(colors),
+        if (fillHeight)
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: _buildOutput(colors, minHeight: constraints.maxHeight),
+              ),
+            ),
+          )
+        else
+          _buildOutput(colors),
       ],
     );
   }
@@ -418,7 +440,7 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
     );
   }
 
-  Widget _buildOutput(AppColorScheme colors) {
+  Widget _buildOutput(AppColorScheme colors, {double minHeight = 190}) {
     final result = _result;
     final hasError = _error != null || (result != null && !result.succeeded);
     final showSubmittedInput =
@@ -444,7 +466,8 @@ class _CodeLabScreenState extends State<CodeLabScreen> {
     };
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 190),
+      key: const ValueKey('code-lab-console-surface'),
+      constraints: BoxConstraints(minHeight: minHeight),
       decoration: BoxDecoration(
         color: AppColors.codeBackground,
         borderRadius: BorderRadius.circular(14),

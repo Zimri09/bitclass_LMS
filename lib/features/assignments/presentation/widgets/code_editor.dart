@@ -509,6 +509,11 @@ class _CodeEditorState extends State<CodeEditor> {
           fillColor: AppColors.codeBackground,
           contentPadding: const EdgeInsets.all(12),
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
           hintText: widget.readOnly ? null : 'Start coding here...',
           hintStyle: GoogleFonts.firaCode(
             fontSize: 13,
@@ -544,7 +549,8 @@ class _CodeEditorState extends State<CodeEditor> {
 
   Color _getLanguageTextColor(ProgrammingLanguage language) {
     if (_effectiveSyntax == CodeEditorSyntax.python ||
-        _effectiveSyntax == CodeEditorSyntax.c) {
+        _effectiveSyntax == CodeEditorSyntax.c ||
+        _effectiveSyntax == CodeEditorSyntax.java) {
       return const Color(0xFFD4D4D4);
     }
     switch (language) {
